@@ -1,0 +1,53 @@
+# Reference codebase (read-only, has its own git history)
+FastCRM/espocrm/
+
+# Claude Code directory
+.claude/
+
+# Database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Log files
+*.log
+
+# Go
+FastCRM/fastcrm/backend/tmp/
+FastCRM/fastcrm/backend/bin/
+FastCRM/fastcrm/backend/fastcrm
+FastCRM/fastcrm/backend/api
+**/tmp/
+
+# PID files
+*.pid
+.backend.pid
+.frontend.pid
+
+# Backups
+*.backup
+
+# Node.js / SvelteKit
+**/node_modules/
+**/.svelte-kit/
+**/build/
+**/dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Progress file (session-specific)
+FastCRM/progress.txt
