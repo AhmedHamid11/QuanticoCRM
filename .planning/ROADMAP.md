@@ -30,11 +30,16 @@ Plans:
 **Goal:** Record what changed between platform versions.
 
 - Changelog entries for each version bump
-- Structured change records (entity added, field added, layout modified, etc.)
+- Structured change records (category + description)
 - Human-readable change notes for each update
 - API to query changes between any two versions
 
 **Delivers:** Changelog system with queryable change history
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 02-01-PLAN.md — Changelog package and API endpoints
 
 ---
 
@@ -78,8 +83,8 @@ Plans:
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1. Platform Versioning | ✓ Complete | 2 plans executed, verified |
-| 2. Change Tracking | Not started | |
+| 1. Platform Versioning | Complete | 2 plans executed, verified |
+| 2. Change Tracking | Planned | 1 plan ready |
 | 3. Changelog UI | Not started | |
 | 4. Update Propagation | Not started | |
 | 5. New Org Provisioning | Not started | |
