@@ -18,6 +18,12 @@
 
 **Delivers:** Version tracking infrastructure
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Database schema and version comparison service
+- [ ] 01-02-PLAN.md — Version API endpoints
+
 ---
 
 ### Phase 2: Change Tracking
@@ -72,7 +78,7 @@
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1. Platform Versioning | Not started | |
+| 1. Platform Versioning | Planned | 2 plans in 2 waves |
 | 2. Change Tracking | Not started | |
 | 3. Changelog UI | Not started | |
 | 4. Update Propagation | Not started | |
