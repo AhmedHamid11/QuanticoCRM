@@ -90,10 +90,11 @@ Plans:
 
 **Delivers:** Version-aware org provisioning
 
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Wire VersionRepo into AuthService for version-aware org creation
+- [x] 05-01-PLAN.md — Wire VersionRepo into AuthService for version-aware org creation
+- [ ] 05-02-PLAN.md — Fix Register() to include version lookup (gap closure)
 
 ---
 
@@ -105,7 +106,7 @@ Plans:
 | 2. Change Tracking | Complete | 1 plan executed, verified |
 | 3. Changelog UI | Complete | 1 plan executed, verified |
 | 4. Update Propagation | Complete | 3 plans executed, verified |
-| 5. New Org Provisioning | Planned | 1 plan ready |
+| 5. New Org Provisioning | In Progress | 1/2 plans executed, gap closure needed |
 
 ---
 
