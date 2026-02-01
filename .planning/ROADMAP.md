@@ -63,12 +63,20 @@ Plans:
 ### Phase 4: Update Propagation
 **Goal:** Automatically update all org databases after deploy.
 
-- Background job runs after deploy
-- Apply schema changes additively to all orgs
-- Transaction-safe update process
-- Retry failed orgs, alert on persistent failures
+- Blocking migration on startup before accepting requests
+- Sequential processing of orgs with skip-and-continue on failures
+- Transaction-safe update process per org
+- Admin visibility into migration status on changelog page
+- Manual retry for failed orgs from admin panel
 
-**Delivers:** Automatic org update mechanism
+**Delivers:** Automatic org update mechanism with admin visibility
+
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Migration tracking schema, entity, and repository
+- [ ] 04-02-PLAN.md — MigrationPropagator service and startup integration
+- [ ] 04-03-PLAN.md — API endpoints and changelog page migration status UI
 
 ---
 
@@ -91,7 +99,7 @@ Plans:
 | 1. Platform Versioning | Complete | 2 plans executed, verified |
 | 2. Change Tracking | Complete | 1 plan executed, verified |
 | 3. Changelog UI | Complete | 1 plan executed, verified |
-| 4. Update Propagation | Not started | |
+| 4. Update Propagation | Planned | 3 plans in 3 waves |
 | 5. New Org Provisioning | Not started | |
 
 ---
