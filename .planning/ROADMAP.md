@@ -53,6 +53,11 @@ Plans:
 
 **Delivers:** Changelog page in admin panel
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 03-01-PLAN.md — Changelog page and admin link
+
 ---
 
 ### Phase 4: Update Propagation
@@ -85,7 +90,7 @@ Plans:
 |-------|--------|-------|
 | 1. Platform Versioning | Complete | 2 plans executed, verified |
 | 2. Change Tracking | Complete | 1 plan executed, verified |
-| 3. Changelog UI | Not started | |
+| 3. Changelog UI | Planned | 1 plan ready for execution |
 | 4. Update Propagation | Not started | |
 | 5. New Org Provisioning | Not started | |
 
