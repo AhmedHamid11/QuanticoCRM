@@ -90,6 +90,11 @@ Plans:
 
 **Delivers:** Version-aware org provisioning
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md — Wire VersionRepo into AuthService for version-aware org creation
+
 ---
 
 ## Status
@@ -100,7 +105,7 @@ Plans:
 | 2. Change Tracking | Complete | 1 plan executed, verified |
 | 3. Changelog UI | Complete | 1 plan executed, verified |
 | 4. Update Propagation | Complete | 3 plans executed, verified |
-| 5. New Org Provisioning | Not started | |
+| 5. New Org Provisioning | Planned | 1 plan ready |
 
 ---
 
