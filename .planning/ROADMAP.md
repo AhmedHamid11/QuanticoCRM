@@ -56,7 +56,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 03-01-PLAN.md — Changelog page and admin link
+- [x] 03-01-PLAN.md — Changelog page and admin link
 
 ---
 
@@ -90,7 +90,7 @@ Plans:
 |-------|--------|-------|
 | 1. Platform Versioning | Complete | 2 plans executed, verified |
 | 2. Change Tracking | Complete | 1 plan executed, verified |
-| 3. Changelog UI | Planned | 1 plan ready for execution |
+| 3. Changelog UI | Complete | 1 plan executed, verified |
 | 4. Update Propagation | Not started | |
 | 5. New Org Provisioning | Not started | |
 
