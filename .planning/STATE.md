@@ -3,20 +3,22 @@
 ## Current Focus
 
 **Milestone:** 1 - Platform Update System
-**Phase:** 4 - Update Propagation
-**Status:** Phase Complete - Verified ✓
-**Last activity:** 2026-02-01 - Phase 4 verified (17/17 must-haves)
+**Phase:** 5 - New Org Provisioning
+**Status:** Phase Complete - Verified
+**Last activity:** 2026-02-01 - Completed 05-01-PLAN.md (Version integration with org creation)
 
-**Progress:** █████████░ 80% (4/5 phases)
+**Progress:** ██████████ 100% (5/5 phases)
 
 ## Quick Status
 
 - **Roadmap:** Created
-- **Current Phase:** 4 (complete - 3/3 plans)
+- **Current Phase:** 5 (complete - 1/1 plans)
 - **Blockers:** None
+- **Milestone:** COMPLETE
 
 ## Recent Activity
 
+- 2026-02-01: Completed 05-01-PLAN.md (Version integration with org creation)
 - 2026-02-01: Phase 4 verified (17/17 must-haves passed)
 - 2026-02-01: Completed 04-03-PLAN.md (Admin propagation UI)
 - 2026-02-01: Completed 04-02-PLAN.md (Migration propagation service)
@@ -31,13 +33,11 @@
 - 2026-01-31: Planned Phase 1 with 2 plans
 - 2026-01-31: Created roadmap for Platform Update System milestone
 
-## Phase 4 Plans
+## Phase 5 Plans
 
 | Plan | Wave | Status | Objective |
 |------|------|--------|-----------|
-| 04-01 | 1 | Complete | Migration tracking infrastructure |
-| 04-02 | 1 | Complete | Propagation service |
-| 04-03 | 1 | Complete | Admin propagation UI |
+| 05-01 | 1 | Complete | Version integration with org creation |
 
 ## Accumulated Decisions
 
@@ -64,11 +64,13 @@
 | Migration status accessible to all users | 04-03 | All users benefit from platform health visibility | Status endpoint in protected routes, not admin-only |
 | Retry operations admin-only | 04-03 | Only admins should trigger migrations | Retry endpoints use adminProtected group |
 | Sequential retry-all processing | 04-03 | Easier debugging and clearer logs | Large batch retries process one at a time |
+| Default fallback v0.1.0 when version lookup fails | 05-01 | Org creation never blocked by version lookup issues | Graceful degradation on metadata lookups |
+| Setter injection for VersionRepo | 05-01 | Follows SetTenantProvisioning pattern, avoids constructor changes | Consistent dependency injection pattern |
 
 ## Session Continuity
 
-**Last session:** 2026-02-01 14:36
-**Stopped at:** Completed 04-03-PLAN.md (Admin propagation UI)
+**Last session:** 2026-02-01 17:33
+**Stopped at:** Completed 05-01-PLAN.md (Version integration with org creation)
 **Resume file:** None
 
 ---
