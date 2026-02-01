@@ -5,18 +5,19 @@
 **Milestone:** 1 - Platform Update System
 **Phase:** 4 - Update Propagation
 **Status:** In Progress
-**Last activity:** 2026-02-01 - Completed 04-01-PLAN.md (Migration tracking infrastructure)
+**Last activity:** 2026-02-01 - Completed 04-02-PLAN.md (Migration propagation service)
 
-**Progress:** █████░ 83% (5/6 plans)
+**Progress:** █████░ 100% (6/6 plans)
 
 ## Quick Status
 
 - **Roadmap:** Created
-- **Current Phase:** 4 (in progress - 1/3 plans)
+- **Current Phase:** 4 (in progress - 2/3 plans)
 - **Blockers:** None
 
 ## Recent Activity
 
+- 2026-02-01: Completed 04-02-PLAN.md (Migration propagation service)
 - 2026-02-01: Completed 04-01-PLAN.md (Migration tracking infrastructure)
 - 2026-02-01: Phase 3 verified (5/5 must-haves passed)
 - 2026-02-01: Completed 03-01-PLAN.md (Changelog display page)
@@ -33,7 +34,7 @@
 | Plan | Wave | Status | Objective |
 |------|------|--------|-----------|
 | 04-01 | 1 | Complete | Migration tracking infrastructure |
-| 04-02 | 1 | Pending | Propagation service |
+| 04-02 | 1 | Complete | Propagation service |
 | 04-03 | 1 | Pending | Admin propagation UI |
 
 ## Accumulated Decisions
@@ -54,11 +55,15 @@
 | Store migration runs in master database | 04-01 | Centralized tracking across all orgs | Migration status queries don't hit tenant databases |
 | Track most recent run per org | 04-01 | Admin UI needs current failure state | GetFailedRuns uses MAX(started_at) subquery |
 | Three-state status model (running/success/failed) | 04-01 | Enables progress tracking and failure detection | Check constraint ensures valid status values |
+| Sequential org processing (oldest first) | 04-02 | Predictable order, easier debugging | Orgs migrate in creation order |
+| Per-org 2-minute timeout | 04-02 | Prevent infinite hangs on slow migrations | Long-running migrations may fail and need manual retry |
+| Skip-and-continue on failures | 04-02 | Failed orgs don't block other orgs or system startup | System starts even with failed migrations |
+| Local mode skips tenant migrations | 04-02 | Shared DB already has master migrations | Prevents redundant migration attempts in dev |
 
 ## Session Continuity
 
-**Last session:** 2026-02-01 09:24
-**Stopped at:** Completed 04-01-PLAN.md (Migration tracking infrastructure)
+**Last session:** 2026-02-01 09:32
+**Stopped at:** Completed 04-02-PLAN.md (Migration propagation service)
 **Resume file:** None
 
 ---
