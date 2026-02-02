@@ -50,12 +50,16 @@ completed: 2026-02-02
 - Fixed silent schema sync failures that caused text fields not to persist
 - Schema sync errors now properly return HTTP 500 to API clients
 - Applied fix to all entity mutation handlers (Create, Update, Upsert)
+- **Added EnsureTableExists call before SyncFieldColumns in Create/Update handlers**
+  - This creates the table automatically if it doesn't exist (retroactive fix)
+  - Taxrise and any other org with missing tables will auto-heal on first save
 
 ## Task Commits
 
 Each task was committed atomically:
 
 1. **Task 1-3: Fix SyncFieldColumns error handling** - `09fc2a3` (fix)
+2. **Task 4: Add EnsureTableExists to Create/Update** - `b5e4952` (fix, retroactive)
 
 ## Files Created/Modified
 - `FastCRM/fastcrm/backend/internal/handler/generic_entity.go` - Changed SyncFieldColumns error handling from WARNING log to ERROR + HTTP 500 response in Create, Update, and Upsert handlers
@@ -86,11 +90,22 @@ None - fix was straightforward error handling change.
 
 ## Root Cause Analysis
 
-The bug occurred because:
+The bug occurred because of two issues:
 
-1. **Previous behavior:** When `SyncFieldColumns` failed (e.g., table missing, database error), the code logged a WARNING and continued execution
-2. **Result:** INSERT/UPDATE would attempt to write to missing columns, causing SQL errors or silent data loss
-3. **Fix:** Changed error handling to return HTTP 500 immediately when schema sync fails
+**Issue 1: CreateEntity doesn't create the data table**
+- When admin creates a custom entity, only metadata is stored (`entity_defs`, `field_defs`)
+- The actual data table is NOT created at entity creation time
+- On first record save, `SyncFieldColumns` fails because "table does not exist"
+
+**Issue 2: SyncFieldColumns failures were silently ignored**
+- When `SyncFieldColumns` failed, the code logged a WARNING and continued
+- INSERT/UPDATE would attempt to write to a non-existent table, causing silent data loss
+
+**Two-part fix:**
+1. **Call EnsureTableExists before SyncFieldColumns** in Create/Update handlers
+   - Creates the table automatically if missing (retroactive fix for all orgs)
+2. **Block execution when SyncFieldColumns fails**
+   - Return HTTP 500 instead of continuing with broken schema
 
 **Code before:**
 ```go
