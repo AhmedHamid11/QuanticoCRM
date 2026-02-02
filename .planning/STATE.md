@@ -6,7 +6,7 @@
 **Phase:** All phases complete (5/5)
 **Status:** Ready for next milestone
 
-**Last activity:** 2026-02-01 — v1.0 milestone shipped
+**Last activity:** 2026-02-01 — Completed quick task 001: exit impersonation on own org select
 
 ## Project Reference
 
@@ -23,6 +23,12 @@ Run `/gsd:new-milestone` to:
 3. Create requirements
 4. Build roadmap with phases
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 001 | Exit impersonation on own org select | 2026-02-01 | 64dbcd9 | [001-exit-impersonation-on-own-org-select](./quick/001-exit-impersonation-on-own-org-select/) |
+
 ---
 
-*Updated: 2026-02-01 after v1.0 milestone completion*
+*Updated: 2026-02-01 after quick task 001*
