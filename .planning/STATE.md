@@ -6,7 +6,7 @@
 **Phase:** All phases complete (5/5)
 **Status:** Ready for next milestone
 
-**Last activity:** 2026-02-01 — Completed quick task 001: exit impersonation on own org select
+**Last activity:** 2026-02-02 — Completed quick task 002: configurable homepage per org
 
 ## Project Reference
 
@@ -28,7 +28,8 @@ Run `/gsd:new-milestone` to:
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 001 | Exit impersonation on own org select | 2026-02-01 | 64dbcd9 | [001-exit-impersonation-on-own-org-select](./quick/001-exit-impersonation-on-own-org-select/) |
+| 002 | Configurable homepage per org | 2026-02-02 | 4b135e2 | [002-configurable-homepage](./quick/002-configurable-homepage/) |
 
 ---
 
-*Updated: 2026-02-01 after quick task 001*
+*Updated: 2026-02-02 after quick task 002*
