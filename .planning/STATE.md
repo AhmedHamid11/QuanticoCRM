@@ -6,7 +6,7 @@
 **Phase:** All phases complete (5/5)
 **Status:** Ready for next milestone
 
-**Last activity:** 2026-02-02 — Completed quick task 007: soft delete custom entities
+**Last activity:** 2026-02-03 — Completed quick task 008: add created/modified by user tracking
 
 ## Project Reference
 
@@ -34,7 +34,8 @@ Run `/gsd:new-milestone` to:
 | 005 | Edit in list for related records | 2026-02-02 | 8158119 | [005-edit-in-list-for-related-records](./quick/005-edit-in-list-for-related-records/) |
 | 006 | Add edit object icon to custom entities | 2026-02-02 | 0779eed | [006-add-edit-object-icon-to-custom-entities](./quick/006-add-edit-object-icon-to-custom-entities/) |
 | 007 | Soft delete custom entities | 2026-02-02 | 9f43d06 | [007-soft-delete-custom-entities](./quick/007-soft-delete-custom-entities/) |
+| 008 | Add created/modified by user tracking | 2026-02-03 | 82b4912 | [008-add-created-modified-by-user-tracking](./quick/008-add-created-modified-by-user-tracking/) |
 
 ---
 
-*Updated: 2026-02-02 after quick task 007*
+*Updated: 2026-02-03 after quick task 008*
