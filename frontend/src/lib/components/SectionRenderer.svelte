@@ -3,6 +3,8 @@
 	import type { LayoutSectionV2 } from '$lib/types/layout';
 	import { evaluateVisibility } from '$lib/types/layout';
 	import { fieldNameToKey, getRecordValue } from '$lib/utils/fieldMapping';
+	import { put, get } from '$lib/utils/api';
+	import StreamField from './StreamField.svelte';
 
 	interface Props {
 		section: LayoutSectionV2;
@@ -10,9 +12,12 @@
 		record: Record<string, unknown>;
 		formatValue: (fieldName: string, value: unknown) => string;
 		renderLink?: (fieldName: string, value: unknown) => { href: string; text: string } | null;
+		entityName?: string;
+		recordId?: string;
+		onRecordUpdate?: (updatedRecord: Record<string, unknown>) => void;
 	}
 
-	let { section, fields, record, formatValue, renderLink }: Props = $props();
+	let { section, fields, record, formatValue, renderLink, entityName, recordId, onRecordUpdate }: Props = $props();
 
 	// Track collapsed state (starts with section default)
 	let isCollapsed = $state(section.collapsed);
@@ -80,13 +85,32 @@
 		}
 	}
 
-	// Parse a stream log entry into timestamp and content
-	function parseStreamEntry(entry: string): { timestamp: string | null; content: string } {
-		const match = entry.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) - (.*)$/s);
-		if (match) {
-			return { timestamp: match[1], content: match[2] };
-		}
-		return { timestamp: null, content: entry };
+	// Create a handler for inline stream entry submission
+	function createStreamSubmitHandler(fieldName: string): ((entry: string) => Promise<void>) | undefined {
+		if (!entityName || !recordId) return undefined;
+
+		return async (entry: string) => {
+			// Send just the stream entry field to the API
+			// The backend will append it to the log and clear the entry
+			const updateData: Record<string, unknown> = {
+				[fieldName]: entry
+			};
+
+			await put<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`,
+				updateData
+			);
+
+			// Fetch the full record to get all fields (PUT only returns changed fields)
+			const fullRecord = await get<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`
+			);
+
+			// Notify parent of the update so it can refresh the record state
+			if (onRecordUpdate) {
+				onRecordUpdate(fullRecord);
+			}
+		};
 	}
 </script>
 
@@ -150,33 +174,17 @@
 									</div>
 								</div>
 							{:else if field.type === 'stream'}
-								<!-- Stream field - display log entries -->
+								<!-- Stream field - with inline entry support -->
 								{@const logValue = getFieldValue(fieldLayout.name + 'Log')}
 								{@const logStr = logValue ? String(logValue) : ''}
-								{@const logEntries = logStr ? logStr.split('\n').filter((l: string) => l.trim()) : []}
 								<div class="col-span-full">
-									<dt class="text-sm font-medium text-gray-500 mb-2">{field.label}</dt>
-									<dd>
-										{#if logEntries.length > 0}
-											<div class="border border-gray-200 rounded-lg overflow-hidden">
-												<div class="max-h-64 overflow-y-auto">
-													{#each logEntries as logEntry, i}
-														{@const parsed = parseStreamEntry(logEntry)}
-														<div class="px-3 py-2 text-sm {i > 0 ? 'border-t border-gray-100' : ''}">
-															{#if parsed.timestamp}
-																<span class="text-gray-400 text-xs">{parsed.timestamp}</span>
-																<p class="text-gray-900 mt-0.5 whitespace-pre-wrap">{parsed.content}</p>
-															{:else}
-																<p class="text-gray-900 whitespace-pre-wrap">{parsed.content}</p>
-															{/if}
-														</div>
-													{/each}
-												</div>
-											</div>
-										{:else}
-											<p class="text-sm text-gray-500 italic">No entries yet</p>
-										{/if}
-									</dd>
+									<StreamField
+										label={field.label}
+										entry=""
+										log={logStr}
+										readonly={true}
+										onsubmit={createStreamSubmitHandler(field.name)}
+									/>
 								</div>
 							{:else}
 								<!-- Regular field -->
