@@ -193,7 +193,7 @@
 
 {#if loading}
 	<div class="flex items-center justify-center py-12">
-		<svg class="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+		<svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 			<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 			<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 		</svg>
@@ -224,7 +224,7 @@
 				<button
 					onclick={savePage}
 					disabled={saving}
-					class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90 disabled:opacity-50"
+					class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90 disabled:opacity-50"
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
@@ -244,7 +244,7 @@
 								type="text"
 								id="title"
 								bind:value={customPage.title}
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 							/>
 						</div>
 
@@ -258,7 +258,7 @@
 									type="text"
 									id="slug"
 									bind:value={customPage.slug}
-									class="flex-1 block w-full rounded-none rounded-r-md border-gray-300 focus:border-primary focus:ring-primary sm:text-sm font-mono"
+									class="flex-1 block w-full rounded-none rounded-r-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono"
 								/>
 							</div>
 						</div>
@@ -269,17 +269,17 @@
 								id="description"
 								bind:value={customPage.description}
 								rows="2"
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 							></textarea>
 						</div>
 
 						<div class="flex items-center gap-6">
 							<label class="flex items-center">
-								<input type="checkbox" bind:checked={customPage.isEnabled} class="rounded border-gray-300 text-primary focus:ring-primary" />
+								<input type="checkbox" bind:checked={customPage.isEnabled} class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
 								<span class="ml-2 text-sm text-gray-700">Enabled</span>
 							</label>
 							<label class="flex items-center">
-								<input type="checkbox" bind:checked={customPage.isPublic} class="rounded border-gray-300 text-primary focus:ring-primary" />
+								<input type="checkbox" bind:checked={customPage.isPublic} class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
 								<span class="ml-2 text-sm text-gray-700">Public</span>
 							</label>
 						</div>
@@ -293,7 +293,7 @@
 					<h2 class="text-lg font-medium text-gray-900">Components</h2>
 					<button
 						onclick={openAddComponent}
-						class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-primary bg-blue-100 hover:bg-blue-200"
+						class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
 					>
 						<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -311,7 +311,7 @@
 						<p class="mt-1 text-sm text-gray-500">Add iframes, text, or other components to this page.</p>
 						<button
 							onclick={openAddComponent}
-							class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+							class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 						>
 							Add First Component
 						</button>
@@ -355,7 +355,7 @@
 									<div class="flex items-center gap-2">
 										<button
 											onclick={() => openEditComponent(index)}
-											class="text-primary hover:text-blue-800 text-sm"
+											class="text-blue-600 hover:text-blue-800 text-sm"
 										>
 											Edit
 										</button>
@@ -400,7 +400,7 @@
 							<button
 								type="button"
 								onclick={() => handleTypeChange(type.value)}
-								class="p-3 rounded-lg border text-center transition-colors {componentForm.type === type.value ? 'border-primary bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}"
+								class="p-3 rounded-lg border text-center transition-colors {componentForm.type === type.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'}"
 							>
 								<span class="text-sm font-medium">{type.label}</span>
 							</button>
@@ -416,7 +416,7 @@
 							type="text"
 							id="comp-title"
 							bind:value={componentForm.title}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 							placeholder="Component title"
 						/>
 					</div>
@@ -425,7 +425,7 @@
 						<select
 							id="comp-width"
 							bind:value={componentForm.width}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 						>
 							{#each COMPONENT_WIDTHS as width}
 								<option value={width.value}>{width.label}</option>
@@ -444,7 +444,7 @@
 								type="url"
 								id="iframe-url"
 								bind:value={config.url}
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								placeholder="https://example.com"
 							/>
 						</div>
@@ -454,7 +454,7 @@
 								type="number"
 								id="iframe-height"
 								bind:value={config.height}
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								placeholder="400"
 							/>
 						</div>
@@ -471,7 +471,7 @@
 								id="text-content"
 								bind:value={config.content}
 								rows="8"
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm font-mono"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono"
 								placeholder={componentForm.type === 'markdown' ? '# Heading\n\nSome **bold** text...' : 'Enter your text content here...'}
 							></textarea>
 						</div>
@@ -486,7 +486,7 @@
 								id="html-content"
 								bind:value={config.content}
 								rows="8"
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm font-mono"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono"
 								placeholder="<div>Your HTML here...</div>"
 							></textarea>
 							<p class="mt-1 text-xs text-amber-600">Scripts and styles will be stripped for security.</p>
@@ -502,7 +502,7 @@
 								<select
 									id="entity"
 									bind:value={config.entity}
-									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 								>
 									<option value="contacts">Contacts</option>
 									<option value="accounts">Accounts</option>
@@ -515,7 +515,7 @@
 									type="number"
 									id="pageSize"
 									bind:value={config.pageSize}
-									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+									class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									min="1"
 									max="50"
 								/>
@@ -531,7 +531,7 @@
 							<button
 								type="button"
 								onclick={addLink}
-								class="text-sm text-primary hover:text-blue-800"
+								class="text-sm text-blue-600 hover:text-blue-800"
 							>
 								+ Add Link
 							</button>
@@ -543,19 +543,19 @@
 										type="text"
 										bind:value={link.label}
 										placeholder="Label"
-										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									/>
 									<input
 										type="text"
 										bind:value={link.href}
 										placeholder="URL or path"
-										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									/>
 									<input
 										type="text"
 										bind:value={link.description}
 										placeholder="Description (optional)"
-										class="col-span-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="col-span-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									/>
 								</div>
 								<button
@@ -579,7 +579,7 @@
 							<button
 								type="button"
 								onclick={addStat}
-								class="text-sm text-primary hover:text-blue-800"
+								class="text-sm text-blue-600 hover:text-blue-800"
 							>
 								+ Add Stat
 							</button>
@@ -591,17 +591,17 @@
 										type="text"
 										bind:value={stat.label}
 										placeholder="Label"
-										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									/>
 									<input
 										type="text"
 										bind:value={stat.value}
 										placeholder="Value"
-										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									/>
 									<select
 										bind:value={stat.color}
-										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									>
 										<option value="blue">Blue</option>
 										<option value="green">Green</option>
@@ -613,7 +613,7 @@
 										type="text"
 										bind:value={stat.icon}
 										placeholder="Icon (e.g., chart, users)"
-										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+										class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 									/>
 								</div>
 								<button
@@ -642,7 +642,7 @@
 				<button
 					type="button"
 					onclick={saveComponent}
-					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary/90"
+					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-600/90"
 				>
 					{editingComponentIndex !== null ? 'Update Component' : 'Add Component'}
 				</button>

@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS pdf_templates (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    entity_type TEXT NOT NULL DEFAULT 'Quote',
+    is_default INTEGER DEFAULT 0,
+    is_system INTEGER DEFAULT 0,
+    base_design TEXT NOT NULL DEFAULT 'professional',
+    branding TEXT NOT NULL DEFAULT '{}',
+    sections TEXT NOT NULL DEFAULT '[]',
+    page_size TEXT DEFAULT 'A4',
+    orientation TEXT DEFAULT 'portrait',
+    margins TEXT DEFAULT '10mm,10mm,10mm,10mm',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    modified_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pdf_templates_org ON pdf_templates(org_id);
+CREATE INDEX IF NOT EXISTS idx_pdf_templates_entity ON pdf_templates(org_id, entity_type);
+CREATE INDEX IF NOT EXISTS idx_pdf_templates_default ON pdf_templates(org_id, entity_type, is_default);

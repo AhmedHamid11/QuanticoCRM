@@ -11,7 +11,7 @@
 				class="rounded-lg px-4 py-3 shadow-lg transition-all duration-300"
 				class:bg-green-500={toast.type === 'success'}
 				class:bg-red-500={toast.type === 'error'}
-				class:bg-primary={toast.type === 'info'}
+				class:bg-blue-600={toast.type === 'info'}
 			>
 				<p class="text-white text-sm font-medium">{toast.message}</p>
 			</div>

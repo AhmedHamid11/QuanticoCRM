@@ -135,7 +135,7 @@
 				type="text"
 				value={step.name}
 				onchange={(e) => updateStep('name', e.currentTarget.value)}
-				class="text-lg font-medium text-gray-900 border-0 border-b border-transparent hover:border-gray-300 focus:border-primary focus:ring-0 p-0 w-full bg-transparent"
+				class="text-lg font-medium text-gray-900 border-0 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:ring-0 p-0 w-full bg-transparent"
 				placeholder="Step name"
 			/>
 			<span class="text-xs text-gray-400 mt-1 block">ID: {step.id}</span>
@@ -190,7 +190,7 @@
 		<div class="space-y-3">
 			<div class="flex justify-between items-center">
 				<label class="text-sm font-medium text-gray-700">Fields</label>
-				<button type="button" onclick={addField} class="text-sm text-primary hover:text-blue-800">
+				<button type="button" onclick={addField} class="text-sm text-blue-600 hover:text-blue-800">
 					+ Add Field
 				</button>
 			</div>
@@ -271,7 +271,7 @@
 						<div class="mt-2 pl-4 border-l-2 border-gray-200">
 							<div class="flex justify-between items-center mb-1">
 								<span class="text-xs font-medium text-gray-500">Options</span>
-								<button type="button" onclick={() => addFieldOption(index)} class="text-xs text-primary">+ Add</button>
+								<button type="button" onclick={() => addFieldOption(index)} class="text-xs text-blue-600">+ Add</button>
 							</div>
 							{#each field.options || [] as opt, optIndex}
 								<div class="flex gap-2 mb-1">
@@ -336,7 +336,7 @@
 		<div class="space-y-3">
 			<div class="flex justify-between items-center">
 				<label class="text-sm font-medium text-gray-700">Outcomes</label>
-				<button type="button" onclick={addOutcome} class="text-sm text-primary hover:text-blue-800">
+				<button type="button" onclick={addOutcome} class="text-sm text-blue-600 hover:text-blue-800">
 					+ Add Outcome
 				</button>
 			</div>
@@ -399,7 +399,7 @@
 		<div class="space-y-3">
 			<div class="flex justify-between items-center">
 				<label class="text-sm font-medium text-gray-700">Assignments</label>
-				<button type="button" onclick={addAssignment} class="text-sm text-primary hover:text-blue-800">
+				<button type="button" onclick={addAssignment} class="text-sm text-blue-600 hover:text-blue-800">
 					+ Add Assignment
 				</button>
 			</div>

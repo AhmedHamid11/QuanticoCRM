@@ -345,7 +345,7 @@
 		</h3>
 		<button
 			onclick={handleCreateNew}
-			class="px-3 py-1.5 text-sm bg-primary text-black rounded-md hover:bg-primary/90"
+			class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 		>
 			+ New
 		</button>
@@ -372,7 +372,7 @@
 								<div class="flex items-center gap-1">
 									{fieldConfig.label || fieldConfig.field}
 									{#if sortField === fieldConfig.field}
-										<span class="text-primary">
+										<span class="text-blue-600">
 											{sortDir === 'asc' ? '↑' : '↓'}
 										</span>
 									{/if}
@@ -413,7 +413,7 @@
 									{:else if fieldDef?.type === 'enum' && fieldDef.options}
 										<!-- Picklist/Enum field -->
 										<select
-											class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+											class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 											value={(newRecord[fieldConfig.field] as string) || ''}
 											onchange={(e) => updateNewRecordField(fieldConfig.field, (e.target as HTMLSelectElement).value)}
 											disabled={saving}
@@ -427,7 +427,7 @@
 										<!-- Boolean/Checkbox field -->
 										<input
 											type="checkbox"
-											class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300"
+											class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
 											checked={!!newRecord[fieldConfig.field]}
 											onchange={(e) => updateNewRecordField(fieldConfig.field, (e.target as HTMLInputElement).checked)}
 											disabled={saving}
@@ -436,7 +436,7 @@
 										<!-- Text area field (but keep compact for inline) -->
 										<input
 											type="text"
-											class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+											class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 											placeholder={fieldConfig.label || fieldConfig.field}
 											value={(newRecord[fieldConfig.field] as string) || ''}
 											oninput={(e) => updateNewRecordField(fieldConfig.field, (e.target as HTMLInputElement).value)}
@@ -446,7 +446,7 @@
 										<!-- Default: use appropriate input type -->
 										<input
 											type={fieldDef ? getInputType(fieldDef) : 'text'}
-											class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+											class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 											placeholder={fieldConfig.label || fieldConfig.field}
 											value={(newRecord[fieldConfig.field] as string) || ''}
 											oninput={(e) => updateNewRecordField(fieldConfig.field, (e.target as HTMLInputElement).value)}
@@ -514,7 +514,7 @@
 					{@const pageNum = i + 1}
 					<button
 						onclick={() => goToPage(pageNum)}
-						class="px-3 py-1 text-sm border rounded {currentPage === pageNum ? 'bg-primary text-black border-primary' : 'hover:bg-gray-50'}"
+						class="px-3 py-1 text-sm border rounded {currentPage === pageNum ? 'bg-blue-600 text-white border-blue-500' : 'hover:bg-gray-50'}"
 					>
 						{pageNum}
 					</button>

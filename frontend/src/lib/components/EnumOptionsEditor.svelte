@@ -71,7 +71,7 @@
 					type="text"
 					value={option}
 					oninput={(e) => updateOption(i, e.currentTarget.value)}
-					class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+					class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					placeholder="Option value"
 				/>
 				{#if options.length > 1}
@@ -89,7 +89,7 @@
 	<button
 		type="button"
 		onclick={addOption}
-		class="mt-2 text-sm text-primary hover:text-blue-800"
+		class="mt-2 text-sm text-blue-600 hover:text-blue-800"
 	>
 		+ Add Option
 	</button>

@@ -116,13 +116,13 @@
 					<label class="block text-sm font-medium text-gray-700 mb-3">Authentication Type</label>
 					<div class="space-y-2">
 						{#each AUTH_TYPES as at}
-							<label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 {authType === at.value ? 'border-primary bg-blue-50' : 'border-gray-200'}">
+							<label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 {authType === at.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}">
 								<input
 									type="radio"
 									name="authType"
 									value={at.value}
 									bind:group={authType}
-									class="mt-0.5 h-4 w-4 text-primary focus:ring-primary border-gray-300"
+									class="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
 								/>
 								<div>
 									<div class="font-medium text-gray-900">{at.label}</div>
@@ -141,7 +141,7 @@
 							type="password"
 							id="apiKey"
 							bind:value={apiKey}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							placeholder="Enter your API key"
 						/>
 						<p class="mt-1 text-xs text-gray-500">This will be sent as: X-API-Key: [your-key]</p>
@@ -156,7 +156,7 @@
 							type="password"
 							id="bearerToken"
 							bind:value={bearerToken}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							placeholder="Enter your bearer token"
 						/>
 						<p class="mt-1 text-xs text-gray-500">This will be sent as: Authorization: Bearer [your-token]</p>
@@ -172,7 +172,7 @@
 								type="text"
 								id="customHeaderName"
 								bind:value={customHeaderName}
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								placeholder="X-Custom-Auth"
 							/>
 						</div>
@@ -182,7 +182,7 @@
 								type="password"
 								id="customHeaderValue"
 								bind:value={customHeaderValue}
-								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+								class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								placeholder="Enter header value"
 							/>
 						</div>
@@ -204,7 +204,7 @@
 						min="1000"
 						max="30000"
 						step="100"
-						class="mt-1 block w-full md:w-48 rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+						class="mt-1 block w-full md:w-48 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 					/>
 					<p class="mt-1 text-xs text-gray-500">How long to wait for a response before timing out (1000-30000ms)</p>
 				</div>
@@ -233,7 +233,7 @@
 				<button
 					type="submit"
 					disabled={saving}
-					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{saving ? 'Saving...' : 'Save Settings'}
 				</button>

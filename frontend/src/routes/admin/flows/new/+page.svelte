@@ -218,7 +218,7 @@
 							type="text"
 							id="name"
 							bind:value={name}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							placeholder="e.g., Lead Qualification Flow"
 						/>
 					</div>
@@ -228,7 +228,7 @@
 						<select
 							id="triggerEntity"
 							bind:value={triggerEntity}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value="">Select an entity</option>
 							{#each entities as entity}
@@ -244,7 +244,7 @@
 						id="description"
 						bind:value={description}
 						rows={2}
-						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						placeholder="Optional description for this flow"
 					></textarea>
 				</div>
@@ -254,7 +254,7 @@
 						type="checkbox"
 						id="isActive"
 						bind:checked={isActive}
-						class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+						class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 					/>
 					<label for="isActive" class="text-sm text-gray-700">Active</label>
 				</div>
@@ -269,7 +269,7 @@
 						<label class="block text-sm font-medium text-gray-700 mb-1">Trigger Type</label>
 						<select
 							bind:value={triggerType}
-							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value="manual">Manual (Button)</option>
 							<option value="record_create">Record Create</option>
@@ -283,7 +283,7 @@
 							<input
 								type="text"
 								bind:value={buttonLabel}
-								class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+								class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 								placeholder="Run Flow"
 							/>
 						</div>
@@ -334,7 +334,7 @@
 					<button
 						type="button"
 						onclick={addVariable}
-						class="text-sm text-primary hover:text-blue-800"
+						class="text-sm text-blue-600 hover:text-blue-800"
 					>
 						+ Add Variable
 					</button>
@@ -489,7 +489,7 @@
 				<button
 					type="submit"
 					disabled={saving}
-					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{saving ? 'Creating...' : 'Create Flow'}
 				</button>

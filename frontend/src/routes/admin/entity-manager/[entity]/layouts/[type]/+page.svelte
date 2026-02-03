@@ -350,7 +350,7 @@
 					type="button"
 					onclick={saveLayout}
 					disabled={saving || (isListLayout ? false : !layout)}
-					class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50"
+					class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 				>
 					{saving ? 'Saving...' : 'Save Layout'}
 				</button>
@@ -388,7 +388,7 @@
 								ondragend={handleColumnDragEnd}
 								class="flex items-center justify-between px-3 py-2 bg-gray-50 rounded border border-gray-200 cursor-move transition-all
 									{draggedColumnIndex === index ? 'opacity-50' : ''}
-									{dragOverColumnIndex === index && draggedColumnIndex !== index ? 'border-t-2 border-primary' : ''}"
+									{dragOverColumnIndex === index && draggedColumnIndex !== index ? 'border-t-2 border-blue-500' : ''}"
 							>
 								<div class="flex items-center gap-2">
 									<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -430,7 +430,7 @@
 								<button
 									type="button"
 									onclick={() => addListColumn(field.name)}
-									class="text-primary hover:text-blue-800 text-sm font-medium"
+									class="text-blue-600 hover:text-blue-800 text-sm font-medium"
 								>
 									+ Add
 								</button>
@@ -461,7 +461,7 @@
 					<tbody class="bg-white divide-y divide-gray-200">
 						<tr>
 							{#each listColumns as columnName, i (columnName)}
-								<td class="px-4 py-3 text-sm {i === 0 ? 'text-primary font-medium' : 'text-gray-500'}">
+								<td class="px-4 py-3 text-sm {i === 0 ? 'text-blue-600 font-medium' : 'text-gray-500'}">
 									sample data
 								</td>
 							{/each}
@@ -495,7 +495,7 @@
 					class="transition-all duration-150 {draggedSectionIndex === index
 						? 'opacity-50'
 						: ''} {dragOverSectionIndex === index && draggedSectionIndex !== index
-						? 'border-t-4 border-primary pt-2'
+						? 'border-t-4 border-blue-500 pt-2'
 						: ''}"
 				>
 					<SectionEditor
@@ -540,7 +540,7 @@
 							<div class="px-4 py-3 bg-gray-100 border-b border-gray-200">
 								<h3 class="font-medium text-gray-900">{section.label}</h3>
 								{#if section.visibility.type === 'conditional'}
-									<span class="text-xs text-primary">(conditionally visible)</span>
+									<span class="text-xs text-blue-600">(conditionally visible)</span>
 								{/if}
 							</div>
 							<div
@@ -554,7 +554,7 @@
 										<dd class="col-span-2 text-sm text-gray-400 italic">
 											sample data
 											{#if field.visibility.type === 'conditional'}
-												<span class="text-primary">(conditional)</span>
+												<span class="text-blue-600">(conditional)</span>
 											{/if}
 										</dd>
 									</div>

@@ -139,14 +139,14 @@
 			<button
 				onclick={handleRefresh}
 				disabled={loading}
-				class="text-sm text-primary hover:text-blue-800 hover:underline disabled:opacity-50"
+				class="text-sm text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
 			>
 				Refresh
 			</button>
 		</div>
 		<button
 			onclick={handleCreateTask}
-			class="inline-flex items-center px-3 py-1.5 text-sm bg-primary text-black rounded-md hover:bg-primary/90"
+			class="inline-flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 		>
 			+ Task
 		</button>
@@ -176,7 +176,7 @@
 								<div class="flex-1 min-w-0">
 									<button
 										onclick={(e) => { e.stopPropagation(); navigateToTask(task.id); }}
-										class="text-sm font-medium text-primary hover:text-blue-800 hover:underline truncate block text-left"
+										class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline truncate block text-left"
 									>
 										{task.subject}
 									</button>
@@ -205,7 +205,7 @@
 					<button
 						onclick={handleLoadMore}
 						disabled={loadingMore}
-						class="text-sm text-primary hover:text-blue-800 hover:underline disabled:opacity-50"
+						class="text-sm text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
 					>
 						{loadingMore ? 'Loading...' : 'Load More'}
 					</button>

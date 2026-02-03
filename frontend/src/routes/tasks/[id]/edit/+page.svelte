@@ -113,7 +113,7 @@
 					id="subject"
 					bind:value={formData.subject}
 					required
-					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					placeholder="Enter task subject"
 				/>
 			</div>
@@ -125,7 +125,7 @@
 					<select
 						id="type"
 						bind:value={formData.type}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						<option value="Call">Call</option>
 						<option value="Email">Email</option>
@@ -138,7 +138,7 @@
 					<select
 						id="status"
 						bind:value={formData.status}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						<option value="Open">Open</option>
 						<option value="In Progress">In Progress</option>
@@ -156,7 +156,7 @@
 					<select
 						id="priority"
 						bind:value={formData.priority}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						<option value="Low">Low</option>
 						<option value="Normal">Normal</option>
@@ -170,7 +170,7 @@
 						type="date"
 						id="dueDate"
 						bind:value={formData.dueDate}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					/>
 				</div>
 			</div>
@@ -184,7 +184,7 @@
 						<span class="text-xs text-gray-500 uppercase">{formData.parentType}:</span>
 						<a
 							href="/{formData.parentType.toLowerCase()}s/{formData.parentId}"
-							class="text-primary hover:underline flex-1"
+							class="text-blue-600 hover:underline flex-1"
 						>
 							{parentName || formData.parentName || 'Loading...'}
 						</a>
@@ -227,7 +227,7 @@
 					id="description"
 					bind:value={formData.description}
 					rows="4"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					placeholder="Enter description"
 				></textarea>
 			</div>
@@ -243,7 +243,7 @@
 				<button
 					type="submit"
 					disabled={saving}
-					class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50"
+					class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>

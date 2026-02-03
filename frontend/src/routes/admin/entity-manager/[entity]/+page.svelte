@@ -316,7 +316,7 @@
 		<div class="bg-white shadow rounded-lg p-6">
 			<div class="flex items-center justify-between mb-4">
 				<h2 class="text-lg font-medium text-gray-900">Fields Overview</h2>
-				<a href="/admin/entity-manager/{entityName}/fields" class="text-sm text-primary hover:text-blue-800">
+				<a href="/admin/entity-manager/{entityName}/fields" class="text-sm text-blue-600 hover:text-blue-800">
 					Manage Fields →
 				</a>
 			</div>
@@ -365,7 +365,7 @@
 								type="text"
 								id="editLabel"
 								bind:value={editLabel}
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
 
@@ -376,7 +376,7 @@
 								type="text"
 								id="editLabelPlural"
 								bind:value={editLabelPlural}
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
 
@@ -403,7 +403,7 @@
 								<input
 									type="checkbox"
 									bind:checked={editHasActivities}
-									class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+									class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 								/>
 								<span class="text-sm text-gray-700">Enable Activities (Tasks, Meetings, Calls)</span>
 							</label>
@@ -421,7 +421,7 @@
 						<button
 							type="submit"
 							disabled={saving}
-							class="px-4 py-2 bg-primary text-black rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-600/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 						>
 							{saving ? 'Saving...' : 'Save Changes'}
 						</button>

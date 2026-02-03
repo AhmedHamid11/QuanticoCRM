@@ -30,8 +30,8 @@
 	};
 
 	const variantClasses = {
-		primary: 'bg-primary text-black hover:bg-primary/90 focus:ring-primary border-transparent',
-		secondary: 'bg-white text-gray-700 hover:bg-gray-50 focus:ring-primary border-gray-300',
+		primary: 'bg-blue-600 text-white hover:bg-blue-600/90 focus:ring-blue-500 border-transparent',
+		secondary: 'bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 border-gray-300',
 		ghost: 'bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-500 border-transparent'
 	};
 </script>

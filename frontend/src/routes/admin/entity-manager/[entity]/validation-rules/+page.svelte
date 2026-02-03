@@ -120,7 +120,7 @@
 		</div>
 		<a
 			href="/admin/entity-manager/{entityName}/validation-rules/new"
-			class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90"
+			class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 		>
 			+ New Rule
 		</a>
@@ -151,7 +151,7 @@
 			</p>
 			<a
 				href="/admin/entity-manager/{entityName}/validation-rules/new"
-				class="mt-4 inline-block px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90"
+				class="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 			>
 				Create Your First Rule
 			</a>
@@ -227,7 +227,7 @@
 							<td class="px-6 py-4 text-right text-sm">
 								<a
 									href="/admin/entity-manager/{entityName}/validation-rules/{rule.id}"
-									class="text-primary hover:text-blue-800 mr-3"
+									class="text-blue-600 hover:text-blue-800 mr-3"
 								>
 									Edit
 								</a>

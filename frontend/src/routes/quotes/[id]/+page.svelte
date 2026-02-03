@@ -353,7 +353,7 @@
 											class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded flex items-center justify-between">
 											{tpl.name}
 											{#if tpl.isDefault}
-												<span class="text-xs text-primary">(Default)</span>
+												<span class="text-xs text-blue-600">(Default)</span>
 											{/if}
 										</button>
 									{/each}
@@ -382,13 +382,13 @@
 				<nav class="-mb-px flex space-x-8">
 					<button
 						onclick={() => activeTab = 'details'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 					>
 						Details
 					</button>
 					<button
 						onclick={() => activeTab = 'activities'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 					>
 						Activities
 					</button>

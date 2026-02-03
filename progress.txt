@@ -1,0 +1,25 @@
+# Last Updated: 2026-01-31
+
+## Just Completed
+Fixed critical multi-tenant database routing bug in BearingHandler
+
+## Current State
+- BearingHandler now uses tenant database routing (matching pattern from ContactHandler)
+- BearingRepo.WithDB now properly propagates DB connection to metadataRepo
+- All bearing endpoints (list, create, update, delete, picklist-fields) will now query the correct tenant database
+
+## What Was Wrong
+1. BearingHandler was calling h.bearingRepo directly instead of using tenant-routed repo
+2. BearingRepo.WithDB was not updating metadataRepo with new DB connection
+3. Result: All bearing queries went to master DB instead of tenant DB
+
+## Files Changed
+- /backend/internal/handler/bearing.go - Added getRepo() method and updated all handlers to use it
+- /backend/internal/repo/bearing.go - Fixed WithDB() to also update metadataRepo
+
+## Next Step
+Deploy to production - this should fix Taxrise's bearing issue
+
+## Notes
+- Root cause: Missing tenant DB routing pattern that other handlers have
+- Both issues (missing bearings AND missing picklist fields) were caused by same bug

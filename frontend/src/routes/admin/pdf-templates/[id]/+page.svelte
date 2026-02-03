@@ -193,7 +193,7 @@
 				</button>
 				<button onclick={handleSave}
 					disabled={saving}
-					class="px-4 py-2 text-sm font-medium text-black bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+					class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50">
 					{saving ? 'Saving...' : 'Save Template'}
 				</button>
 			</div>
@@ -208,12 +208,12 @@
 						<div>
 							<label for="tplName" class="block text-sm font-medium text-gray-700 mb-1">Template Name</label>
 							<input id="tplName" type="text" bind:value={name}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 						</div>
 						<div>
 							<label for="tplDesign" class="block text-sm font-medium text-gray-700 mb-1">Base Design</label>
 							<select id="tplDesign" bind:value={baseDesign}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
 								{#each BASE_DESIGNS as d}
 									<option value={d.value}>{d.label}</option>
 								{/each}
@@ -228,17 +228,17 @@
 						<nav class="flex -mb-px">
 							<button
 								onclick={() => activePanel = 'sections'}
-								class="px-6 py-3 text-sm font-medium border-b-2 {activePanel === 'sections' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
+								class="px-6 py-3 text-sm font-medium border-b-2 {activePanel === 'sections' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
 								Sections & Fields
 							</button>
 							<button
 								onclick={() => activePanel = 'branding'}
-								class="px-6 py-3 text-sm font-medium border-b-2 {activePanel === 'branding' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
+								class="px-6 py-3 text-sm font-medium border-b-2 {activePanel === 'branding' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
 								Branding
 							</button>
 							<button
 								onclick={() => activePanel = 'page'}
-								class="px-6 py-3 text-sm font-medium border-b-2 {activePanel === 'page' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
+								class="px-6 py-3 text-sm font-medium border-b-2 {activePanel === 'page' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
 								Page Settings
 							</button>
 						</nav>
@@ -276,7 +276,7 @@
 
 											<!-- Toggle -->
 											<button type="button" onclick={() => toggleSection(section.id)}
-												class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors {section.enabled ? 'bg-primary' : 'bg-gray-200'}"
+												class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors {section.enabled ? 'bg-blue-600' : 'bg-gray-200'}"
 												role="switch" aria-checked={section.enabled}>
 												<span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform {section.enabled ? 'translate-x-4' : 'translate-x-0'}"></span>
 											</button>
@@ -353,7 +353,7 @@
 								<div>
 									<label for="logoUrl" class="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
 									<input id="logoUrl" type="url" bind:value={logoUrl} placeholder="https://example.com/logo.png"
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 									{#if logoUrl}
 										<div class="mt-2 p-2 border rounded inline-block">
 											<img src={logoUrl} alt="Logo preview" class="h-10 max-w-[200px] object-contain"
@@ -364,7 +364,7 @@
 								<div>
 									<label for="companyName" class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
 									<input id="companyName" type="text" bind:value={companyName} placeholder="Your Company Inc."
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 								</div>
 								<div class="grid grid-cols-2 gap-4">
 									<div>
@@ -389,7 +389,7 @@
 								<div>
 									<label for="fontFamily" class="block text-sm font-medium text-gray-700 mb-1">Font Family</label>
 									<select id="fontFamily" bind:value={fontFamily}
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
 										{#each FONT_FAMILIES as ff}
 											<option value={ff}>{ff}</option>
 										{/each}
@@ -407,7 +407,7 @@
 									<div>
 										<label for="pageSize" class="block text-sm font-medium text-gray-700 mb-1">Page Size</label>
 										<select id="pageSize" bind:value={pageSize}
-											class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+											class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
 											{#each PAGE_SIZES as ps}
 												<option value={ps}>{ps}</option>
 											{/each}
@@ -416,7 +416,7 @@
 									<div>
 										<label for="orientation" class="block text-sm font-medium text-gray-700 mb-1">Orientation</label>
 										<select id="orientation" bind:value={orientation}
-											class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+											class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
 											{#each ORIENTATIONS as o}
 												<option value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>
 											{/each}
@@ -426,7 +426,7 @@
 								<div>
 									<label for="margins" class="block text-sm font-medium text-gray-700 mb-1">Margins</label>
 									<input id="margins" type="text" bind:value={margins} placeholder="20mm"
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 									<p class="mt-1 text-xs text-gray-400">Use CSS units (e.g. 20mm, 0.75in, 2cm)</p>
 								</div>
 							</div>
@@ -442,7 +442,7 @@
 						<h3 class="text-sm font-medium text-gray-700">Preview</h3>
 						<button onclick={loadPreview}
 							disabled={loadingPreview}
-							class="text-xs text-primary hover:text-blue-800 disabled:opacity-50">
+							class="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50">
 							{loadingPreview ? 'Loading...' : 'Refresh'}
 						</button>
 					</div>

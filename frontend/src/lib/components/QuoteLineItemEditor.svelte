@@ -176,7 +176,7 @@
 		<div class="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
 			<p class="text-sm">No line items yet</p>
 			{#if !disabled}
-				<button type="button" onclick={addItem} class="mt-2 text-sm text-primary hover:text-blue-700">
+				<button type="button" onclick={addItem} class="mt-2 text-sm text-blue-600 hover:text-blue-700">
 					Add your first item
 				</button>
 			{/if}
@@ -220,7 +220,7 @@
 											oninput={(e) => setFieldValue(item, 'name', (e.target as HTMLInputElement).value)}
 											placeholder="Item name"
 											{disabled}
-											class="w-full text-sm border-0 border-b border-transparent focus:border-primary focus:ring-0 p-0 bg-transparent"
+											class="w-full text-sm border-0 border-b border-transparent focus:border-blue-500 focus:ring-0 p-0 bg-transparent"
 										/>
 										{#if visibleFields.some(f => f.name === 'description')}
 											<!-- Description is shown inline with name -->
@@ -243,7 +243,7 @@
 											max={field.maxValue ?? undefined}
 											step={field.type === 'int' ? '1' : '0.01'}
 											{disabled}
-											class="w-full text-sm text-right border-0 border-b border-transparent focus:border-primary focus:ring-0 p-0 bg-transparent"
+											class="w-full text-sm text-right border-0 border-b border-transparent focus:border-blue-500 focus:ring-0 p-0 bg-transparent"
 										/>
 									{:else if field.type === 'currency'}
 										<input
@@ -253,7 +253,7 @@
 											min="0"
 											step="0.01"
 											{disabled}
-											class="w-full text-sm text-right border-0 border-b border-transparent focus:border-primary focus:ring-0 p-0 bg-transparent"
+											class="w-full text-sm text-right border-0 border-b border-transparent focus:border-blue-500 focus:ring-0 p-0 bg-transparent"
 										/>
 									{:else}
 										<!-- Default text input for varchar, text, etc. -->
@@ -263,7 +263,7 @@
 											oninput={(e) => setFieldValue(item, field.name, (e.target as HTMLInputElement).value)}
 											placeholder="-"
 											{disabled}
-											class="w-full text-sm border-0 border-b border-transparent focus:border-primary focus:ring-0 p-0 bg-transparent"
+											class="w-full text-sm border-0 border-b border-transparent focus:border-blue-500 focus:ring-0 p-0 bg-transparent"
 										/>
 									{/if}
 								</td>

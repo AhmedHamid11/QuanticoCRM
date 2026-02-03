@@ -101,7 +101,7 @@
 		<div class="bg-white shadow rounded-lg p-6">
 			<h2 class="text-lg font-medium text-gray-900 mb-4">Available Fields</h2>
 			<p class="text-sm text-gray-500 mb-4">
-				These fields can be added to layouts. Go to <a href="/admin/entity-manager/{entityName}/fields" class="text-primary hover:underline">Field Manager</a> to add more fields.
+				These fields can be added to layouts. Go to <a href="/admin/entity-manager/{entityName}/fields" class="text-blue-600 hover:underline">Field Manager</a> to add more fields.
 			</p>
 			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
 				{#each fields as field (field.id)}

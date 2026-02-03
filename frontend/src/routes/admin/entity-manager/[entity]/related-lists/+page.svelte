@@ -198,7 +198,7 @@
 			<button
 				onclick={saveConfigs}
 				disabled={saving}
-				class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50"
+				class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 			>
 				{saving ? 'Saving...' : 'Save Changes'}
 			</button>
@@ -273,7 +273,7 @@
 								<button
 									type="button"
 									onclick={() => toggleEditInList(config)}
-									class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 {config.editInList ? 'bg-primary' : 'bg-gray-200'}"
+									class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {config.editInList ? 'bg-blue-600' : 'bg-gray-200'}"
 									role="switch"
 									aria-checked={config.editInList}
 								>

@@ -152,7 +152,7 @@
 		</div>
 		<button
 			onclick={openModal}
-			class="px-4 py-2 bg-primary text-black rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
+			class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-600/90 transition-colors flex items-center gap-2"
 		>
 			<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -221,7 +221,7 @@
 							<td class="px-6 py-4 whitespace-nowrap text-right">
 								<button
 									onclick={(e) => { e.stopPropagation(); goto(`/admin/entity-manager/${entity.name}`); }}
-									class="p-2 text-gray-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
+									class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
 									title="Edit {entity.label} settings"
 								>
 									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -278,7 +278,7 @@
 								oninput={handleLabelChange}
 								onblur={handleLabelBlur}
 								placeholder="e.g., Product, Invoice, Project"
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
 
@@ -292,7 +292,7 @@
 								id="name"
 								bind:value={formName}
 								placeholder="PascalCase, e.g., MyEntity"
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
 							<p class="mt-1 text-xs text-gray-500">API name (auto-generated from label)</p>
 						</div>
@@ -307,7 +307,7 @@
 								id="labelPlural"
 								bind:value={formLabelPlural}
 								placeholder="e.g., Products, Invoices"
-								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
 
@@ -336,7 +336,7 @@
 								<input
 									type="checkbox"
 									bind:checked={formHasStream}
-									class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+									class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 								/>
 								<span class="text-sm text-gray-700">Enable Activity Stream</span>
 							</label>
@@ -344,7 +344,7 @@
 								<input
 									type="checkbox"
 									bind:checked={formHasActivities}
-									class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+									class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 								/>
 								<span class="text-sm text-gray-700">Enable Activities (Tasks, Meetings, Calls)</span>
 							</label>
@@ -362,7 +362,7 @@
 						<button
 							type="submit"
 							disabled={saving}
-							class="px-4 py-2 bg-primary text-black rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-600/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 						>
 							{saving ? 'Creating...' : 'Create Entity'}
 						</button>

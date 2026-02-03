@@ -206,7 +206,7 @@
 							<button
 								onclick={() => retryAll()}
 								disabled={retryingAll}
-								class="text-sm text-primary hover:text-blue-800 disabled:opacity-50"
+								class="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
 							>
 								{retryingAll ? 'Retrying...' : 'Retry All'}
 							</button>
@@ -224,7 +224,7 @@
 									<button
 										onclick={() => retryOrg(org.orgId)}
 										disabled={retryingOrg === org.orgId}
-										class="ml-3 px-3 py-1 text-sm bg-primary text-black rounded hover:bg-primary/90 disabled:opacity-50"
+										class="ml-3 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-600/90 disabled:opacity-50"
 									>
 										{retryingOrg === org.orgId ? 'Retrying...' : 'Retry'}
 									</button>

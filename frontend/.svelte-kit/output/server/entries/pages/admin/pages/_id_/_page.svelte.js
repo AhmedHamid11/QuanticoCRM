@@ -1,0 +1,33 @@
+import { W as store_get, $ as head, _ as unsubscribe_stores } from "../../../../../chunks/index.js";
+import { p as page } from "../../../../../chunks/stores.js";
+import "@sveltejs/kit/internal";
+import "../../../../../chunks/exports.js";
+import "../../../../../chunks/utils.js";
+import { e as escape_html } from "../../../../../chunks/attributes.js";
+import "clsx";
+import "@sveltejs/kit/internal/server";
+import "../../../../../chunks/state.svelte.js";
+function _page($$renderer, $$props) {
+  $$renderer.component(($$renderer2) => {
+    var $$store_subs;
+    store_get($$store_subs ??= {}, "$page", page).params.id;
+    head("1lzrhaz", $$renderer2, ($$renderer3) => {
+      $$renderer3.title(($$renderer4) => {
+        $$renderer4.push(`<title>${escape_html("Edit Page")} - Admin - QuanticoCRM</title>`);
+      });
+    });
+    {
+      $$renderer2.push("<!--[-->");
+      $$renderer2.push(`<div class="flex items-center justify-center py-12"><svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>`);
+    }
+    $$renderer2.push(`<!--]--> `);
+    {
+      $$renderer2.push("<!--[!-->");
+    }
+    $$renderer2.push(`<!--]-->`);
+    if ($$store_subs) unsubscribe_stores($$store_subs);
+  });
+}
+export {
+  _page as default
+};

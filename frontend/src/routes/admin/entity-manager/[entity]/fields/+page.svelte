@@ -254,7 +254,7 @@
 		</div>
 		<button
 			onclick={openAddModal}
-			class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90"
+			class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 		>
 			+ Add Field
 		</button>
@@ -272,7 +272,7 @@
 					type="text"
 					bind:value={searchQuery}
 					placeholder="Search fields by name, label, or type..."
-					class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+					class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 				/>
 				<svg
 					class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -355,7 +355,7 @@
 								{#if field.isCustom}
 									<button
 										onclick={() => openEditModal(field)}
-										class="text-primary hover:text-blue-800 mr-4"
+										class="text-blue-600 hover:text-blue-800 mr-4"
 									>
 										Edit
 									</button>

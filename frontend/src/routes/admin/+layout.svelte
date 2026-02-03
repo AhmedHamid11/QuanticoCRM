@@ -25,7 +25,7 @@
 	<!-- Loading state -->
 	<div class="flex items-center justify-center py-12">
 		<div class="text-center">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
 			<p class="mt-2 text-gray-600">Loading...</p>
 		</div>
 	</div>
@@ -41,7 +41,7 @@
 			<p class="mt-1 text-sm text-gray-500">Only organization admins and owners can access this section.</p>
 			<a
 				href="/"
-				class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-primary hover:bg-primary/90"
+				class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-600/90"
 			>
 				Return to Home
 			</a>

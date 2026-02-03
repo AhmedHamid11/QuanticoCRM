@@ -182,7 +182,7 @@
 		</div>
 		<button
 			onclick={() => (showCreateModal = true)}
-			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 		>
 			<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -216,7 +216,7 @@
 	{#if loading}
 		<div class="flex items-center justify-center py-12">
 			<svg
-				class="animate-spin h-8 w-8 text-primary"
+				class="animate-spin h-8 w-8 text-blue-600"
 				xmlns="http://www.w3.org/2000/svg"
 				fill="none"
 				viewBox="0 0 24 24"
@@ -244,7 +244,7 @@
 			<p class="mt-1 text-sm text-gray-500">Get started by generating a new token.</p>
 			<button
 				onclick={() => (showCreateModal = true)}
-				class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+				class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 			>
 				Generate Token
 			</button>
@@ -399,7 +399,7 @@
 						type="text"
 						id="name"
 						bind:value={newToken.name}
-						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 						placeholder="e.g., Production Integration"
 						required
 					/>
@@ -414,7 +414,7 @@
 								type="checkbox"
 								checked={newToken.scopes?.includes(TOKEN_SCOPES.READ)}
 								onchange={() => toggleScope(TOKEN_SCOPES.READ)}
-								class="rounded border-gray-300 text-primary focus:ring-primary"
+								class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
 							<span class="ml-2 text-sm text-gray-700">Read</span>
 							<span class="ml-2 text-xs text-gray-500">- View data</span>
@@ -424,7 +424,7 @@
 								type="checkbox"
 								checked={newToken.scopes?.includes(TOKEN_SCOPES.WRITE)}
 								onchange={() => toggleScope(TOKEN_SCOPES.WRITE)}
-								class="rounded border-gray-300 text-primary focus:ring-primary"
+								class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
 							<span class="ml-2 text-sm text-gray-700">Write</span>
 							<span class="ml-2 text-xs text-gray-500">- Create, update, delete data</span>
@@ -437,7 +437,7 @@
 					<select
 						id="expires"
 						bind:value={newToken.expiresIn}
-						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 					>
 						<option value={null}>Never expires</option>
 						<option value={7}>7 days</option>
@@ -459,7 +459,7 @@
 					<button
 						type="submit"
 						disabled={creating || !newToken.scopes?.length}
-						class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+						class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						{creating ? 'Generating...' : 'Generate Token'}
 					</button>
@@ -577,7 +577,7 @@
 			<div class="flex justify-end mt-6">
 				<button
 					onclick={closeTokenCreatedModal}
-					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary/90"
+					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-600/90"
 				>
 					Done
 				</button>

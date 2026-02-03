@@ -186,7 +186,7 @@
 					<select
 						value={section.columns}
 						onchange={(e) => updateSection({ columns: parseInt(e.currentTarget.value) as 1 | 2 | 3 })}
-						class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+						class="w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 					>
 						<option value={1}>1 Column</option>
 						<option value={2}>2 Columns</option>
@@ -199,7 +199,7 @@
 						id="collapsible-{section.id}"
 						checked={section.collapsible}
 						onchange={(e) => updateSection({ collapsible: e.currentTarget.checked })}
-						class="rounded border-gray-300 text-primary focus:ring-primary"
+						class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
 					<label for="collapsible-{section.id}" class="text-sm text-gray-700">Collapsible</label>
 				</div>
@@ -210,7 +210,7 @@
 							id="collapsed-{section.id}"
 							checked={section.collapsed}
 							onchange={(e) => updateSection({ collapsed: e.currentTarget.checked })}
-							class="rounded border-gray-300 text-primary focus:ring-primary"
+							class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 						<label for="collapsed-{section.id}" class="text-sm text-gray-700">Default Collapsed</label>
 					</div>
@@ -248,7 +248,7 @@
 							ondragend={handleDragEnd}
 							class="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border-2 transition-all duration-150
 								{draggedIndex === index ? 'opacity-50 border-blue-300 bg-blue-50' : 'border-gray-200'}
-								{dragOverIndex === index && draggedIndex !== index ? 'border-primary bg-blue-50' : ''}
+								{dragOverIndex === index && draggedIndex !== index ? 'border-blue-500 bg-blue-50' : ''}
 								{draggedIndex !== null ? 'cursor-grabbing' : 'cursor-grab'}"
 						>
 							<div class="text-gray-400 hover:text-gray-600">
@@ -261,14 +261,14 @@
 								<div class="text-xs text-gray-500">
 									{field.name} ({getFieldType(field.name)})
 									{#if hasConditionalVisibility(field)}
-										<span class="ml-2 text-primary">(conditional)</span>
+										<span class="ml-2 text-blue-600">(conditional)</span>
 									{/if}
 								</div>
 							</div>
 
 							<button
 								onclick={() => (showFieldVisibility = showFieldVisibility === field.name ? null : field.name)}
-								class="p-2 text-gray-400 hover:text-primary hover:bg-blue-50 rounded {showFieldVisibility === field.name ? 'text-primary bg-blue-50' : ''}"
+								class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded {showFieldVisibility === field.name ? 'text-blue-600 bg-blue-50' : ''}"
 								title="Field visibility"
 							>
 								<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

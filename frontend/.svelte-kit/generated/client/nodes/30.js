@@ -1,0 +1,1 @@
+export { default as component } from "../../../../src/routes/admin/entity-manager/[entity]/validation-rules/+page.svelte";

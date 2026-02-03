@@ -163,7 +163,7 @@
 	<!-- Loading state -->
 	<div class="min-h-screen flex items-center justify-center bg-gray-50">
 		<div class="text-center">
-			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
 			<p class="mt-4 text-gray-600">Loading...</p>
 		</div>
 	</div>
@@ -272,7 +272,7 @@
 								onclick={() => showUserMenu = !showUserMenu}
 								class="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 transition-colors"
 							>
-								<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium">
+								<div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
 									{userInitials()}
 								</div>
 							</button>

@@ -84,7 +84,7 @@
 		<select
 			value={rule.type}
 			onchange={(e) => setType(e.currentTarget.value as 'always' | 'conditional' | 'never')}
-			class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+			class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 		>
 			<option value="always">Always Visible</option>
 			<option value="conditional">Conditional</option>
@@ -100,7 +100,7 @@
 					<select
 						value={rule.logic || 'AND'}
 						onchange={(e) => setLogic(e.currentTarget.value as 'AND' | 'OR')}
-						class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+						class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 					>
 						<option value="AND">ALL conditions match</option>
 						<option value="OR">ANY condition matches</option>
@@ -115,7 +115,7 @@
 						<select
 							value={condition.field}
 							onchange={(e) => updateCondition(condition.id, { field: e.currentTarget.value })}
-							class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+							class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							{#each fields as field (field.id)}
 								<option value={field.name}>{field.label}</option>
@@ -131,7 +131,7 @@
 									value: undefined,
 									values: undefined
 								})}
-							class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+							class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							{#each VISIBILITY_OPERATORS as op (op.value)}
 								<option value={op.value}>{op.label}</option>
@@ -150,7 +150,7 @@
 											const selected = Array.from(e.currentTarget.selectedOptions, (opt) => opt.value);
 											updateCondition(condition.id, { values: selected });
 										}}
-										class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary h-20"
+										class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500 h-20"
 									>
 										{#each fieldOptions as opt}
 											<option value={opt}>{opt}</option>
@@ -165,14 +165,14 @@
 											updateCondition(condition.id, {
 												values: e.currentTarget.value.split(',').map((s) => s.trim())
 											})}
-										class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+										class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 									/>
 								{/if}
 							{:else if fieldOptions}
 								<select
 									value={condition.value as string || ''}
 									onchange={(e) => updateCondition(condition.id, { value: e.currentTarget.value })}
-									class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+									class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 								>
 									<option value="">Select value...</option>
 									{#each fieldOptions as opt}
@@ -185,7 +185,7 @@
 									placeholder="Value"
 									value={condition.value as string || ''}
 									onchange={(e) => updateCondition(condition.id, { value: e.currentTarget.value })}
-									class="rounded-md border-gray-300 shadow-sm text-sm focus:border-primary focus:ring-primary"
+									class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500"
 								/>
 							{/if}
 						{/if}
@@ -205,7 +205,7 @@
 
 			<button
 				onclick={addCondition}
-				class="flex items-center gap-1 text-sm text-primary hover:text-blue-800"
+				class="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
 			>
 				<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />

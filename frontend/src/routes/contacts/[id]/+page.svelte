@@ -228,7 +228,7 @@
 		<!-- Header -->
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-4">
-				<div class="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-bold">
+				<div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold">
 					{contact.firstName?.charAt(0) || contact.lastName?.charAt(0) || '?'}
 				</div>
 				<div>
@@ -261,13 +261,13 @@
 				<nav class="-mb-px flex space-x-8">
 					<button
 						onclick={() => activeTab = 'details'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 					>
 						Details
 					</button>
 					<button
 						onclick={() => activeTab = 'activities'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 					>
 						Activities
 					</button>

@@ -244,7 +244,7 @@
 			</button>
 			<button
 				onclick={handleSave}
-				class="px-4 py-2 text-sm bg-primary text-black rounded-md hover:bg-primary/90"
+				class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 			>
 				Save
 			</button>

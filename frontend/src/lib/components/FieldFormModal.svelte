@@ -68,7 +68,7 @@
 						handleFieldUpdate('label', e.currentTarget.value);
 						if (mode === 'add' && onLabelChange) onLabelChange();
 					}}
-					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					placeholder="e.g., Company Name"
 				/>
 			</div>
@@ -89,7 +89,7 @@
 						}
 					}}
 					disabled={mode === 'edit'}
-					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary font-mono text-sm {mode === 'edit' ? 'bg-gray-50 text-gray-500' : ''}"
+					class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm {mode === 'edit' ? 'bg-gray-50 text-gray-500' : ''}"
 					placeholder="e.g., companies_test"
 				/>
 				<p class="mt-1 text-xs text-gray-500">
@@ -107,7 +107,7 @@
 						id="fieldType"
 						value={field.type}
 						onchange={(e) => handleFieldUpdate('type', e.currentTarget.value as FieldType)}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						{#each fieldTypes as type}
 							<option value={type.name}>{type.label} - {type.description}</option>
@@ -142,7 +142,7 @@
 							id="defaultValue"
 							value={(field as FieldDefCreateInput).defaultValue || ''}
 							onchange={(e) => handleFieldUpdate('defaultValue' , e.currentTarget.value)}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 						>
 							<option value="">(No default)</option>
 							{#each enumOptions.filter(o => o.trim()) as option}
@@ -164,7 +164,7 @@
 						id="linkEntity"
 						value={(field as FieldDefCreateInput).linkEntity || ''}
 						onchange={(e) => handleFieldUpdate('linkEntity' , e.currentTarget.value)}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						<option value="">Select an entity...</option>
 						{#each allEntities as ent}
@@ -197,7 +197,7 @@
 						id="variant"
 						value={(field as FieldDefCreateInput).variant || 'info'}
 						onchange={(e) => handleFieldUpdate('variant' , e.currentTarget.value)}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						<option value="info">Info (Blue)</option>
 						<option value="warning">Warning (Amber)</option>
@@ -216,7 +216,7 @@
 						value={(field as FieldDefCreateInput).content || ''}
 						oninput={(e) => handleFieldUpdate('content' , e.currentTarget.value)}
 						rows={3}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 						placeholder="Enter your message text here..."
 					></textarea>
 					<p class="mt-1 text-xs text-gray-500">
@@ -236,7 +236,7 @@
 						type="number"
 						value={(field as FieldDefCreateInput).maxLength ?? ''}
 						oninput={(e) => handleFieldUpdate('maxLength' , parseInt(e.currentTarget.value) || undefined)}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 						placeholder="255"
 					/>
 				</div>
@@ -253,7 +253,7 @@
 						type="text"
 						value={(field as FieldDef).tooltip || ''}
 						oninput={(e) => handleFieldUpdate('tooltip', e.currentTarget.value)}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 						placeholder="Help text shown on hover"
 					/>
 				</div>
@@ -266,7 +266,7 @@
 						type="checkbox"
 						checked={field.isRequired}
 						onchange={(e) => handleFieldUpdate('isRequired', e.currentTarget.checked)}
-						class="rounded border-gray-300 text-primary focus:ring-primary"
+						class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
 					<span class="ml-2 text-sm text-gray-700">Required</span>
 				</label>
@@ -276,7 +276,7 @@
 						type="checkbox"
 						checked={field.isReadOnly}
 						onchange={(e) => handleFieldUpdate('isReadOnly', e.currentTarget.checked)}
-						class="rounded border-gray-300 text-primary focus:ring-primary"
+						class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
 					<span class="ml-2 text-sm text-gray-700">Read Only</span>
 				</label>
@@ -286,7 +286,7 @@
 						type="checkbox"
 						checked={field.isAudited}
 						onchange={(e) => handleFieldUpdate('isAudited', e.currentTarget.checked)}
-						class="rounded border-gray-300 text-primary focus:ring-primary"
+						class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
 					<span class="ml-2 text-sm text-gray-700">Audited (track changes)</span>
 				</label>
@@ -297,7 +297,7 @@
 							type="checkbox"
 							checked={(field as FieldDefCreateInput).defaultToToday ?? false}
 							onchange={(e) => handleFieldUpdate('defaultToToday', e.currentTarget.checked)}
-							class="rounded border-gray-300 text-primary focus:ring-primary"
+							class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 						<span class="ml-2 text-sm text-gray-700">Default to Today</span>
 					</label>
@@ -318,7 +318,7 @@
 				type="button"
 				onclick={onSave}
 				disabled={saving}
-				class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50"
+				class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 			>
 				{saving ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create Field' : 'Save Changes')}
 			</button>

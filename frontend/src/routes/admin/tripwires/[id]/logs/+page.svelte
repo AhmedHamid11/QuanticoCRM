@@ -126,7 +126,7 @@
 		<select
 			bind:value={statusFilter}
 			onchange={handleFilterChange}
-			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">All Statuses</option>
 			<option value="success">Success</option>
@@ -136,7 +136,7 @@
 		<select
 			bind:value={eventFilter}
 			onchange={handleFilterChange}
-			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">All Events</option>
 			<option value="CREATE">CREATE</option>

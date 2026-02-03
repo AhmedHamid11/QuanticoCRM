@@ -1,0 +1,686 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/fastcrm/backend/internal/db"
+	"github.com/fastcrm/backend/internal/entity"
+	"github.com/fastcrm/backend/internal/flow"
+	"github.com/fastcrm/backend/internal/handler"
+	"github.com/fastcrm/backend/internal/middleware"
+	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/service"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/joho/godotenv"
+
+	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
+)
+
+func init() {
+	// Load .env file if it exists (development only)
+	// In production, environment variables should be set directly
+	// Try multiple locations since app may run from different directories
+	envPaths := []string{".env", "../.env", "../../.env"}
+	loaded := false
+	for _, path := range envPaths {
+		if err := godotenv.Load(path); err == nil {
+			log.Printf("Loaded environment from %s", path)
+			loaded = true
+			break
+		}
+	}
+	if !loaded {
+		log.Println("No .env file found, using environment variables")
+	}
+}
+
+func main() {
+	var masterDB *sql.DB
+	var masterDBConn db.DBConn // Interface for repos that support reconnection
+	var tursoDB *db.TursoDB   // TursoDB wrapper for Turso connections
+	var err error
+
+	// Check for Turso connection (production master database)
+	tursoURL := os.Getenv("TURSO_URL")
+	tursoToken := os.Getenv("TURSO_AUTH_TOKEN")
+
+	if tursoURL != "" && tursoToken != "" {
+		// Production: Connect to Turso master database using TursoDB wrapper
+		// TursoDB provides automatic reconnection for the libsql HTTP driver
+		tursoDB, err = db.NewTursoDB(tursoURL, tursoToken)
+		if err != nil {
+			log.Fatalf("Failed to connect to Turso: %v", err)
+		}
+		defer tursoDB.Close()
+
+		// Get the underlying *sql.DB for repos that still need it
+		masterDB = tursoDB.GetDB()
+		// Use TursoDB (with auto-reconnect) for repos that support DBConn interface
+		masterDBConn = tursoDB
+
+		log.Printf("Connected to Turso master database with auto-reconnect: %s (v4)", tursoURL)
+	} else {
+		// Development: Use local SQLite as master database
+		dbPath := os.Getenv("DATABASE_PATH")
+		if dbPath == "" {
+			dbPath = "../fastcrm.db"
+		}
+		masterDB, err = sql.Open("sqlite3", dbPath)
+		if err != nil {
+			log.Fatalf("Failed to connect to database: %v", err)
+		}
+		defer masterDB.Close()
+
+		// For local SQLite, use *sql.DB directly (it satisfies DBConn interface)
+		masterDBConn = masterDB
+
+		log.Printf("Using local database: %s", dbPath)
+
+		// Local SQLite settings
+		masterDB.SetMaxOpenConns(25)
+		masterDB.SetMaxIdleConns(10)
+		masterDB.SetConnMaxLifetime(5 * time.Minute)
+		log.Println("Connection pool configured: MaxOpen=25, MaxIdle=10, MaxLifetime=5m")
+	}
+
+	// Get JWT secret from environment (REQUIRED in production)
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		// SECURITY: Fail fast in production if JWT_SECRET is not set
+		env := os.Getenv("ENVIRONMENT")
+		if env == "production" || env == "prod" || tursoURL != "" {
+			log.Fatal("FATAL: JWT_SECRET environment variable must be set in production")
+		}
+		// Use a default for development only
+		jwtSecret = "dev-secret-change-in-production"
+		log.Println("WARNING: Using default JWT secret. Set JWT_SECRET in production!")
+	}
+
+	// Initialize repositories
+	// Note: Repos that access master DB metadata use DBConn interface for auto-reconnect support with Turso
+	// Data repos (contact, account, task, quote) use masterDB as they get tenant DB via middleware
+	contactRepo := repo.NewContactRepo(masterDB)
+	accountRepo := repo.NewAccountRepo(masterDB)
+	taskRepo := repo.NewTaskRepo(masterDB)
+	// Metadata repos use masterDBConn (with retry logic) since they read from master DB
+	metadataRepo := repo.NewMetadataRepo(masterDBConn)
+	// Ensure metadata schema has all required columns (handles older databases)
+	if err := metadataRepo.EnsureSchema(context.Background()); err != nil {
+		log.Printf("Warning: Failed to ensure metadata schema: %v", err)
+	}
+
+	// Ensure submittals table has client_id column (migration 040)
+	ensureSubmittalsClientID(masterDB)
+	navigationRepo := repo.NewNavigationRepo(masterDBConn)
+	relatedListRepo := repo.NewRelatedListRepo(masterDBConn, metadataRepo) // Uses DBConn for auto-reconnect
+	tripwireRepo := repo.NewTripwireRepo(masterDB)
+	bearingRepo := repo.NewBearingRepo(masterDBConn, metadataRepo)
+	validationRepo := repo.NewValidationRepo(masterDB)
+	authRepo := repo.NewAuthRepo(masterDBConn)      // Uses DBConn for auto-reconnect
+	customPageRepo := repo.NewCustomPageRepo(masterDB)
+	apiTokenRepo := repo.NewAPITokenRepo(masterDBConn) // Uses DBConn for auto-reconnect
+	flowRepo := repo.NewFlowRepo(masterDB)
+	listViewRepo := repo.NewListViewRepo(masterDB)
+	quoteRepo := repo.NewQuoteRepo(masterDB)
+	pdfTemplateRepo := repo.NewPdfTemplateRepo(masterDB)
+	versionRepo := repo.NewVersionRepo(masterDBConn)
+	migrationRepo := repo.NewMigrationRepo(masterDBConn)
+	orgSettingsRepo := repo.NewOrgSettingsRepo(masterDBConn)
+
+	// Initialize services
+	tripwireService := service.NewTripwireService(masterDB, tripwireRepo)
+	validationService := service.NewValidationService(masterDB, validationRepo)
+	// Use masterDBConn (with retry logic) for provisioning to handle connection errors
+	provisioningService := service.NewProvisioningService(masterDBConn)
+	authConfig := service.DefaultAuthConfig(jwtSecret)
+	authService := service.NewAuthService(authRepo, authConfig, provisioningService)
+	apiTokenService := service.NewAPITokenService(apiTokenRepo)
+	versionService := service.NewVersionService()
+
+	// Initialize tenant provisioning service for per-org databases
+	// This creates dedicated Turso databases for each new organization
+	// Using masterDBConn (with retry logic) for metadata provisioning
+	tenantProvisioningService := service.NewTenantProvisioningService(masterDBConn)
+	authService.SetTenantProvisioning(tenantProvisioningService)
+	authService.SetVersionRepo(versionRepo)
+	if tenantProvisioningService.IsLocalMode() {
+		log.Println("Tenant provisioning: LOCAL MODE (shared database)")
+	} else {
+		log.Println("Tenant provisioning: TURSO MODE (per-org databases)")
+	}
+
+	// Initialize DB manager for multi-tenant database routing
+	dbManagerConfig := db.DefaultManagerConfig()
+	var dbManager *db.Manager
+	if tursoDB != nil {
+		// Use TursoDB manager for auto-reconnect support
+		dbManager = db.NewManagerWithTurso(tursoDB, dbManagerConfig)
+	} else {
+		// Local mode with regular *sql.DB
+		dbManager = db.NewManager(masterDB, dbManagerConfig)
+	}
+	defer dbManager.Close()
+
+	// Initialize migration propagator for multi-tenant updates
+	migrationPropagator := service.NewMigrationPropagator(
+		masterDBConn,
+		dbManager,
+		versionRepo,
+		migrationRepo,
+		versionService,
+	)
+
+	// Run migration propagation BEFORE accepting requests
+	// This blocks until all orgs are migrated (or fail with logging)
+	log.Println("[STARTUP] Running migration propagation for all organizations...")
+	propagationResult := migrationPropagator.PropagateAll(context.Background())
+	log.Printf("[STARTUP] Migration propagation complete: %d success, %d failed, %d skipped",
+		propagationResult.SuccessCount, propagationResult.FailedCount, propagationResult.SkippedCount)
+
+	// Initialize middleware
+	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
+	authMiddleware.SetAutoProvisioning(metadataRepo, provisioningService) // Enable auto-provisioning for orgs missing metadata
+	tenantMiddleware := middleware.NewTenantMiddleware(dbManager, authRepo)
+
+	// Initialize handlers
+	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, authRepo, tripwireService, validationService)
+	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, masterDB, metadataRepo, authRepo, tripwireService, validationService)
+	taskHandler := handler.NewTaskHandler(taskRepo, authRepo, tripwireService, validationService)
+	adminHandler := handler.NewAdminHandler(masterDB, metadataRepo, navigationRepo)
+	adminHandler.SetProvisioningService(provisioningService) // Enable re-provisioning endpoint
+	navigationHandler := handler.NewNavigationHandler(navigationRepo)
+	lookupHandler := handler.NewLookupHandler(masterDB, metadataRepo)
+	relatedHandler := handler.NewRelatedHandler(masterDB)
+	relatedListHandler := handler.NewRelatedListHandler(relatedListRepo, metadataRepo, masterDB)
+	genericEntityHandler := handler.NewGenericEntityHandler(masterDB, metadataRepo, authRepo, tripwireService, validationService)
+	dataExplorerHandler := handler.NewDataExplorerHandler(masterDB)
+	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
+	bearingHandler := handler.NewBearingHandler(bearingRepo)
+	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
+	authHandler := handler.NewAuthHandler(authService)
+	userHandler := handler.NewUserHandler(authRepo)
+	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
+	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
+	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService)
+	metadataHandler := handler.NewMetadataHandler(metadataRepo)
+	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
+	listViewHandler := handler.NewListViewHandler(listViewRepo)
+	quoteHandler := handler.NewQuoteHandler(quoteRepo, authRepo, tripwireService, validationService)
+	pdfTemplateHandler := handler.NewPdfTemplateHandler(pdfTemplateRepo)
+	versionHandler := handler.NewVersionHandler(versionRepo, versionService, migrationRepo, authRepo)
+	schemaHandler := handler.NewSchemaHandler(masterDB, metadataRepo)
+	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo)
+
+	// Wire migration propagator to version handler (created earlier in startup)
+	versionHandler.SetMigrationPropagator(migrationPropagator)
+
+	// Initialize PDF services
+	pdfTemplateService := service.NewPdfTemplateService(quoteRepo, pdfTemplateRepo)
+	pdfRenderer := service.NewWkhtmltopdfRenderer()
+	quoteHandler.SetPdfServices(pdfTemplateRepo, pdfTemplateService, pdfRenderer)
+
+	// Initialize flow engine with entity service adapter
+	flowEntityService := service.NewFlowEntityService(masterDB, metadataRepo)
+	flowEngine := flow.NewEngine(flowRepo, flowEntityService, nil) // No webhook service for now
+	flowHandler := handler.NewFlowHandler(flowEngine, flowRepo)
+
+	// Create Fiber app with environment-aware error handling
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// SECURITY: Sanitize error messages in production to prevent information disclosure
+			env := os.Getenv("ENVIRONMENT")
+			if env == "production" || env == "prod" {
+				// Generate error ID for correlation
+				errorID := fmt.Sprintf("%d", time.Now().UnixNano())
+				log.Printf("[ERROR %s] %v", errorID, err)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error":   "An internal error occurred",
+					"errorId": errorID,
+				})
+			}
+			// In development, return full error details
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		},
+	})
+
+	// Global middleware
+	app.Use(recover.New())
+	app.Use(logger.New())
+	// SECURITY: Configure CORS based on environment
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		// Default for development
+		allowedOrigins = "*"
+		if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "prod" {
+			log.Println("WARNING: ALLOWED_ORIGINS not set in production. Set this to restrict CORS.")
+		}
+	}
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: allowedOrigins,
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+	}))
+
+	// Rate limiting to prevent abuse and DDoS
+	// 100 requests per minute per IP address in production
+	// Disabled in development (GO_ENV=development) to avoid issues during rapid testing
+	if os.Getenv("GO_ENV") != "development" {
+		app.Use(limiter.New(limiter.Config{
+			Max:        100,
+			Expiration: 1 * time.Minute,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				// Use X-Forwarded-For if behind a proxy, otherwise use remote IP
+				forwarded := c.Get("X-Forwarded-For")
+				if forwarded != "" {
+					return forwarded
+				}
+				return c.IP()
+			},
+			LimitReached: func(c *fiber.Ctx) error {
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error": "Rate limit exceeded. Please try again later.",
+				})
+			},
+			SkipSuccessfulRequests: false,
+			SkipFailedRequests:     false,
+			Next: func(c *fiber.Ctx) bool {
+				// Skip rate limiting for:
+				// - Health checks (monitoring systems)
+				// - OPTIONS preflight requests (CORS preflight should never be rate limited)
+				return c.Path() == "/api/v1/health" || c.Method() == "OPTIONS"
+			},
+		}))
+		log.Println("Rate limiting enabled: 100 requests/minute per IP")
+	} else {
+		log.Println("Rate limiting disabled (development mode)")
+	}
+
+	// API routes
+	api := app.Group("/api/v1")
+
+	// Health check (public)
+	api.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok", "version": "v13"})
+	})
+
+	// CRITICAL: Register stop-impersonate BEFORE the /auth group to ensure Fiber matches it first.
+	// This route must use Required() middleware (not PlatformAdminRequired) because during
+	// impersonation, isPlatformAdmin is false. The handler validates impersonatedBy claim.
+	api.Post("/auth/stop-impersonate", authMiddleware.Required(), authHandler.StopImpersonate)
+
+	// ==========================================
+	// Public auth routes (no authentication required)
+	// ==========================================
+	auth := api.Group("/auth")
+	auth.Post("/register", authHandler.Register)
+
+	// Strict rate limiting for login to prevent brute force attacks
+	// 5 attempts per minute per IP
+	loginLimiter := limiter.New(limiter.Config{
+		Max:        5,
+		Expiration: 1 * time.Minute,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			forwarded := c.Get("X-Forwarded-For")
+			if forwarded != "" {
+				return "login:" + forwarded
+			}
+			return "login:" + c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error": "Too many login attempts. Please try again in a minute.",
+			})
+		},
+	})
+	auth.Post("/login", loginLimiter, authHandler.Login)
+	auth.Post("/refresh", authHandler.RefreshToken)
+	auth.Post("/accept-invite", authHandler.AcceptInvitation)
+	auth.Post("/forgot-password", authHandler.ForgotPassword)
+	auth.Post("/reset-password", authHandler.ResetPassword)
+
+	// ==========================================
+	// Protected auth routes (authentication required)
+	// ==========================================
+	authProtected := auth.Group("", authMiddleware.Required())
+	authProtected.Post("/logout", authHandler.Logout)
+	authProtected.Post("/logout-all", authHandler.LogoutAll)
+	authProtected.Get("/me", authHandler.Me)
+	authProtected.Get("/orgs", authHandler.GetUserOrgs)
+	authProtected.Post("/switch-org", authHandler.SwitchOrg)
+	authProtected.Post("/change-password", authHandler.ChangePassword)
+
+	// Org admin routes (requires admin/owner role)
+	authAdmin := auth.Group("", authMiddleware.OrgAdminRequired())
+	authAdmin.Post("/invite", authHandler.InviteUser)
+	authAdmin.Get("/invitations", authHandler.ListInvitations)
+	authAdmin.Delete("/invitations/:id", authHandler.DeleteInvitation)
+
+	// Platform admin routes (requires platform admin)
+	authPlatformAdmin := auth.Group("", authMiddleware.PlatformAdminRequired())
+	authPlatformAdmin.Post("/impersonate", authHandler.Impersonate)
+
+	// ==========================================
+	// Protected API routes (authentication required - all users)
+	// ==========================================
+	// Chain auth middleware (sets orgID) then tenant middleware (resolves tenant DB)
+	protected := api.Group("", authMiddleware.Required(), tenantMiddleware.ResolveTenant())
+
+	// CRM entity routes (accessible to all authenticated users)
+	contactHandler.RegisterRoutes(protected)
+	accountHandler.RegisterRoutes(protected)
+	taskHandler.RegisterRoutes(protected)
+	quoteHandler.RegisterRoutes(protected)
+	lookupHandler.RegisterRoutes(protected)
+	relatedHandler.RegisterRelatedRoutes(protected)
+	genericEntityHandler.RegisterRoutes(protected)
+	bulkHandler.RegisterRoutes(protected)
+	importHandler.RegisterRoutes(protected)
+
+	// User management - read-only for all authenticated users
+	userHandler.RegisterRoutes(protected)
+
+	// Navigation - visible tabs for all authenticated users
+	navigationHandler.RegisterPublicRoutes(protected)
+
+	// Org settings - read-only for all authenticated users
+	orgSettingsHandler.RegisterPublicRoutes(protected)
+
+	// Read-only metadata - accessible to all authenticated users for rendering layouts
+	metadataHandler.RegisterRoutes(protected)
+
+	// Schema API - for Gmail extension to discover entities and search records
+	schemaHandler.RegisterRoutes(protected)
+
+	// Version info - accessible to all authenticated users
+	versionHandler.RegisterRoutes(protected)
+
+	// Read-only related list and bearing routes for detail pages
+	relatedListHandler.RegisterPublicRoutes(protected)
+	bearingHandler.RegisterPublicRoutes(protected)
+
+	// Custom pages - public routes for viewing pages
+	customPageHandler.RegisterPublicRoutes(protected)
+
+	// List views - users can view, create, update, and delete their own list views
+	listViews := protected.Group("/list-views")
+	listViews.Get("/:entity", listViewHandler.List)
+	listViews.Get("/:entity/default", listViewHandler.GetDefault)
+	listViews.Get("/:entity/:id", listViewHandler.Get)
+	listViews.Post("/:entity", listViewHandler.Create)
+	listViews.Put("/:entity/:id", listViewHandler.Update)
+	listViews.Delete("/:entity/:id", listViewHandler.Delete)
+
+	// Screen flows - all users can view and execute flows
+	flowHandler.RegisterRoutes(protected)
+
+	// ==========================================
+	// Admin routes (requires admin or owner role)
+	// ==========================================
+	adminProtected := api.Group("", authMiddleware.OrgAdminRequired(), tenantMiddleware.ResolveTenant())
+
+	// API Token management (admin only - creating/revoking tokens)
+	apiTokens := adminProtected.Group("/api-tokens")
+	apiTokens.Post("", apiTokenHandler.Create)
+	apiTokens.Get("", apiTokenHandler.List)
+	apiTokens.Post("/:id/revoke", apiTokenHandler.Revoke)
+	apiTokens.Delete("/:id", apiTokenHandler.Delete)
+
+	// Admin-only functionality
+	adminHandler.RegisterRoutes(adminProtected)
+	navigationHandler.RegisterAdminRoutes(adminProtected)
+	relatedListHandler.RegisterRoutes(adminProtected)
+	tripwireHandler.RegisterRoutes(adminProtected)
+	bearingHandler.RegisterRoutes(adminProtected)
+	validationHandler.RegisterRoutes(adminProtected)
+	versionHandler.RegisterAdminRoutes(adminProtected)
+	// Data Explorer for org admins (filtered to their org's data only)
+	dataExplorerHandler.RegisterOrgRoutes(adminProtected)
+
+	// User management - write operations for admins/owners only
+	userHandler.RegisterAdminRoutes(adminProtected)
+
+	// Custom pages - admin management
+	customPageHandler.RegisterAdminRoutes(adminProtected)
+
+	// Screen flows - admin can create/edit/delete flow definitions
+	flowHandler.RegisterAdminRoutes(adminProtected)
+
+	// PDF Template management (admin only)
+	pdfTemplateHandler.RegisterRoutes(adminProtected)
+
+	// Org settings - admin can update homepage and other settings
+	orgSettingsHandler.RegisterAdminRoutes(adminProtected)
+
+	// PDF Template public routes (read-only for all authenticated users)
+	pdfTemplateHandler.RegisterPublicRoutes(protected)
+
+	// ==========================================
+	// Platform Admin routes (SUPER ADMIN ONLY)
+	// NOTE: These routes do NOT use ResolveTenant middleware - they work with master DB only
+	// ==========================================
+	platformAdmin := api.Group("/platform", authMiddleware.PlatformAdminRequired())
+
+	// Debug endpoint to verify platform routes and tenant provisioning config
+	platformAdmin.Get("/debug", func(c *fiber.Ctx) error {
+		// Check env vars (redacted for security)
+		hasAPIToken := os.Getenv("TURSO_API_TOKEN") != "" || os.Getenv("TURSO_AUTH_TOKEN") != ""
+		hasOrg := os.Getenv("TURSO_ORG") != ""
+		tursoOrg := os.Getenv("TURSO_ORG")
+		if len(tursoOrg) > 3 {
+			tursoOrg = tursoOrg[:3] + "***"
+		}
+
+		return c.JSON(fiber.Map{
+			"status":              "ok",
+			"route":               "platform-debug",
+			"version":             "v13",
+			"tenantProvisioning":  map[string]interface{}{
+				"isLocalMode":    tenantProvisioningService.IsLocalMode(),
+				"hasAPIToken":    hasAPIToken,
+				"hasOrg":         hasOrg,
+				"orgPrefix":      tursoOrg,
+			},
+		})
+	})
+
+	platformAdmin.Post("/orgs", func(c *fiber.Ctx) error {
+		var input entity.OrganizationCreateInput
+		if err := c.BodyParser(&input); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid request body",
+			})
+		}
+
+		if input.Name == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Organization name is required",
+			})
+		}
+
+		org, err := authService.CreateOrganization(c.Context(), input)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to create organization: " + err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(org)
+	})
+
+	platformAdmin.Get("/orgs", func(c *fiber.Ctx) error {
+		log.Printf("[v6] Platform orgs handler called")
+		page := c.QueryInt("page", 1)
+		pageSize := c.QueryInt("pageSize", 20)
+		orgs, err := authRepo.ListOrganizations(c.Context(), page, pageSize)
+		if err != nil {
+			log.Printf("[v6] Error listing organizations: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "[v6] Failed to list organizations: " + err.Error(),
+			})
+		}
+		return c.JSON(orgs)
+	})
+
+	platformAdmin.Patch("/orgs/:id", func(c *fiber.Ctx) error {
+		orgID := c.Params("id")
+		if orgID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Organization ID is required",
+			})
+		}
+
+		var input entity.OrganizationUpdateInput
+		if err := c.BodyParser(&input); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Invalid request body",
+			})
+		}
+
+		org, err := authRepo.UpdateOrganization(c.Context(), orgID, input)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to update organization: " + err.Error(),
+			})
+		}
+
+		return c.JSON(org)
+	})
+
+	platformAdmin.Delete("/orgs/:id", func(c *fiber.Ctx) error {
+		orgID := c.Params("id")
+		if orgID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Organization ID is required",
+			})
+		}
+
+		// Delete organization and all related data
+		if err := authRepo.DeleteOrganization(c.Context(), orgID); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to delete organization: " + err.Error(),
+			})
+		}
+
+		return c.Status(fiber.StatusNoContent).Send(nil)
+	})
+
+	// SECURITY: Data Explorer is only available to Platform Admin (super admin)
+	// This allows viewing ALL data across ALL organizations - only for debugging/support
+	dataExplorerHandler.RegisterRoutes(platformAdmin)
+
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Starting FastCRM API on port %s", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+// ensureSubmittalsClientID ensures the submittals table has client_id column
+// and the clientId field definition exists for related list discovery
+func ensureSubmittalsClientID(db *sql.DB) {
+	// First check if submittals table exists at all
+	var tableExists int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='submittals'").Scan(&tableExists); err == nil && tableExists > 0 {
+		// Table exists - check if client_id column exists
+		var colCount int
+		if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('submittals') WHERE name = 'client_id'").Scan(&colCount); err != nil {
+			log.Printf("Note: submittals column check failed: %v", err)
+		}
+
+		if colCount == 0 {
+			// Add the client_id column
+			if _, err := db.Exec("ALTER TABLE submittals ADD COLUMN client_id TEXT"); err != nil {
+				log.Printf("Warning: failed to add client_id to submittals: %v", err)
+			} else {
+				log.Println("Added client_id column to submittals table")
+
+				// Create index
+				_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_submittals_client ON submittals(client_id)")
+
+				// Backfill from job_openings
+				result, err := db.Exec(`
+					UPDATE submittals
+					SET client_id = (
+						SELECT j.client_id
+						FROM job_openings j
+						WHERE j.id = submittals.job_opening_id
+					)
+					WHERE client_id IS NULL AND job_opening_id IS NOT NULL
+				`)
+				if err != nil {
+					log.Printf("Warning: failed to backfill client_id: %v", err)
+				} else {
+					rows, _ := result.RowsAffected()
+					log.Printf("Backfilled client_id for %d submittals", rows)
+				}
+			}
+		}
+	}
+	// If table doesn't exist, skip silently - it will be created when an org provisions the Submittal entity
+
+	// ALWAYS ensure clientId field definition exists for all orgs that have Submittal entity
+	// This is critical for related list discovery to work - runs even if column already exists
+	result, err := db.Exec(`
+		INSERT OR REPLACE INTO field_defs (id, org_id, entity_name, name, label, type, is_required, sort_order, link_entity, created_at, modified_at)
+		SELECT
+			'fld_sub_clientid_' || org_id,
+			org_id,
+			'Submittal',
+			'clientId',
+			'Client',
+			'link',
+			0,
+			3,
+			'Client',
+			datetime('now'),
+			datetime('now')
+		FROM entity_defs
+		WHERE name = 'Submittal'
+	`)
+	if err != nil {
+		log.Printf("Warning: failed to add clientId field definition: %v", err)
+	} else {
+		rows, _ := result.RowsAffected()
+		log.Printf("Ensured clientId field definition for %d Submittal entities", rows)
+	}
+
+	// Fix related_list_configs to use clientId instead of clientName/client_name
+	// This is needed because the Placements related list may have been created with the old field name
+	// The value might be stored as 'clientName' (camelCase) or 'client_name' (snake_case)
+	result, err = db.Exec(`
+		UPDATE related_list_configs
+		SET lookup_field = 'clientId', modified_at = datetime('now')
+		WHERE related_entity = 'Submittal' AND (lookup_field = 'clientName' OR lookup_field = 'client_name')
+	`)
+	if err != nil {
+		log.Printf("Warning: failed to update related_list_configs: %v", err)
+	} else {
+		rows, _ := result.RowsAffected()
+		if rows > 0 {
+			log.Printf("Updated %d related_list_configs from clientName to clientId", rows)
+		}
+	}
+
+	// Also delete the old clientName field definition if it exists (to clean up)
+	_, _ = db.Exec(`
+		DELETE FROM field_defs
+		WHERE entity_name = 'Submittal' AND name = 'clientName' AND type = 'varchar'
+	`)
+}

@@ -279,7 +279,7 @@
 									bind:value={formData[field.name]}
 									required={field.isRequired}
 									rows="3"
-									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 									class:border-gray-300={!fieldError}
 									class:border-red-500={fieldError}
 								></textarea>
@@ -290,7 +290,7 @@
 									name={field.name}
 									data-field={field.name}
 									bind:checked={formData[field.name]}
-									class="w-4 h-4 rounded text-primary focus:ring-primary"
+									class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
 									class:border-gray-300={!fieldError}
 									class:border-red-500={fieldError}
 								/>
@@ -301,7 +301,7 @@
 									data-field={field.name}
 									bind:value={formData[field.name]}
 									required={field.isRequired}
-									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 									class:border-gray-300={!fieldError}
 									class:border-red-500={fieldError}
 								>
@@ -336,7 +336,7 @@
 													}
 													formData[field.name] = JSON.stringify(current);
 												}}
-												class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+												class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 											/>
 											<span class="text-sm text-gray-700">{option}</span>
 										</label>
@@ -354,7 +354,7 @@
 									min={field.minValue || undefined}
 									max={field.maxValue || undefined}
 									step={field.type === 'float' || field.type === 'currency' ? '0.01' : undefined}
-									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 									class:border-gray-300={!fieldError}
 									class:border-red-500={fieldError}
 								/>
@@ -380,7 +380,7 @@
 					<button
 						type="submit"
 						disabled={saving}
-						class="px-4 py-2 bg-primary text-black rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-600/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						{saving ? 'Saving...' : 'Save'}
 					</button>

@@ -136,7 +136,7 @@
 		</div>
 		<a
 			href="/admin/flows/new"
-			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 		>
 			+ New Flow
 		</a>
@@ -150,7 +150,7 @@
 				bind:value={search}
 				oninput={handleSearchInput}
 				placeholder="Search flows..."
-				class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+				class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 			/>
 			<svg
 				class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -168,7 +168,7 @@
 		<select
 			bind:value={entityFilter}
 			onchange={handleFilterChange}
-			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">All Entities</option>
 			{#each entities as entity}
@@ -184,7 +184,7 @@
 		<div class="text-center py-12 text-red-500">{error}</div>
 	{:else if flows.length === 0}
 		<div class="text-center py-12 text-gray-500">
-			No flows found. <a href="/admin/flows/new" class="text-primary hover:underline">Create one</a>
+			No flows found. <a href="/admin/flows/new" class="text-blue-600 hover:underline">Create one</a>
 		</div>
 	{:else}
 		<div class="bg-white shadow rounded-lg overflow-hidden">
@@ -233,7 +233,7 @@
 					{#each flows as flow (flow.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 whitespace-nowrap">
-								<a href="/admin/flows/{flow.id}" class="text-primary hover:underline font-medium">
+								<a href="/admin/flows/{flow.id}" class="text-blue-600 hover:underline font-medium">
 									{flow.name}
 								</a>
 							</td>
@@ -249,7 +249,7 @@
 							<td class="px-6 py-4 whitespace-nowrap">
 								<button
 									onclick={() => toggleFlow(flow)}
-									class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 {flow.isActive ? 'bg-primary' : 'bg-gray-200'}"
+									class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {flow.isActive ? 'bg-blue-600' : 'bg-gray-200'}"
 								>
 									<span
 										class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {flow.isActive ? 'translate-x-5' : 'translate-x-0'}"
@@ -257,7 +257,7 @@
 								</button>
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-								<a href="/admin/flows/{flow.id}" class="text-primary hover:underline mr-4">
+								<a href="/admin/flows/{flow.id}" class="text-blue-600 hover:underline mr-4">
 									Edit
 								</a>
 								<button onclick={() => deleteFlow(flow.id)} class="text-red-600 hover:underline">

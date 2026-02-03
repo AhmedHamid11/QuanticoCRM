@@ -64,7 +64,7 @@
 	// Get stat color class
 	function getStatColorClass(color: string | undefined): string {
 		const colors: Record<string, string> = {
-			'blue': 'bg-blue-100 text-primary',
+			'blue': 'bg-blue-100 text-blue-600',
 			'green': 'bg-green-100 text-green-600',
 			'red': 'bg-red-100 text-red-600',
 			'yellow': 'bg-yellow-100 text-yellow-600',
@@ -123,7 +123,7 @@
 				</svg>
 				<p class="text-sm">Entity List: <span class="font-medium">{config.entity}</span></p>
 				<p class="text-xs text-gray-400 mt-1">Showing {config.pageSize || 10} records</p>
-				<a href="/{config.entity}" class="mt-2 inline-block text-primary hover:text-blue-800 text-sm">
+				<a href="/{config.entity}" class="mt-2 inline-block text-blue-600 hover:text-blue-800 text-sm">
 					View All
 				</a>
 			</div>
@@ -139,7 +139,7 @@
 						class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
 					>
 						<div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-							<svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getIconPath(link.icon || 'link')} />
 							</svg>
 						</div>

@@ -157,7 +157,7 @@
 		<button
 			onclick={() => showCreateForm = true}
 			disabled={showCreateForm || picklistFields.length === 0}
-			class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+			class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 		>
 			+ New Bearing
 		</button>
@@ -200,7 +200,7 @@
 							type="text"
 							bind:value={newBearing.name}
 							placeholder="e.g., Sales Stage, Onboarding Status"
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 						/>
 					</div>
 
@@ -210,7 +210,7 @@
 						</label>
 						<select
 							bind:value={newBearing.sourcePicklist}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 						>
 							<option value="">Select a picklist field...</option>
 							{#each picklistFields as field (field.id)}
@@ -224,7 +224,7 @@
 							<input
 								type="checkbox"
 								bind:checked={newBearing.active}
-								class="rounded border-gray-300 text-primary focus:ring-primary"
+								class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
 							<span class="text-sm text-gray-700">Active</span>
 						</label>
@@ -233,7 +233,7 @@
 							<input
 								type="checkbox"
 								bind:checked={newBearing.allowUpdates}
-								class="rounded border-gray-300 text-primary focus:ring-primary"
+								class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
 							<span class="text-sm text-gray-700">Allow Updates</span>
 						</label>
@@ -242,7 +242,7 @@
 							<input
 								type="checkbox"
 								bind:checked={newBearing.confirmBackward}
-								class="rounded border-gray-300 text-primary focus:ring-primary"
+								class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 							/>
 							<span class="text-sm text-gray-700">Confirm Backward Movement</span>
 						</label>
@@ -259,7 +259,7 @@
 					<button
 						onclick={createBearing}
 						disabled={saving || !newBearing.name || !newBearing.sourcePicklist}
-						class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+						class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						{saving ? 'Creating...' : 'Create Bearing'}
 					</button>
@@ -280,7 +280,7 @@
 				{#if picklistFields.length > 0}
 					<button
 						onclick={() => showCreateForm = true}
-						class="mt-4 px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90"
+						class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 					>
 						Create Your First Bearing
 					</button>
@@ -335,7 +335,7 @@
 											<input
 												type="checkbox"
 												bind:checked={editForm.active}
-												class="rounded border-gray-300 text-primary"
+												class="rounded border-gray-300 text-blue-600"
 											/>
 											<span class="text-sm">Active</span>
 										</label>
@@ -345,7 +345,7 @@
 											<input
 												type="checkbox"
 												bind:checked={editForm.allowUpdates}
-												class="rounded border-gray-300 text-primary"
+												class="rounded border-gray-300 text-blue-600"
 											/>
 											<span class="text-sm text-gray-600">Allow updates</span>
 										</label>
@@ -353,7 +353,7 @@
 											<input
 												type="checkbox"
 												bind:checked={editForm.confirmBackward}
-												class="rounded border-gray-300 text-primary"
+												class="rounded border-gray-300 text-blue-600"
 											/>
 											<span class="text-sm text-gray-600">Confirm backward</span>
 										</label>
@@ -405,7 +405,7 @@
 									<td class="px-6 py-4 text-right text-sm">
 										<button
 											onclick={() => startEdit(bearing)}
-											class="text-primary hover:text-blue-800 mr-3"
+											class="text-blue-600 hover:text-blue-800 mr-3"
 										>
 											Edit
 										</button>

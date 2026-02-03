@@ -116,7 +116,7 @@
 			<div class="flex space-x-3">
 				<a
 					href="/tasks/{task.id}/edit"
-					class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90"
+					class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90"
 				>
 					Edit
 				</a>
@@ -170,7 +170,7 @@
 							{#if task.parentType && task.parentId}
 								<a
 									href="/{task.parentType.toLowerCase()}s/{task.parentId}"
-									class="text-primary hover:underline"
+									class="text-blue-600 hover:underline"
 								>
 									{task.parentName || `${task.parentType} ${task.parentId}`}
 								</a>

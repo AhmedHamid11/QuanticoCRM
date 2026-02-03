@@ -142,13 +142,13 @@
 							Name <span class="text-red-500">*</span>
 						</label>
 						<input id="name" type="text" bind:value={name} required
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 					</div>
 
 					<div>
 						<label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
 						<select id="status" bind:value={status}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
 							{#each QUOTE_STATUSES as s}
 								<option value={s}>{s}</option>
 							{/each}
@@ -178,13 +178,13 @@
 					<div>
 						<label for="validUntil" class="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
 						<input id="validUntil" type="date" bind:value={validUntil}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 					</div>
 
 					<div>
 						<label for="currency" class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
 						<select id="currency" bind:value={currency}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary">
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
 							<option value="USD">USD</option>
 							<option value="EUR">EUR</option>
 							<option value="GBP">GBP</option>
@@ -205,17 +205,17 @@
 					<div>
 						<label for="discountPercent" class="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
 						<input id="discountPercent" type="number" bind:value={discountPercent} min="0" max="100" step="0.1"
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 					</div>
 					<div>
 						<label for="taxPercent" class="block text-sm font-medium text-gray-700 mb-1">Tax %</label>
 						<input id="taxPercent" type="number" bind:value={taxPercent} min="0" step="0.1"
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 					</div>
 					<div>
 						<label for="shippingAmount" class="block text-sm font-medium text-gray-700 mb-1">Shipping</label>
 						<input id="shippingAmount" type="number" bind:value={shippingAmount} min="0" step="0.01"
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 					</div>
 				</div>
 			</div>
@@ -226,17 +226,17 @@
 				<div>
 					<label for="description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
 					<textarea id="description" bind:value={description} rows="3"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"></textarea>
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
 				</div>
 				<div>
 					<label for="terms" class="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
 					<textarea id="terms" bind:value={terms} rows="3"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"></textarea>
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
 				</div>
 				<div>
 					<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
 					<textarea id="notes" bind:value={notes} rows="2"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"></textarea>
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
 				</div>
 			</div>
 
@@ -246,7 +246,7 @@
 					Cancel
 				</a>
 				<button type="submit" disabled={saving}
-					class="px-4 py-2 text-black bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+					class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50">
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>
 			</div>

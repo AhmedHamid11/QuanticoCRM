@@ -27,7 +27,7 @@
 			id="rollupResultType"
 			value={rollupResultType || ''}
 			onchange={(e) => onResultTypeChange(e.currentTarget.value)}
-			class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+			class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">Select result type...</option>
 			<option value="numeric">Numeric (SUM, COUNT, AVG, MIN, MAX)</option>
@@ -47,7 +47,7 @@
 				oninput={(e) => onDecimalPlacesChange(parseInt(e.currentTarget.value) || 0)}
 				min="0"
 				max="10"
-				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 				placeholder="2"
 			/>
 		</div>
@@ -62,7 +62,7 @@
 			value={rollupQuery || ''}
 			oninput={(e) => onQueryChange(e.currentTarget.value)}
 			rows="4"
-			class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary font-mono text-sm"
+			class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
 			placeholder={"SELECT COUNT(*) FROM contacts WHERE account_id = '{{id}}'"}
 		></textarea>
 		<p class="mt-1 text-xs text-gray-500">

@@ -14,7 +14,7 @@
 	};
 
 	const colorClasses: Record<string, string> = {
-		blue: 'border-primary border-t-transparent',
+		blue: 'border-blue-600 border-t-transparent',
 		white: 'border-white border-t-transparent',
 		gray: 'border-gray-400 border-t-transparent'
 	};

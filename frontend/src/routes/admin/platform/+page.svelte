@@ -169,7 +169,7 @@
 {#if !hasAccess}
 	<!-- Show nothing while checking access - prevents flash of content for unauthorized users -->
 	<div class="flex items-center justify-center py-12">
-		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
 	</div>
 {:else}
 <div class="space-y-6">
@@ -198,7 +198,7 @@
 				<div class="flex items-center space-x-2">
 				<button
 					onclick={() => showCreateModal = true}
-					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-black bg-primary rounded-md hover:bg-primary/90"
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90"
 				>
 					<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -271,7 +271,7 @@
 							<td class="px-6 py-4 whitespace-nowrap">
 								<div class="flex items-center">
 									<div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-										<span class="text-primary font-medium text-sm">
+										<span class="text-blue-600 font-medium text-sm">
 											{org.name.slice(0, 2).toUpperCase()}
 										</span>
 									</div>
@@ -428,7 +428,7 @@
 		<div class="bg-white shadow rounded-lg p-6">
 			<div class="flex items-center">
 				<div class="flex-shrink-0">
-					<svg class="h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg class="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
 					</svg>
 				</div>
@@ -512,7 +512,7 @@
 		<div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
 			<div class="p-6">
 				<div class="flex items-center justify-center w-12 h-12 mx-auto bg-blue-100 rounded-full">
-					<svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 					</svg>
 				</div>
@@ -528,7 +528,7 @@
 							type="text"
 							bind:value={createOrgName}
 							placeholder="Acme Corp"
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary text-sm px-3 py-2 border"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm px-3 py-2 border"
 							required
 						/>
 					</div>
@@ -539,7 +539,7 @@
 							type="text"
 							bind:value={createOrgSlug}
 							placeholder="acme-corp (auto-generated if empty)"
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary text-sm px-3 py-2 border"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm px-3 py-2 border"
 						/>
 						<p class="mt-1 text-xs text-gray-500">URL-safe identifier. Auto-generated from name if left blank.</p>
 					</div>
@@ -556,7 +556,7 @@
 				<button
 					onclick={() => handleCreateOrg()}
 					disabled={isCreating || !createOrgName.trim()}
-					class="px-4 py-2 text-sm font-medium text-black bg-primary border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50"
+					class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 				>
 					{#if isCreating}
 						Creating...

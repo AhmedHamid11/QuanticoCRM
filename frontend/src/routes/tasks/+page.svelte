@@ -296,7 +296,7 @@
 		<h1 class="text-2xl font-bold text-gray-900">Tasks</h1>
 		<a
 			href="/tasks/new"
-			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 		>
 			+ New Task
 		</a>
@@ -310,7 +310,7 @@
 				bind:value={search}
 				oninput={handleSearchInput}
 				placeholder="Search tasks..."
-				class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+				class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 			/>
 			<svg
 				class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -328,7 +328,7 @@
 		<select
 			bind:value={statusFilter}
 			onchange={handleFilterChange}
-			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">All Statuses</option>
 			<option value="Open">Open</option>
@@ -340,7 +340,7 @@
 		<select
 			bind:value={typeFilter}
 			onchange={handleFilterChange}
-			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+			class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">All Types</option>
 			<option value="Call">Call</option>
@@ -353,7 +353,7 @@
 		<button
 			onclick={() => (showFilterPanel = !showFilterPanel)}
 			class="px-3 py-2 border rounded-md text-sm font-medium {showFilterPanel || filterQuery
-				? 'border-primary bg-blue-50 text-blue-700'
+				? 'border-blue-500 bg-blue-50 text-blue-700'
 				: 'border-gray-300 text-gray-700 hover:bg-gray-50'}"
 			aria-label="Toggle filter panel"
 		>
@@ -367,7 +367,7 @@
 			</svg>
 			Filter
 			{#if filterQuery}
-				<span class="ml-1 text-xs bg-primary text-black px-1.5 py-0.5 rounded-full">1</span>
+				<span class="ml-1 text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full">1</span>
 			{/if}
 		</button>
 
@@ -377,7 +377,7 @@
 				<select
 					bind:value={selectedListView}
 					onchange={() => selectListView(selectedListView)}
-					class="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary pr-8"
+					class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 pr-8"
 				>
 					<option value={null}>All Tasks</option>
 					{#each listViews as view (view.id)}
@@ -412,7 +412,7 @@
 						bind:value={filterQuery}
 						placeholder="e.g., status = 'Open' AND priority = 'High'"
 						rows="2"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary font-mono text-sm"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
 					></textarea>
 				</div>
 				<div class="flex flex-col gap-2 pt-6">
@@ -424,7 +424,7 @@
 					</button>
 					<button
 						onclick={applyFilter}
-						class="px-4 py-2 bg-primary text-black text-sm font-medium rounded-md hover:bg-primary/90"
+						class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-600/90"
 					>
 						Apply
 					</button>
@@ -459,7 +459,7 @@
 		<ErrorDisplay message={error} onRetry={loadTasks} />
 	{:else if tasks.length === 0}
 		<div class="text-center py-12 text-gray-500">
-			No tasks found. <a href="/tasks/new" class="text-primary hover:underline">Create one</a>
+			No tasks found. <a href="/tasks/new" class="text-blue-600 hover:underline">Create one</a>
 		</div>
 	{:else}
 		<div class="bg-white shadow rounded-lg overflow-hidden">
@@ -532,7 +532,7 @@
 					{#each tasks as task (task.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 whitespace-nowrap">
-								<a href="/tasks/{task.id}" class="text-primary hover:underline font-medium">
+								<a href="/tasks/{task.id}" class="text-blue-600 hover:underline font-medium">
 									{task.subject}
 								</a>
 							</td>
@@ -554,7 +554,7 @@
 								{#if task.parentType && task.parentId}
 									<a
 										href="/{task.parentType.toLowerCase()}s/{task.parentId}"
-										class="text-primary hover:underline"
+										class="text-blue-600 hover:underline"
 									>
 										{task.parentName || task.parentType}
 									</a>
@@ -569,7 +569,7 @@
 								{/if}
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-								<a href="/tasks/{task.id}/edit" class="text-primary hover:underline mr-4">
+								<a href="/tasks/{task.id}/edit" class="text-blue-600 hover:underline mr-4">
 									Edit
 								</a>
 								<button onclick={() => deleteTask(task.id)} class="text-red-600 hover:underline">
@@ -639,7 +639,7 @@
 							name="taskSaveMode"
 							value="new"
 							bind:group={saveMode}
-							class="h-4 w-4 text-primary"
+							class="h-4 w-4 text-blue-600"
 						/>
 						<span class="text-sm text-gray-700">Create new view</span>
 					</label>
@@ -649,7 +649,7 @@
 							name="taskSaveMode"
 							value="update"
 							bind:group={saveMode}
-							class="h-4 w-4 text-primary"
+							class="h-4 w-4 text-blue-600"
 						/>
 						<span class="text-sm text-gray-700">Update existing</span>
 					</label>
@@ -666,7 +666,7 @@
 						type="text"
 						bind:value={newViewName}
 						placeholder="e.g., My High Priority Tasks"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					/>
 				</div>
 			{:else}
@@ -674,7 +674,7 @@
 					<label class="block text-sm font-medium text-gray-700 mb-1">Select View to Update</label>
 					<select
 						bind:value={viewToUpdate}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					>
 						<option value={null}>-- Select a view --</option>
 						{#each listViews.filter(v => !v.isSystem) as view}
@@ -699,7 +699,7 @@
 				<button
 					onclick={saveListView}
 					disabled={(saveMode === 'new' && !newViewName.trim()) || (saveMode === 'update' && !viewToUpdate)}
-					class="px-4 py-2 bg-primary text-black rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{saveMode === 'update' ? 'Update View' : 'Save View'}
 				</button>
@@ -746,7 +746,7 @@
 							{#if !view.isDefault}
 								<button
 									onclick={() => setDefaultView(view)}
-									class="text-sm text-primary hover:underline"
+									class="text-sm text-blue-600 hover:underline"
 								>
 									Set Default
 								</button>

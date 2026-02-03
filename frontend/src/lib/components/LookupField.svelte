@@ -121,7 +121,7 @@
 			<div class="flex items-center gap-2 w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
 				<a
 					href="/{entity.toLowerCase()}s/{value}"
-					class="text-primary hover:text-blue-800 hover:underline flex-1 truncate"
+					class="text-blue-600 hover:text-blue-800 hover:underline flex-1 truncate"
 				>
 					{valueName}
 				</a>
@@ -149,7 +149,7 @@
 				onblur={handleBlur}
 				onkeydown={handleKeydown}
 				placeholder="Search {entity}..."
-				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+				class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 				{disabled}
 				required={required && !value}
 			/>

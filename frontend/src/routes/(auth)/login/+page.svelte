@@ -38,16 +38,16 @@
 	<title>Login - Quantico CRM</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center bg-background-light py-12 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
 	<div class="max-w-md w-full space-y-8">
 		<div>
-			<h1 class="text-center text-3xl font-display font-bold">
-				<span class="text-red-800">Quantico</span><span class="text-primary">CRM</span>
+			<h1 class="text-center text-3xl font-bold">
+				<span class="text-red-800">Quantico</span><span class="text-amber-600">CRM</span>
 			</h1>
 			<h2 class="mt-6 text-center text-2xl font-semibold text-gray-900">Sign in to your account</h2>
-			<p class="mt-2 text-center text-sm text-grey-olive">
+			<p class="mt-2 text-center text-sm text-gray-600">
 				Or
-				<a href="/register" class="font-medium text-primary hover:text-primary">
+				<a href="/register" class="font-medium text-blue-600 hover:text-blue-500">
 					create a new account
 				</a>
 			</p>
@@ -102,7 +102,7 @@
 						autocomplete="email"
 						required
 						bind:value={email}
-						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						placeholder="you@company.com"
 					/>
 				</div>
@@ -110,7 +110,7 @@
 				<div>
 					<div class="flex justify-between">
 						<label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-						<a href="/forgot-password" class="text-sm font-medium text-primary hover:text-primary">
+						<a href="/forgot-password" class="text-sm font-medium text-blue-600 hover:text-blue-600">
 							Forgot password?
 						</a>
 					</div>
@@ -121,7 +121,7 @@
 						autocomplete="current-password"
 						required
 						bind:value={password}
-						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						placeholder="Your password"
 					/>
 				</div>
@@ -131,7 +131,7 @@
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-black bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+					class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-600/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{#if isSubmitting}
 						<svg

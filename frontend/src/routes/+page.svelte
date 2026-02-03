@@ -25,7 +25,7 @@
 
 {#if isRedirecting}
 	<div class="text-center py-12">
-		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
 		<p class="mt-4 text-gray-600">Redirecting...</p>
 	</div>
 {:else}
@@ -34,7 +34,7 @@
 		<p class="text-lg text-gray-600 mb-8">A CRM built with discipline and precision</p>
 		<a
 			href={firstTab?.href || '/contacts'}
-			class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+			class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 		>
 			View {firstTab?.label || 'Contacts'}
 		</a>

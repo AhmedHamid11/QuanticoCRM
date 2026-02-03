@@ -243,7 +243,7 @@
 							type="text"
 							id="name"
 							bind:value={name}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							placeholder="e.g., Notify on Lead Create"
 						/>
 					</div>
@@ -253,7 +253,7 @@
 						<select
 							id="entityType"
 							bind:value={entityType}
-							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							<option value="">Select an entity</option>
 							{#each entities as entity}
@@ -269,7 +269,7 @@
 						id="description"
 						bind:value={description}
 						rows={2}
-						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+						class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						placeholder="Optional description for this tripwire"
 					></textarea>
 				</div>
@@ -281,7 +281,7 @@
 							type="url"
 							id="endpointUrl"
 							bind:value={endpointUrl}
-							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 							placeholder="https://your-webhook-endpoint.com/webhook"
 						/>
 						<button
@@ -301,7 +301,7 @@
 						type="checkbox"
 						id="enabled"
 						bind:checked={enabled}
-						class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+						class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 					/>
 					<label for="enabled" class="text-sm text-gray-700">Enabled</label>
 				</div>
@@ -314,7 +314,7 @@
 					<button
 						type="button"
 						onclick={addCondition}
-						class="text-sm text-primary hover:text-blue-800"
+						class="text-sm text-blue-600 hover:text-blue-800"
 					>
 						+ Add Condition
 					</button>
@@ -326,7 +326,7 @@
 						<button
 							type="button"
 							onclick={addCondition}
-							class="mt-2 text-primary hover:text-blue-800"
+							class="mt-2 text-blue-600 hover:text-blue-800"
 						>
 							+ Add Condition
 						</button>
@@ -337,7 +337,7 @@
 						<select
 							id="conditionLogic"
 							bind:value={conditionLogic}
-							class="w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+							class="w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 						>
 							{#each CONDITION_LOGIC_OPTIONS as opt}
 								<option value={opt.value}>{opt.label}</option>
@@ -365,7 +365,7 @@
 										<select
 											bind:value={condition.type}
 											onchange={() => updateCondition(condition.id, { type: condition.type, fieldName: undefined, value: undefined, fromValue: undefined, toValue: undefined })}
-											class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+											class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 										>
 											{#each CONDITION_TYPES as ct}
 												<option value={ct.value}>{ct.label}</option>
@@ -381,7 +381,7 @@
 											<label class="block text-sm font-medium text-gray-700 mb-1">Field</label>
 											<select
 												bind:value={condition.fieldName}
-												class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+												class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 												disabled={!entityType}
 											>
 												<option value="">Select a field</option>
@@ -398,7 +398,7 @@
 											<input
 												type="text"
 												bind:value={condition.value}
-												class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+												class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 												placeholder="Enter value"
 											/>
 										</div>
@@ -410,7 +410,7 @@
 											<input
 												type="text"
 												bind:value={condition.fromValue}
-												class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+												class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 												placeholder="Previous value"
 											/>
 										</div>
@@ -419,7 +419,7 @@
 											<input
 												type="text"
 												bind:value={condition.toValue}
-												class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+												class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
 												placeholder="New value"
 											/>
 										</div>
@@ -442,7 +442,7 @@
 				<button
 					type="submit"
 					disabled={saving}
-					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>

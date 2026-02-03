@@ -50,7 +50,7 @@
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-900">Organization Settings</h1>
-		<a href="/admin" class="text-sm text-primary hover:text-blue-800">
+		<a href="/admin" class="text-sm text-blue-600 hover:text-blue-800">
 			&larr; Back to Admin
 		</a>
 	</div>
@@ -77,7 +77,7 @@
 					<select
 						id="homepage"
 						bind:value={selectedHomePage}
-						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+						class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
 					>
 						<option value="/">Welcome Page (default)</option>
 						{#each navTabs as tab (tab.id)}
@@ -89,7 +89,7 @@
 				<button
 					onclick={saveHomePage}
 					disabled={saving || selectedHomePage === (settings?.homePage || '/')}
-					class="px-4 py-2 text-sm font-medium text-black bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{saving ? 'Saving...' : 'Save'}
 				</button>

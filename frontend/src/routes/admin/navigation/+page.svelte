@@ -180,7 +180,7 @@
 		</div>
 		<button
 			onclick={openAddModal}
-			class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 transition-colors"
+			class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 transition-colors"
 		>
 			Add Tab
 		</button>
@@ -188,7 +188,7 @@
 
 	{#if loading}
 		<div class="text-center py-12">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
 			<p class="mt-2 text-gray-500">Loading...</p>
 		</div>
 	{:else}
@@ -244,7 +244,7 @@
 							</button>
 							<button
 								onclick={() => openEditModal(tab)}
-								class="p-2 text-gray-400 hover:text-primary rounded"
+								class="p-2 text-gray-400 hover:text-blue-600 rounded"
 								title="Edit"
 							>
 								<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -284,7 +284,7 @@
 							value={formData.entityName}
 							onchange={(e) => handleEntitySelect(e.currentTarget.value)}
 							disabled={editingTab?.isSystem}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
 						>
 							<option value="">-- Custom URL --</option>
 							{#each entities as entity}
@@ -298,7 +298,7 @@
 						<input
 							type="text"
 							bind:value={formData.label}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 							placeholder="e.g., Contacts"
 						/>
 					</div>
@@ -308,7 +308,7 @@
 							type="text"
 							bind:value={formData.href}
 							disabled={editingTab?.isSystem || !!formData.entityName}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
 							placeholder="e.g., /contacts"
 						/>
 						{#if editingTab?.isSystem}
@@ -322,7 +322,7 @@
 						<input
 							type="text"
 							bind:value={formData.icon}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 							placeholder="e.g., users"
 						/>
 					</div>
@@ -331,7 +331,7 @@
 							type="checkbox"
 							id="isVisible"
 							bind:checked={formData.isVisible}
-							class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+							class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
 						/>
 						<label for="isVisible" class="ml-2 text-sm text-gray-700">Visible in navigation</label>
 					</div>
@@ -346,7 +346,7 @@
 						<button
 							type="submit"
 							disabled={saving}
-							class="px-4 py-2 bg-primary text-black rounded-md hover:bg-primary/90 disabled:opacity-50"
+							class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 						>
 							{saving ? 'Saving...' : 'Save'}
 						</button>

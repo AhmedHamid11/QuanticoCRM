@@ -57,7 +57,7 @@
 	<title>Register - Quantico CRM</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center bg-background-light py-12 px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
 	<div class="max-w-md w-full space-y-8">
 		<div>
 			<h1 class="text-center text-3xl font-bold">
@@ -66,7 +66,7 @@
 			<h2 class="mt-6 text-center text-2xl font-semibold text-gray-900">Create your account</h2>
 			<p class="mt-2 text-center text-sm text-gray-600">
 				Already have an account?
-				<a href="/login" class="font-medium text-primary hover:text-primary"> Sign in </a>
+				<a href="/login" class="font-medium text-blue-600 hover:text-blue-600"> Sign in </a>
 			</p>
 		</div>
 
@@ -101,7 +101,7 @@
 						type="text"
 						required
 						bind:value={orgName}
-						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						placeholder="Acme Corp"
 					/>
 				</div>
@@ -115,7 +115,7 @@
 							name="firstName"
 							type="text"
 							bind:value={firstName}
-							class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+							class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 							placeholder="John"
 						/>
 					</div>
@@ -127,7 +127,7 @@
 							name="lastName"
 							type="text"
 							bind:value={lastName}
-							class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+							class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 							placeholder="Doe"
 						/>
 					</div>
@@ -142,7 +142,7 @@
 						autocomplete="email"
 						required
 						bind:value={email}
-						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						placeholder="you@company.com"
 					/>
 				</div>
@@ -156,7 +156,7 @@
 						autocomplete="new-password"
 						required
 						bind:value={password}
-						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						placeholder="At least 8 characters"
 					/>
 				</div>
@@ -172,7 +172,7 @@
 						autocomplete="new-password"
 						required
 						bind:value={confirmPassword}
-						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+						class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 						placeholder="Confirm your password"
 					/>
 				</div>
@@ -182,7 +182,7 @@
 				<button
 					type="submit"
 					disabled={isSubmitting}
-					class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-black bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+					class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-600/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{#if isSubmitting}
 						<svg

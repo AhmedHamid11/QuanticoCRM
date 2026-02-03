@@ -110,7 +110,7 @@
 		{/if}
 	</label>
 
-	<div class="w-full min-h-[42px] px-2 py-1 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-primary bg-white">
+	<div class="w-full min-h-[42px] px-2 py-1 border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white">
 		<!-- Selected items as chips -->
 		<div class="flex flex-wrap gap-1 items-center">
 			{#each values as record (record.id)}
@@ -125,7 +125,7 @@
 						<button
 							type="button"
 							onclick={() => removeRecord(record.id)}
-							class="text-primary hover:text-blue-800"
+							class="text-blue-600 hover:text-blue-800"
 							aria-label="Remove {record.name}"
 						>
 							<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

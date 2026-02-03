@@ -34,7 +34,7 @@
 		onchange(target.value);
 	}
 
-	const inputClasses = 'block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm';
+	const inputClasses = 'block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm';
 	const errorClasses = 'border-red-300 focus:border-red-500 focus:ring-red-500';
 </script>
 
@@ -124,7 +124,7 @@
 						value={option.value}
 						checked={inputValue === option.value}
 						onchange={handleInput}
-						class="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
+						class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
 					/>
 					<span class="ml-2 text-sm text-gray-700">{option.label}</span>
 				</label>
@@ -138,7 +138,7 @@
 				name={field.name}
 				checked={Boolean(value)}
 				onchange={handleInput}
-				class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+				class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
 			/>
 			{#if field.helpText}
 				<span class="ml-2 text-sm text-gray-500">{field.helpText}</span>

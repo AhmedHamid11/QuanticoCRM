@@ -496,7 +496,7 @@
 		</div>
 		<a
 			href="/{entitySlug}/new"
-			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-black bg-primary hover:bg-primary/90"
+			class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90"
 		>
 			+ New {entityDef?.label || entityName}
 		</a>
@@ -511,7 +511,7 @@
 				bind:value={search}
 				oninput={handleSearchInput}
 				placeholder="Search..."
-				class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+				class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 			/>
 			<svg
 				class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -540,7 +540,7 @@
 		<!-- List View Selector -->
 		<div class="relative">
 			<select
-				class="pl-3 pr-8 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary bg-white text-sm"
+				class="pl-3 pr-8 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-sm"
 				onchange={(e) => {
 					const target = e.target as HTMLSelectElement;
 					const viewId = target.value;
@@ -564,14 +564,14 @@
 		<!-- Filter Toggle Button -->
 		<button
 			onclick={() => showFilterInput = !showFilterInput}
-			class="px-3 py-2 border rounded-md text-sm flex items-center gap-2 {showFilterInput || filterQuery ? 'border-primary bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}"
+			class="px-3 py-2 border rounded-md text-sm flex items-center gap-2 {showFilterInput || filterQuery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}"
 		>
 			<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
 				<path fill-rule="evenodd" d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 01.628.74v2.288a2.25 2.25 0 01-.659 1.59l-4.682 4.683a2.25 2.25 0 00-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 018 18.25v-5.757a2.25 2.25 0 00-.659-1.591L2.659 6.22A2.25 2.25 0 012 4.629V2.34a.75.75 0 01.628-.74z" clip-rule="evenodd" />
 			</svg>
 			Filter
 			{#if filterQuery}
-				<span class="bg-primary text-black text-xs px-1.5 py-0.5 rounded-full">1</span>
+				<span class="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">1</span>
 			{/if}
 		</button>
 
@@ -605,7 +605,7 @@
 				<a
 					href="https://en.wikipedia.org/wiki/SQL#Syntax"
 					target="_blank"
-					class="text-xs text-primary hover:underline"
+					class="text-xs text-blue-600 hover:underline"
 				>
 					SQL-style syntax help
 				</a>
@@ -616,7 +616,7 @@
 					bind:value={filterQuery}
 					oninput={handleFilterInput}
 					placeholder="e.g., status = 'Active' AND amount > 1000"
-					class="w-full px-3 py-2 border rounded-md font-mono text-sm {filterError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary focus:border-primary'}"
+					class="w-full px-3 py-2 border rounded-md font-mono text-sm {filterError ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'}"
 				/>
 				{#if filterQuery}
 					<button
@@ -667,12 +667,12 @@
 		<div class="text-center py-12 text-gray-500">
 			{#if filterQuery}
 				No records match your filter.
-				<button onclick={clearFilter} class="text-primary hover:underline">
+				<button onclick={clearFilter} class="text-blue-600 hover:underline">
 					Clear filter
 				</button>
 			{:else}
 				No records found.
-				<a href="/{entitySlug}/new" class="text-primary hover:underline">
+				<a href="/{entitySlug}/new" class="text-blue-600 hover:underline">
 					Create one
 				</a>
 			{/if}
@@ -713,7 +713,7 @@
 							{#each displayFields as field, i}
 								<td class="px-6 py-4 whitespace-nowrap text-sm">
 									{#if i === 0}
-										<a href="/{entitySlug}/{record.id}" class="text-primary hover:underline font-medium">
+										<a href="/{entitySlug}/{record.id}" class="text-blue-600 hover:underline font-medium">
 											{formatValue(getFieldValue(record, field), field)}
 										</a>
 									{:else}
@@ -729,7 +729,7 @@
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm">
 								<a
 									href="/{entitySlug}/{record.id}/edit"
-									class="text-primary hover:underline mr-4"
+									class="text-blue-600 hover:underline mr-4"
 								>
 									Edit
 								</a>
@@ -788,7 +788,7 @@
 						type="text"
 						bind:value={newViewName}
 						placeholder="e.g., Active Contacts, High Value Deals"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 					/>
 				</div>
 				<div>
@@ -808,7 +808,7 @@
 						type="checkbox"
 						id="saveAsDefault"
 						bind:checked={saveAsDefault}
-						class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+						class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
 					/>
 					<label for="saveAsDefault" class="text-sm text-gray-700">Set as default view</label>
 				</div>
@@ -823,7 +823,7 @@
 				<button
 					onclick={saveListView}
 					disabled={!newViewName.trim() || savingView}
-					class="px-4 py-2 bg-primary text-black rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-600/90 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{savingView ? 'Saving...' : 'Save View'}
 				</button>
@@ -860,7 +860,7 @@
 							{#if !view.isDefault && !view.isSystem}
 								<button
 									onclick={() => setDefaultView(view)}
-									class="text-xs text-primary hover:underline"
+									class="text-xs text-blue-600 hover:underline"
 								>
 									Set Default
 								</button>

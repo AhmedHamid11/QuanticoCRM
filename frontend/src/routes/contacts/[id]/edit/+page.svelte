@@ -225,7 +225,7 @@
 								id={fieldName}
 								bind:value={formData[fieldName]}
 								rows="3"
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								required={field.isRequired}
 								readonly={field.isReadOnly}
 							></textarea>
@@ -237,7 +237,7 @@
 									type="checkbox"
 									id={fieldName}
 									bind:checked={formData[fieldName]}
-									class="rounded border-gray-300 text-primary focus:ring-primary"
+									class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 									disabled={field.isReadOnly}
 								/>
 								<span class="ml-2 text-sm text-gray-700">Yes</span>
@@ -249,7 +249,7 @@
 							<select
 								id={fieldName}
 								bind:value={formData[fieldName]}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								required={field.isRequired}
 								disabled={field.isReadOnly}
 							>
@@ -265,7 +265,7 @@
 								id={fieldName}
 								type={getInputType(field)}
 								bind:value={formData[fieldName]}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary"
+								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
 								required={field.isRequired}
 								readonly={field.isReadOnly}
 								maxlength={field.maxLength || undefined}
@@ -295,7 +295,7 @@
 				<button
 					type="submit"
 					disabled={saving}
-					class="px-4 py-2 text-black bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
+					class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50"
 				>
 					{saving ? 'Saving...' : 'Save Changes'}
 				</button>

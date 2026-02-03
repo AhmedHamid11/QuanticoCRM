@@ -93,7 +93,7 @@
 			<a href="/admin" class="text-sm text-gray-600 hover:text-gray-900">&larr; Back to Admin</a>
 			<button
 				onclick={() => showCreateModal = true}
-				class="inline-flex items-center px-4 py-2 text-sm font-medium text-black bg-primary rounded-md hover:bg-primary/90"
+				class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90"
 			>
 				<svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -116,7 +116,7 @@
 			<p class="mt-1 text-sm text-gray-500">Create a template to customize your PDF output.</p>
 			<div class="mt-4">
 				<button onclick={() => showCreateModal = true}
-					class="inline-flex items-center px-4 py-2 text-sm font-medium text-black bg-primary rounded-md hover:bg-primary/90">
+					class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90">
 					New Template
 				</button>
 			</div>
@@ -164,7 +164,7 @@
 					<div class="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
 						<div class="flex items-center gap-2">
 							<a href="/admin/pdf-templates/{tpl.id}"
-								class="text-sm text-primary hover:text-blue-800 font-medium">
+								class="text-sm text-blue-600 hover:text-blue-800 font-medium">
 								Edit
 							</a>
 							{#if !tpl.isDefault}
@@ -204,14 +204,14 @@
 					</label>
 					<input id="tplName" type="text" bind:value={newName} required
 						placeholder="e.g. Corporate Quote"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary" />
+						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
 				</div>
 
 				<div>
 					<label class="block text-sm font-medium text-gray-700 mb-2">Base Design</label>
 					<div class="space-y-2">
 						{#each BASE_DESIGNS as design}
-							<label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 {newBaseDesign === design.value ? 'border-primary bg-blue-50' : 'border-gray-200'}">
+							<label class="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 {newBaseDesign === design.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}">
 								<input type="radio" name="baseDesign" value={design.value} bind:group={newBaseDesign}
 									class="mt-0.5" />
 								<div>
@@ -229,7 +229,7 @@
 						Cancel
 					</button>
 					<button type="submit" disabled={creating}
-						class="px-4 py-2 text-black bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
+						class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50">
 						{creating ? 'Creating...' : 'Create Template'}
 					</button>
 				</div>
