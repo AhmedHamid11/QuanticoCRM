@@ -110,7 +110,7 @@
 					placeholder="Add a new entry..."
 					rows="2"
 					disabled={isSubmitting}
-					class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm disabled:bg-gray-50 disabled:text-gray-500"
+					class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm disabled:bg-gray-50 disabled:text-gray-500"
 				></textarea>
 			</div>
 			{#if submitError}
@@ -126,7 +126,7 @@
 						type="button"
 						onclick={handleSubmit}
 						disabled={isSubmitting || !displayEntry.trim()}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-black bg-primary rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 					>
 						{#if isSubmitting}
 							<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">

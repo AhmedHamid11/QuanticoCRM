@@ -215,7 +215,7 @@
 										{#if renderLink}
 											{@const linkInfo = renderLink(field.name, value)}
 											{#if linkInfo}
-												<a href={linkInfo.href} class="text-blue-600 hover:underline">
+												<a href={linkInfo.href} class="text-primary hover:underline">
 													{linkInfo.text}
 												</a>
 											{:else}
