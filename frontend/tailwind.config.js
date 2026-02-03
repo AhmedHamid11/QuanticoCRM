@@ -7,12 +7,14 @@ export default {
 	theme: {
 		extend: {
 			colors: {
-				primary: '#FF9145',
+				primary: '#FFD468', // Mustard
+				'princeton-orange': '#FF9145',
 				'grey-olive': '#7F898E',
 				silver: '#C4CCC9',
 				'silver-2': '#C1CAC8',
-				'bg-light': '#F2F4F3',
-				'bg-dark': '#0A0B0B'
+				black: '#000000',
+				'background-light': '#F2F4F3',
+				'background-dark': '#0A0B0B'
 			},
 			fontFamily: {
 				sans: ['Space Grotesk', ...defaultTheme.fontFamily.sans],

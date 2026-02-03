@@ -10,8 +10,9 @@
 @layer base {
   :root {
     /* Primary palette */
-    --color-primary: #FF9145;
-    --color-primary-hover: #E67D30;
+    --color-primary: #FFD468; /* Mustard */
+    --color-primary-hover: #E6BC4D;
+    --color-princeton-orange: #FF9145;
     --color-grey-olive: #7F898E;
     --color-silver: #C4CCC9;
     --color-silver-2: #C1CAC8;
