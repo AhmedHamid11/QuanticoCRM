@@ -36,15 +36,17 @@ var StructToMap = util.StructToMap
 type GenericEntityHandler struct {
 	defaultDB         db.DBConn
 	metadataRepo      *repo.MetadataRepo
+	authRepo          *repo.AuthRepo // NEW: for user name lookups
 	tripwireService   TripwireServiceInterface
 	validationService ValidationServiceInterface
 }
 
 // NewGenericEntityHandler creates a new GenericEntityHandler
-func NewGenericEntityHandler(conn db.DBConn, metadataRepo *repo.MetadataRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface) *GenericEntityHandler {
+func NewGenericEntityHandler(conn db.DBConn, metadataRepo *repo.MetadataRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface) *GenericEntityHandler {
 	return &GenericEntityHandler{
 		defaultDB:         conn,
 		metadataRepo:      metadataRepo,
+		authRepo:          authRepo,
 		tripwireService:   tripwireService,
 		validationService: validationService,
 	}
@@ -75,6 +77,65 @@ func (h *GenericEntityHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo 
 // getTableName converts entity name to table name (e.g., "Candidate" -> "candidates")
 func (h *GenericEntityHandler) getTableName(entityName string) string {
 	return util.GetTableName(entityName)
+}
+
+// resolveUserNames adds createdByName and modifiedByName to records
+func (h *GenericEntityHandler) resolveUserNames(ctx context.Context, records []map[string]interface{}) {
+	if h.authRepo == nil || len(records) == 0 {
+		return
+	}
+
+	// Helper to extract user ID from interface{} (handles both string and *string)
+	extractUserID := func(val interface{}) string {
+		if val == nil {
+			return ""
+		}
+		if s, ok := val.(string); ok {
+			return s
+		}
+		if sp, ok := val.(*string); ok && sp != nil {
+			return *sp
+		}
+		return ""
+	}
+
+	// Collect unique user IDs
+	userIDSet := make(map[string]bool)
+	for _, record := range records {
+		if id := extractUserID(record["createdById"]); id != "" {
+			userIDSet[id] = true
+		}
+		if id := extractUserID(record["modifiedById"]); id != "" {
+			userIDSet[id] = true
+		}
+	}
+
+	if len(userIDSet) == 0 {
+		return
+	}
+
+	// Convert to slice
+	userIDs := make([]string, 0, len(userIDSet))
+	for id := range userIDSet {
+		userIDs = append(userIDs, id)
+	}
+
+	// Lookup names
+	userNames, err := h.authRepo.GetUserNamesByIDs(ctx, userIDs)
+	if err != nil {
+		log.Printf("WARNING: Failed to lookup user names: %v", err)
+		return
+	}
+
+	// Apply names to records
+	for _, record := range records {
+		if id := extractUserID(record["createdById"]); id != "" {
+			record["createdByName"] = userNames[id]
+		}
+		if id := extractUserID(record["modifiedById"]); id != "" {
+			record["modifiedByName"] = userNames[id]
+		}
+	}
 }
 
 // fetchRecordAsMap fetches a record by ID and returns it as a map (for tripwire evaluation)
@@ -286,9 +347,8 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Fetch records - note: no user JOINs since tenant DBs don't have users table
-	query := fmt.Sprintf(`SELECT t.*,
-		'' as created_by_name,
-		'' as modified_by_name
+	// User names will be resolved after fetching via resolveUserNames()
+	query := fmt.Sprintf(`SELECT t.*
 		FROM %s t
 		WHERE t.org_id = ?%s`, tableName, extraWhere)
 
@@ -403,6 +463,9 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 		records = []map[string]interface{}{}
 	}
 
+	// Resolve user names for created_by and modified_by
+	h.resolveUserNames(c.Context(), records)
+
 	// Execute rollup fields for each record (in parallel), unless caller opted out
 	var rollupFields []*entity.FieldDef
 	if includeRollups {
@@ -508,9 +571,8 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 
 	// CRITICAL: Always filter by org_id to prevent cross-org data access
 	// Note: no user JOINs since tenant DBs don't have users table
-	query := fmt.Sprintf(`SELECT t.*,
-		'' as created_by_name,
-		'' as modified_by_name
+	// User names will be resolved after fetching via resolveUserNames()
+	query := fmt.Sprintf(`SELECT t.*
 		FROM %s t
 		WHERE t.id = ? AND t.org_id = ?`, tableName)
 	rows, err := h.getDB(c).QueryContext(c.Context(), query, id, orgID)
@@ -607,6 +669,9 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 			camelRecord[fieldName+"Links"] = "[]"
 		}
 	}
+
+	// Resolve user names for this single record
+	h.resolveUserNames(c.Context(), []map[string]interface{}{camelRecord})
 
 	// Execute rollup fields
 	rollupSvc := service.NewRollupService(h.getRawDB(c))
