@@ -84,34 +84,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CRIT-01 | TBD | Pending |
-| CRIT-02 | TBD | Pending |
-| CRIT-03 | TBD | Pending |
-| CRIT-04 | TBD | Pending |
-| CRIT-05 | TBD | Pending |
-| HARD-01 | TBD | Pending |
-| HARD-02 | TBD | Pending |
-| HARD-03 | TBD | Pending |
-| HARD-04 | TBD | Pending |
-| HARD-05 | TBD | Pending |
-| HARD-06 | TBD | Pending |
-| HARD-07 | TBD | Pending |
-| SESS-01 | TBD | Pending |
-| SESS-02 | TBD | Pending |
-| SESS-03 | TBD | Pending |
-| SESS-04 | TBD | Pending |
-| AUDT-01 | TBD | Pending |
-| AUDT-02 | TBD | Pending |
-| AUDT-03 | TBD | Pending |
-| AUDT-04 | TBD | Pending |
-| SCAN-01 | TBD | Pending |
-| SCAN-02 | TBD | Pending |
+| CRIT-01 | Phase 06 | Pending |
+| CRIT-02 | Phase 06 | Pending |
+| CRIT-03 | Phase 06 | Pending |
+| CRIT-04 | Phase 06 | Pending |
+| CRIT-05 | Phase 06 | Pending |
+| HARD-01 | Phase 08 | Pending |
+| HARD-02 | Phase 07 | Pending |
+| HARD-03 | Phase 07 | Pending |
+| HARD-04 | Phase 07 | Pending |
+| HARD-05 | Phase 08 | Pending |
+| HARD-06 | Phase 08 | Pending |
+| HARD-07 | Phase 08 | Pending |
+| SESS-01 | Phase 09 | Pending |
+| SESS-02 | Phase 09 | Pending |
+| SESS-03 | Phase 09 | Pending |
+| SESS-04 | Phase 09 | Pending |
+| AUDT-01 | Phase 10 | Pending |
+| AUDT-02 | Phase 10 | Pending |
+| AUDT-03 | Phase 10 | Pending |
+| AUDT-04 | Phase 10 | Pending |
+| SCAN-01 | Phase 10 | Pending |
+| SCAN-02 | Phase 10 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 22 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 22 ⚠️
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after initial definition*
+*Last updated: 2026-02-03 after roadmap creation*
