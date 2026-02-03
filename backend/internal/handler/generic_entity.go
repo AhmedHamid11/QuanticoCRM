@@ -1602,6 +1602,114 @@ func (h *GenericEntityHandler) upsertUpdate(c *fiber.Ctx, orgID, entityName, tab
 	return c.JSON(body)
 }
 
+// DeleteStreamEntry deletes a specific entry from a stream field's log by index
+func (h *GenericEntityHandler) DeleteStreamEntry(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+	recordID := c.Params("id")
+	fieldName := c.Params("fieldName")
+	entryIndex := c.QueryInt("index", -1)
+
+	if entryIndex < 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing or invalid index parameter"})
+	}
+
+	// Try to resolve entity name case-insensitively
+	resolvedName, err := h.getMetadataRepo(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if resolvedName != "" {
+		entityName = resolvedName
+	}
+
+	// Verify entity exists for this org
+	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if ent == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+	}
+
+	// Get field definitions to verify field exists and is a stream type
+	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	var streamField *entity.FieldDef
+	for _, field := range fields {
+		if field.Name == fieldName && field.Type == entity.FieldTypeStream {
+			streamField = &field
+			break
+		}
+	}
+
+	if streamField == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Stream field not found"})
+	}
+
+	tableName := h.getTableName(entityName)
+	snakeFieldName := util.CamelToSnake(fieldName)
+	logColumn := snakeFieldName + "_log"
+
+	// Fetch current log value
+	query := fmt.Sprintf("SELECT %s FROM %s WHERE id = ? AND org_id = ?",
+		quoteIdentifier(logColumn), tableName)
+	var currentLog sql.NullString
+	err = h.getDB(c).QueryRowContext(c.Context(), query, recordID, orgID).Scan(&currentLog)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Record not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if !currentLog.Valid || currentLog.String == "" {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No log entries to delete"})
+	}
+
+	// Parse log entries (split by newline)
+	entries := strings.Split(currentLog.String, "\n")
+	var filteredEntries []string
+	for _, e := range entries {
+		if strings.TrimSpace(e) != "" {
+			filteredEntries = append(filteredEntries, e)
+		}
+	}
+
+	if entryIndex >= len(filteredEntries) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Entry index out of range"})
+	}
+
+	// Remove the entry at the specified index
+	newEntries := make([]string, 0, len(filteredEntries)-1)
+	for i, entry := range filteredEntries {
+		if i != entryIndex {
+			newEntries = append(newEntries, entry)
+		}
+	}
+
+	// Join entries back together
+	newLog := strings.Join(newEntries, "\n")
+
+	// Update the log column
+	now := time.Now().UTC().Format(time.RFC3339)
+	userID := c.Locals("userID").(string)
+	updateQuery := fmt.Sprintf("UPDATE %s SET %s = ?, modified_at = ?, modified_by_id = ? WHERE id = ? AND org_id = ?",
+		tableName, quoteIdentifier(logColumn))
+	_, err = h.getDB(c).ExecContext(c.Context(), updateQuery, newLog, now, userID, recordID, orgID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":    true,
+		"logEntries": len(newEntries),
+	})
+}
+
 // RegisterRoutes registers generic entity routes
 func (h *GenericEntityHandler) RegisterRoutes(app fiber.Router) {
 	// Public metadata endpoints (read-only, for display purposes)
@@ -1617,4 +1725,7 @@ func (h *GenericEntityHandler) RegisterRoutes(app fiber.Router) {
 	app.Put("/entities/:entity/records/:id", h.Update)
 	app.Patch("/entities/:entity/records/:id", h.Update)
 	app.Delete("/entities/:entity/records/:id", h.Delete)
+
+	// Stream field operations
+	app.Delete("/entities/:entity/records/:id/stream/:fieldName", h.DeleteStreamEntry)
 }

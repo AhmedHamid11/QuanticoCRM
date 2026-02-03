@@ -3,7 +3,7 @@
 	import type { LayoutSectionV2 } from '$lib/types/layout';
 	import { evaluateVisibility } from '$lib/types/layout';
 	import { fieldNameToKey, getRecordValue } from '$lib/utils/fieldMapping';
-	import { put, get } from '$lib/utils/api';
+	import { put, get, del } from '$lib/utils/api';
 	import StreamField from './StreamField.svelte';
 
 	interface Props {
@@ -112,6 +112,26 @@
 			}
 		};
 	}
+
+	// Create a handler for deleting a stream entry
+	function createStreamDeleteHandler(fieldName: string): ((entryIndex: number) => Promise<void>) | undefined {
+		if (!entityName || !recordId) return undefined;
+
+		return async (entryIndex: number) => {
+			// Call the delete endpoint
+			await del(`/entities/${entityName}/records/${recordId}/stream/${fieldName}?index=${entryIndex}`);
+
+			// Fetch the full record to refresh the log
+			const fullRecord = await get<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`
+			);
+
+			// Notify parent of the update
+			if (onRecordUpdate) {
+				onRecordUpdate(fullRecord);
+			}
+		};
+	}
 </script>
 
 {#if isSectionVisible && visibleFields.length > 0}
@@ -184,6 +204,7 @@
 										log={logStr}
 										readonly={true}
 										onsubmit={createStreamSubmitHandler(field.name)}
+										ondelete={createStreamDeleteHandler(field.name)}
 									/>
 								</div>
 							{:else}
