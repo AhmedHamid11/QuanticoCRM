@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================
+   EXPERIMENTAL THEME: Orange/Silver
+   To revert: git checkout HEAD~1 -- src/app.css
+   =========================================== */
+
+@layer base {
+  :root {
+    /* Primary palette */
+    --color-primary: #FF9145;
+    --color-primary-hover: #E67D30;
+    --color-grey-olive: #7F898E;
+    --color-silver: #C4CCC9;
+    --color-silver-2: #C1CAC8;
+
+    /* Backgrounds */
+    --color-bg: #F2F4F3;
+    --color-bg-alt: #FFFFFF;
+    --color-text: #0A0B0B;
+    --color-text-muted: #7F898E;
+  }
+
+  .dark {
+    --color-bg: #0A0B0B;
+    --color-bg-alt: #1A1B1B;
+    --color-text: #F2F4F3;
+    --color-text-muted: #C4CCC9;
+  }
+
+  body {
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  /* Display headings use Syncopate */
+  h1, h2, .font-display {
+    font-family: 'Syncopate', 'Space Grotesk', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Code blocks use JetBrains Mono */
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+}
+
+/* Utility class for primary accent */
+@layer utilities {
+  .text-primary {
+    color: var(--color-primary);
+  }
+
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+
+  .bg-primary:hover {
+    background-color: var(--color-primary-hover);
+  }
+
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+}
