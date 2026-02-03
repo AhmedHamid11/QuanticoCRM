@@ -251,10 +251,12 @@
 									}}
 								/>
 							{:else if field.type === 'stream'}
+								{@const entryKey = fieldNameToKey(field.name)}
+								{@const logKey = `${entryKey}Log`}
 								<StreamField
 									label={field.label}
-									entry={String(formData[field.name] || '')}
-									log={String(formData[`${field.name}Log`] || '')}
+									entry={String(formData[entryKey] || formData[field.name] || '')}
+									log={String(formData[logKey] || '')}
 									required={field.isRequired}
 									onchange={(value) => {
 										formData[field.name] = value;

@@ -979,7 +979,9 @@ func (h *GenericEntityHandler) Update(c *fiber.Ctx) error {
 		if field.Type == entity.FieldTypeStream {
 			snakeName := util.CamelToSnake(field.Name)
 			entryKey := field.Name
-			logKey := field.Name + "Log"
+			// For oldRecord lookup, use camelCase: activity_log -> activityLog, then + "Log" -> activityLogLog
+			camelKey := util.SnakeToCamel(field.Name)
+			logKey := camelKey + "Log"
 
 			// Get the current entry value
 			entryVal, hasEntry := body[entryKey]
@@ -992,7 +994,7 @@ func (h *GenericEntityHandler) Update(c *fiber.Ctx) error {
 
 			// If entry has content, append it to the log with timestamp
 			if entryStr != "" {
-				// Get existing log value
+				// Get existing log value - try both camelCase and snake_case keys
 				existingLog := ""
 				if logVal, hasLog := body[logKey]; hasLog && logVal != nil {
 					if s, ok := logVal.(string); ok {
@@ -1002,6 +1004,7 @@ func (h *GenericEntityHandler) Update(c *fiber.Ctx) error {
 
 				// If we don't have the log in the body, fetch it from the database
 				if existingLog == "" && oldRecord != nil {
+					// Try camelCase key first (what the API returns)
 					if oldLogVal, ok := oldRecord[logKey]; ok && oldLogVal != nil {
 						if s, ok := oldLogVal.(string); ok {
 							existingLog = s
