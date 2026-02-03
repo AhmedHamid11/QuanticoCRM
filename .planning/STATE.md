@@ -6,7 +6,7 @@
 **Phase:** All phases complete (5/5)
 **Status:** Ready for next milestone
 
-**Last activity:** 2026-02-02 — Completed quick task 006: add edit object icon to custom entities
+**Last activity:** 2026-02-02 — Completed quick task 007: soft delete custom entities
 
 ## Project Reference
 
@@ -33,7 +33,8 @@ Run `/gsd:new-milestone` to:
 | 004 | Fix related records 500 error | 2026-02-02 | 4c78931 | [004-fix-related-records-500](./quick/004-fix-related-records-500/) |
 | 005 | Edit in list for related records | 2026-02-02 | 8158119 | [005-edit-in-list-for-related-records](./quick/005-edit-in-list-for-related-records/) |
 | 006 | Add edit object icon to custom entities | 2026-02-02 | 0779eed | [006-add-edit-object-icon-to-custom-entities](./quick/006-add-edit-object-icon-to-custom-entities/) |
+| 007 | Soft delete custom entities | 2026-02-02 | 9f43d06 | [007-soft-delete-custom-entities](./quick/007-soft-delete-custom-entities/) |
 
 ---
 
-*Updated: 2026-02-02 after quick task 006*
+*Updated: 2026-02-02 after quick task 007*
