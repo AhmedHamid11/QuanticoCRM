@@ -7,14 +7,14 @@ export default {
 	theme: {
 		extend: {
 			colors: {
-				primary: '#FFD468', // Mustard
-				'princeton-orange': '#FF9145',
-				'grey-olive': '#7F898E',
-				silver: '#C4CCC9',
-				'silver-2': '#C1CAC8',
+				primary: '#FF9549', // Sandy Brown
+				'sandy-brown': '#FF9549',
+				'cool-steel': '#929A98',
+				'carbon-black': '#1C2327',
+				'ash-grey': '#BEC6C3',
 				black: '#000000',
-				'background-light': '#F2F4F3',
-				'background-dark': '#0A0B0B'
+				'background-light': '#F5F6F5',
+				'background-dark': '#1C2327'
 			},
 			fontFamily: {
 				sans: ['Space Grotesk', ...defaultTheme.fontFamily.sans],

@@ -3,32 +3,31 @@
 @tailwind utilities;
 
 /* ===========================================
-   EXPERIMENTAL THEME: Orange/Silver
-   To revert: git checkout HEAD~1 -- src/app.css
+   EXPERIMENTAL THEME: Sandy Brown / Steel
+   To revert: git checkout 133f34d -- frontend/
    =========================================== */
 
 @layer base {
   :root {
     /* Primary palette */
-    --color-primary: #FFD468; /* Mustard */
-    --color-primary-hover: #E6BC4D;
-    --color-princeton-orange: #FF9145;
-    --color-grey-olive: #7F898E;
-    --color-silver: #C4CCC9;
-    --color-silver-2: #C1CAC8;
+    --color-primary: #FF9549; /* Sandy Brown */
+    --color-primary-hover: #E67D30;
+    --color-cool-steel: #929A98;
+    --color-carbon-black: #1C2327;
+    --color-ash-grey: #BEC6C3;
 
     /* Backgrounds */
-    --color-bg: #F2F4F3;
+    --color-bg: #F5F6F5;
     --color-bg-alt: #FFFFFF;
-    --color-text: #0A0B0B;
-    --color-text-muted: #7F898E;
+    --color-text: #1C2327; /* Carbon Black */
+    --color-text-muted: #929A98; /* Cool Steel */
   }
 
   .dark {
-    --color-bg: #0A0B0B;
-    --color-bg-alt: #1A1B1B;
-    --color-text: #F2F4F3;
-    --color-text-muted: #C4CCC9;
+    --color-bg: #1C2327; /* Carbon Black */
+    --color-bg-alt: #2A3338;
+    --color-text: #BEC6C3; /* Ash Grey */
+    --color-text-muted: #929A98; /* Cool Steel */
   }
 
   body {
