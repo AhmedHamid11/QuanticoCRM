@@ -100,6 +100,7 @@ Plans:
 **Goal:** Control session lifecycle and verify tenant isolation.
 **Depends on:** Phase 07 (token architecture must be complete for session control)
 **Requirements:** SESS-01, SESS-02, SESS-03, SESS-04
+**Plans:** 4 plans
 
 **Success Criteria:**
 
@@ -108,7 +109,11 @@ Plans:
 3. State-changing requests without valid CSRF token are rejected
 4. Integration tests verify no data leakage between tenants
 
-**Plans:** TBD
+Plans:
+- [ ] 09-01-PLAN.md — Session timeout backend (migration, middleware, extend endpoint)
+- [ ] 09-02-PLAN.md — CSRF middleware and per-org session settings
+- [ ] 09-03-PLAN.md — Frontend session warning UI and timeout tracking
+- [ ] 09-04-PLAN.md — Tenant isolation integration tests
 
 ---
 
@@ -137,10 +142,10 @@ Plans:
 | 06. Critical Fixes | v2.0 | 5/5 | Complete | 2026-02-04 |
 | 07. Token Architecture | v2.0 | 3/3 | Complete | 2026-02-04 |
 | 08. Security Hardening | v2.0 | 4/4 | Complete | 2026-02-04 |
-| 09. Session Management | v2.0 | 0/TBD | Not started | - |
+| 09. Session Management | v2.0 | 0/4 | Planned | - |
 | 10. Audit Infrastructure | v2.0 | 0/TBD | Not started | - |
 
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 08 complete (security headers, password policy, forced change)*
+*Last updated: 2026-02-04 - Phase 09 planned (4 plans in 2 waves)*
