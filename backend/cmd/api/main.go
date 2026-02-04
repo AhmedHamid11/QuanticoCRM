@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"time"
 
+	"github.com/fastcrm/backend/internal/config"
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/flow"
@@ -15,8 +15,8 @@ import (
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/service"
+	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
@@ -45,14 +45,17 @@ func init() {
 }
 
 func main() {
+	// SECURITY: Load and validate configuration FIRST (fails fast on missing required config)
+	cfg := config.Load()
+
 	var masterDB *sql.DB
 	var masterDBConn db.DBConn // Interface for repos that support reconnection
 	var tursoDB *db.TursoDB   // TursoDB wrapper for Turso connections
 	var err error
 
 	// Check for Turso connection (production master database)
-	tursoURL := os.Getenv("TURSO_URL")
-	tursoToken := os.Getenv("TURSO_AUTH_TOKEN")
+	tursoURL := cfg.TursoURL
+	tursoToken := cfg.TursoToken
 
 	if tursoURL != "" && tursoToken != "" {
 		// Production: Connect to Turso master database using TursoDB wrapper
@@ -93,18 +96,8 @@ func main() {
 		log.Println("Connection pool configured: MaxOpen=25, MaxIdle=10, MaxLifetime=5m")
 	}
 
-	// Get JWT secret from environment (REQUIRED in production)
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		// SECURITY: Fail fast in production if JWT_SECRET is not set
-		env := os.Getenv("ENVIRONMENT")
-		if env == "production" || env == "prod" || tursoURL != "" {
-			log.Fatal("FATAL: JWT_SECRET environment variable must be set in production")
-		}
-		// Use a default for development only
-		jwtSecret = "dev-secret-change-in-production"
-		log.Println("WARNING: Using default JWT secret. Set JWT_SECRET in production!")
-	}
+	// Get JWT secret from centralized config (validated at startup)
+	jwtSecret := cfg.GetJWTSecret()
 
 	// Initialize repositories
 	// Note: Repos that access master DB metadata use DBConn interface for auto-reconnect support with Turso
@@ -207,7 +200,7 @@ func main() {
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, cfg.IsProduction())
 	userHandler := handler.NewUserHandler(authRepo)
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
@@ -236,21 +229,35 @@ func main() {
 
 	// Create Fiber app with environment-aware error handling
 	app := fiber.New(fiber.Config{
+		// SECURITY: Maximum request body size (10MB for upload endpoints)
+		// Individual routes can apply stricter limits via BodyLimit middleware
+		BodyLimit: middleware.UploadBodyLimit,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			// Check if it's already an APIError (from handlers using NewAPIError)
+			if apiErr, ok := err.(*util.APIError); ok {
+				return c.Status(apiErr.StatusCode).JSON(apiErr)
+			}
+
+			// Classify and sanitize unknown errors
+			category := util.ClassifyError(err)
+			requestID := util.GenerateErrorID()
+
+			// Log full error for debugging with request_id for support correlation
+			log.Printf("[ERROR %s] [%s] %v", requestID, category, err)
+
 			// SECURITY: Sanitize error messages in production to prevent information disclosure
-			env := os.Getenv("ENVIRONMENT")
-			if env == "production" || env == "prod" {
-				// Generate error ID for correlation
-				errorID := fmt.Sprintf("%d", time.Now().UnixNano())
-				log.Printf("[ERROR %s] %v", errorID, err)
+			if cfg.IsProduction() {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error":   "An internal error occurred",
-					"errorId": errorID,
+					"error":      util.GetCategoryMessage(category),
+					"request_id": requestID,
 				})
 			}
-			// In development, return full error details
+
+			// In development, include full error details for debugging
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": err.Error(),
+				"error":      util.GetCategoryMessage(category),
+				"details":    err.Error(),
+				"request_id": requestID,
 			})
 		},
 	})
@@ -258,19 +265,23 @@ func main() {
 	// Global middleware
 	app.Use(recover.New())
 	app.Use(logger.New())
-	// SECURITY: Configure CORS based on environment
-	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-	if allowedOrigins == "" {
-		// Default for development
-		allowedOrigins = "*"
-		if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "prod" {
-			log.Println("WARNING: ALLOWED_ORIGINS not set in production. Set this to restrict CORS.")
-		}
-	}
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: allowedOrigins,
-		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+
+	// SECURITY: HSTS header on all responses (CRIT-05)
+	// Forces browsers to use HTTPS for 1 year
+	app.Use(middleware.HSTS())
+
+	// SECURITY: Security headers on all responses (HARD-01)
+	// Protects against clickjacking, MIME sniffing, and other common attacks
+	app.Use(middleware.SecurityHeaders())
+
+	// SECURITY: Custom CORS middleware with origin validation (CRIT-01)
+	// In production, non-allowlisted origins receive NO CORS headers (silent reject)
+	app.Use(middleware.NewCORS(cfg.AllowedOrigins, cfg.IsDevelopment()))
+
+	// SECURITY: CSRF protection for state-changing requests (SESS-03)
+	// Protects against cross-site request forgery using double-submit cookie pattern
+	app.Use(middleware.NewCSRFMiddleware(middleware.CSRFConfig{
+		IsProduction: cfg.IsProduction(),
 	}))
 
 	// Rate limiting to prevent abuse and DDoS
@@ -323,28 +334,15 @@ func main() {
 	// ==========================================
 	// Public auth routes (no authentication required)
 	// ==========================================
-	auth := api.Group("/auth")
-	auth.Post("/register", authHandler.Register)
-
-	// Strict rate limiting for login to prevent brute force attacks
-	// 5 attempts per minute per IP
-	loginLimiter := limiter.New(limiter.Config{
-		Max:        5,
-		Expiration: 1 * time.Minute,
-		KeyGenerator: func(c *fiber.Ctx) string {
-			forwarded := c.Get("X-Forwarded-For")
-			if forwarded != "" {
-				return "login:" + forwarded
-			}
-			return "login:" + c.IP()
-		},
-		LimitReached: func(c *fiber.Ctx) error {
-			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error": "Too many login attempts. Please try again in a minute.",
-			})
-		},
+	// SECURITY: Apply strict rate limiting to ALL auth endpoints to prevent brute force attacks
+	// 5 attempts per minute per IP for: register, login, forgot-password, reset-password, etc.
+	authRateLimiter := middleware.NewAuthRateLimiter(middleware.AuthRateLimiterConfig{
+		Max:    5,
+		Window: 1 * time.Minute,
 	})
-	auth.Post("/login", loginLimiter, authHandler.Login)
+	auth := api.Group("/auth", authRateLimiter)
+	auth.Post("/register", authHandler.Register)
+	auth.Post("/login", authHandler.Login)
 	auth.Post("/refresh", authHandler.RefreshToken)
 	auth.Post("/accept-invite", authHandler.AcceptInvitation)
 	auth.Post("/forgot-password", authHandler.ForgotPassword)
@@ -374,8 +372,9 @@ func main() {
 	// ==========================================
 	// Protected API routes (authentication required - all users)
 	// ==========================================
-	// Chain auth middleware (sets orgID) then tenant middleware (resolves tenant DB)
-	protected := api.Group("", authMiddleware.Required(), tenantMiddleware.ResolveTenant())
+	// Chain auth middleware (sets orgID) then password change enforcement then tenant middleware (resolves tenant DB)
+	// SECURITY: Apply 1MB body limit to most routes (HARD-06)
+	protected := api.Group("", authMiddleware.Required(), middleware.RequirePasswordChange(), middleware.BodyLimit(middleware.DefaultBodyLimit), tenantMiddleware.ResolveTenant())
 
 	// CRM entity routes (accessible to all authenticated users)
 	contactHandler.RegisterRoutes(protected)
@@ -386,7 +385,11 @@ func main() {
 	relatedHandler.RegisterRelatedRoutes(protected)
 	genericEntityHandler.RegisterRoutes(protected)
 	bulkHandler.RegisterRoutes(protected)
-	importHandler.RegisterRoutes(protected)
+
+	// Import routes need larger body limit for file uploads (10MB)
+	// Create separate group without the 1MB body limit restriction
+	importProtected := api.Group("", authMiddleware.Required(), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
+	importHandler.RegisterRoutes(importProtected)
 
 	// User management - read-only for all authenticated users
 	userHandler.RegisterRoutes(protected)
@@ -428,7 +431,7 @@ func main() {
 	// ==========================================
 	// Admin routes (requires admin or owner role)
 	// ==========================================
-	adminProtected := api.Group("", authMiddleware.OrgAdminRequired(), tenantMiddleware.ResolveTenant())
+	adminProtected := api.Group("", authMiddleware.OrgAdminRequired(), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
 
 	// API Token management (admin only - creating/revoking tokens)
 	apiTokens := adminProtected.Group("/api-tokens")
@@ -511,9 +514,7 @@ func main() {
 
 		org, err := authService.CreateOrganization(c.Context(), input)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to create organization: " + err.Error(),
-			})
+			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ErrCategoryDatabase)
 		}
 
 		return c.Status(fiber.StatusCreated).JSON(org)
@@ -526,9 +527,7 @@ func main() {
 		orgs, err := authRepo.ListOrganizations(c.Context(), page, pageSize)
 		if err != nil {
 			log.Printf("[v6] Error listing organizations: %v", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "[v6] Failed to list organizations: " + err.Error(),
-			})
+			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ErrCategoryDatabase)
 		}
 		return c.JSON(orgs)
 	})
@@ -550,9 +549,7 @@ func main() {
 
 		org, err := authRepo.UpdateOrganization(c.Context(), orgID, input)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to update organization: " + err.Error(),
-			})
+			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ErrCategoryDatabase)
 		}
 
 		return c.JSON(org)
@@ -568,9 +565,7 @@ func main() {
 
 		// Delete organization and all related data
 		if err := authRepo.DeleteOrganization(c.Context(), orgID); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to delete organization: " + err.Error(),
-			})
+			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ErrCategoryDatabase)
 		}
 
 		return c.Status(fiber.StatusNoContent).Send(nil)
