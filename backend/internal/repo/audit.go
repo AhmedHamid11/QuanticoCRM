@@ -27,6 +27,62 @@ func (r *AuditRepo) WithDB(conn db.DBConn) *AuditRepo {
 	return &AuditRepo{db: conn}
 }
 
+// EnsureTableExists creates the audit_logs table if it doesn't exist
+// This is called defensively to handle cases where migrations haven't run
+func (r *AuditRepo) EnsureTableExists(ctx context.Context) error {
+	// Check if table exists
+	var tableExists int
+	if err := r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='audit_logs'",
+	).Scan(&tableExists); err != nil {
+		return fmt.Errorf("failed to check audit_logs table: %w", err)
+	}
+
+	if tableExists > 0 {
+		return nil // Table already exists
+	}
+
+	// Create the table
+	createSQL := `
+		CREATE TABLE IF NOT EXISTS audit_logs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			event_type TEXT NOT NULL,
+			actor_id TEXT,
+			actor_email TEXT,
+			target_id TEXT,
+			target_type TEXT,
+			ip_address TEXT,
+			user_agent TEXT,
+			details TEXT,
+			success INTEGER NOT NULL DEFAULT 1,
+			error_msg TEXT,
+			prev_hash TEXT NOT NULL,
+			entry_hash TEXT NOT NULL UNIQUE,
+			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`
+	if _, err := r.db.ExecContext(ctx, createSQL); err != nil {
+		return fmt.Errorf("failed to create audit_logs table: %w", err)
+	}
+
+	// Create indexes
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_org_created ON audit_logs(org_id, created_at DESC)",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_org_type ON audit_logs(org_id, event_type)",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(org_id, actor_id)",
+		"CREATE INDEX IF NOT EXISTS idx_audit_logs_prev_hash ON audit_logs(prev_hash)",
+	}
+	for _, idx := range indexes {
+		if _, err := r.db.ExecContext(ctx, idx); err != nil {
+			// Log but don't fail - indexes are optional for basic functionality
+			fmt.Printf("Warning: failed to create audit_logs index: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
 // GetLastEntryHash retrieves the hash of the most recent audit entry for an org
 // Returns "GENESIS" if this is the first entry in the chain
 func (r *AuditRepo) GetLastEntryHash(ctx context.Context, orgID string) (string, error) {

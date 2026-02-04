@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fastcrm/backend/internal/entity"
+	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
@@ -21,8 +22,23 @@ func NewAuditHandler(repo *repo.AuditRepo) *AuditHandler {
 	return &AuditHandler{repo: repo}
 }
 
+// getRepo returns the audit repo using the tenant database from context
+// Uses GetTenantDBConn for retry-enabled connections
+func (h *AuditHandler) getRepo(c *fiber.Ctx) *repo.AuditRepo {
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return h.repo.WithDB(tenantDB)
+	}
+	return h.repo
+}
+
 // List returns paginated audit logs with optional filters
 func (h *AuditHandler) List(c *fiber.Ctx) error {
+	// Ensure audit_logs table exists (defensive - handles missing migrations)
+	auditRepo := h.getRepo(c)
+	if err := auditRepo.EnsureTableExists(c.Context()); err != nil {
+		return util.NewAPIError(c, fiber.StatusInternalServerError, fmt.Errorf("failed to ensure audit_logs table: %w", err), util.ErrCategoryDatabase)
+	}
+
 	// Get org ID from context (set by auth middleware)
 	orgID, ok := c.Locals("orgID").(string)
 	if !ok {
@@ -83,7 +99,7 @@ func (h *AuditHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Query audit logs
-	response, err := h.repo.List(c.Context(), orgID, filters)
+	response, err := auditRepo.List(c.Context(), orgID, filters)
 	if err != nil {
 		return util.NewAPIError(c, fiber.StatusInternalServerError, fmt.Errorf("failed to list audit logs: %w", err), util.ErrCategoryDatabase)
 	}
@@ -93,6 +109,12 @@ func (h *AuditHandler) List(c *fiber.Ctx) error {
 
 // Export returns audit logs in CSV or JSON format
 func (h *AuditHandler) Export(c *fiber.Ctx) error {
+	// Ensure audit_logs table exists (defensive - handles missing migrations)
+	auditRepo := h.getRepo(c)
+	if err := auditRepo.EnsureTableExists(c.Context()); err != nil {
+		return util.NewAPIError(c, fiber.StatusInternalServerError, fmt.Errorf("failed to ensure audit_logs table: %w", err), util.ErrCategoryDatabase)
+	}
+
 	// Get org ID from context
 	orgID, ok := c.Locals("orgID").(string)
 	if !ok {
@@ -146,7 +168,7 @@ func (h *AuditHandler) Export(c *fiber.Ctx) error {
 	}
 
 	// Query audit logs
-	response, err := h.repo.List(c.Context(), orgID, filters)
+	response, err := auditRepo.List(c.Context(), orgID, filters)
 	if err != nil {
 		return util.NewAPIError(c, fiber.StatusInternalServerError, fmt.Errorf("failed to list audit logs for export: %w", err), util.ErrCategoryDatabase)
 	}
@@ -221,6 +243,12 @@ func (h *AuditHandler) exportCSV(c *fiber.Ctx, entries []entity.AuditLogEntry) e
 
 // VerifyChain verifies the hash chain integrity for an org
 func (h *AuditHandler) VerifyChain(c *fiber.Ctx) error {
+	// Ensure audit_logs table exists (defensive - handles missing migrations)
+	auditRepo := h.getRepo(c)
+	if err := auditRepo.EnsureTableExists(c.Context()); err != nil {
+		return util.NewAPIError(c, fiber.StatusInternalServerError, fmt.Errorf("failed to ensure audit_logs table: %w", err), util.ErrCategoryDatabase)
+	}
+
 	// Get org ID from context
 	orgID, ok := c.Locals("orgID").(string)
 	if !ok {
@@ -237,7 +265,7 @@ func (h *AuditHandler) VerifyChain(c *fiber.Ctx) error {
 	}
 
 	// Verify chain integrity
-	result, err := h.repo.VerifyChainIntegrity(c.Context(), orgID)
+	result, err := auditRepo.VerifyChainIntegrity(c.Context(), orgID)
 	if err != nil {
 		return util.NewAPIError(c, fiber.StatusInternalServerError, fmt.Errorf("failed to verify chain integrity: %w", err), util.ErrCategoryDatabase)
 	}
