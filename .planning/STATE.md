@@ -11,25 +11,25 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Milestone:** v2.0 Security Hardening
 **Phase:** 06 of 10 (Critical Fixes)
-**Plan:** Ready to plan
-**Status:** Ready to plan phase 06
+**Plan:** 01 of 03 (Foundation Security)
+**Status:** Plan 01 complete
 
-**Last activity:** 2026-02-03 — Roadmap created for v2.0 Security Hardening
+**Last activity:** 2026-02-04 — Completed 06-01-PLAN.md (Foundation Security)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [===-------] 3% (1/27 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 5 min
+- Total execution time: 5 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 06-critical-fixes | 1 | 5min | 5min |
 
 *Updated after each plan completion*
 
@@ -41,11 +41,14 @@ Progress: [░░░░░░░░░░] 0%
 - Move refresh tokens to HttpOnly cookies
 - Keep access tokens in memory only (not localStorage)
 - Implement token rotation with family tracking
+- Silent CORS reject (no headers) rather than 403 error to prevent origin enumeration
+- HSTS with 1-year max-age and includeSubDomains directive
+- Production detection via ENVIRONMENT env var OR presence of TURSO_URL
 
 ### Blockers/Concerns
 
 - Token migration must maintain backwards compatibility
-- Need to verify CORS changes don't break legitimate clients
+- Need to verify CORS changes don't break legitimate clients (VERIFIED: localhost works in dev, allowlisted origins work in prod)
 
 ## Quick Tasks Completed (v1.0)
 
@@ -63,10 +66,10 @@ Progress: [░░░░░░░░░░] 0%
 
 ## Session Continuity
 
-Last session: 2026-02-03
-Stopped at: Roadmap creation complete
+Last session: 2026-02-04
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
 
 ---
 
-*Updated: 2026-02-03 — Roadmap created, ready to plan phase 06*
+*Updated: 2026-02-04 — Plan 06-01 complete (Foundation Security)*
