@@ -27,10 +27,10 @@ Requirements for Security Hardening milestone. Each maps to roadmap phases.
 
 ### Session & Audit (P2)
 
-- [ ] **SESS-01**: Sessions expire after idle timeout (30 minutes)
-- [ ] **SESS-02**: Sessions have absolute timeout (24 hours max)
-- [ ] **SESS-03**: CSRF protection via double-submit cookie pattern
-- [ ] **SESS-04**: Multi-tenant isolation verified with integration tests
+- [x] **SESS-01**: Sessions expire after idle timeout (30 minutes)
+- [x] **SESS-02**: Sessions have absolute timeout (24 hours max)
+- [x] **SESS-03**: CSRF protection via double-submit cookie pattern
+- [x] **SESS-04**: Multi-tenant isolation verified with integration tests
 - [ ] **AUDT-01**: Audit log infrastructure captures authentication events
 - [ ] **AUDT-02**: Audit log captures admin actions (user CRUD, role changes)
 - [ ] **AUDT-03**: Audit log captures authorization failures
@@ -96,10 +96,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HARD-05 | Phase 08 | Complete |
 | HARD-06 | Phase 08 | Complete |
 | HARD-07 | Phase 08 | Complete |
-| SESS-01 | Phase 09 | Pending |
-| SESS-02 | Phase 09 | Pending |
-| SESS-03 | Phase 09 | Pending |
-| SESS-04 | Phase 09 | Pending |
+| SESS-01 | Phase 09 | Complete |
+| SESS-02 | Phase 09 | Complete |
+| SESS-03 | Phase 09 | Complete |
+| SESS-04 | Phase 09 | Complete |
 | AUDT-01 | Phase 10 | Pending |
 | AUDT-02 | Phase 10 | Pending |
 | AUDT-03 | Phase 10 | Pending |
@@ -114,4 +114,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 08 requirements complete (HARD-01, HARD-05, HARD-06, HARD-07)*
+*Last updated: 2026-02-04 - Phase 09 requirements complete (SESS-01, SESS-02, SESS-03, SESS-04)*
