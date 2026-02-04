@@ -129,6 +129,7 @@ func main() {
 	versionRepo := repo.NewVersionRepo(masterDBConn)
 	migrationRepo := repo.NewMigrationRepo(masterDBConn)
 	orgSettingsRepo := repo.NewOrgSettingsRepo(masterDBConn)
+	auditRepo := repo.NewAuditRepo(masterDBConn)
 
 	// Initialize services
 	tripwireService := service.NewTripwireService(masterDB, tripwireRepo)
@@ -183,6 +184,14 @@ func main() {
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
 	authMiddleware.SetAutoProvisioning(metadataRepo, provisioningService) // Enable auto-provisioning for orgs missing metadata
+
+	// Session timeout middleware (SESS-01, SESS-02)
+	sessionTimeoutMiddleware := middleware.NewSessionTimeoutMiddleware(middleware.SessionTimeoutConfig{
+		AuthService: authService,
+		// Skip activity tracking for refresh and extend-session endpoints
+		SkipActivityUpdate: []string{"/auth/refresh", "/auth/extend-session"},
+	})
+
 	tenantMiddleware := middleware.NewTenantMiddleware(dbManager, authRepo)
 
 	// Initialize handlers
@@ -200,8 +209,9 @@ func main() {
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
-	authHandler := handler.NewAuthHandler(authService, cfg.IsProduction())
-	userHandler := handler.NewUserHandler(authRepo)
+	auditLogger := service.NewAuditLogger(auditRepo)
+	authHandler := handler.NewAuthHandler(authService, auditLogger, cfg.IsProduction())
+	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
 	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService)
@@ -212,7 +222,8 @@ func main() {
 	pdfTemplateHandler := handler.NewPdfTemplateHandler(pdfTemplateRepo)
 	versionHandler := handler.NewVersionHandler(versionRepo, versionService, migrationRepo, authRepo)
 	schemaHandler := handler.NewSchemaHandler(masterDB, metadataRepo)
-	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo)
+	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo, auditLogger)
+	auditHandler := handler.NewAuditHandler(auditRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -351,30 +362,33 @@ func main() {
 	// ==========================================
 	// Protected auth routes (authentication required)
 	// ==========================================
-	authProtected := auth.Group("", authMiddleware.Required())
+	// Session timeout middleware applied after auth to enforce idle and absolute timeouts
+	// 403 audit middleware captures authorization failures for security monitoring
+	authProtected := auth.Group("", authMiddleware.Required(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger))
 	authProtected.Post("/logout", authHandler.Logout)
 	authProtected.Post("/logout-all", authHandler.LogoutAll)
 	authProtected.Get("/me", authHandler.Me)
 	authProtected.Get("/orgs", authHandler.GetUserOrgs)
 	authProtected.Post("/switch-org", authHandler.SwitchOrg)
 	authProtected.Post("/change-password", authHandler.ChangePassword)
+	authProtected.Post("/extend-session", authHandler.ExtendSession)
 
 	// Org admin routes (requires admin/owner role)
-	authAdmin := auth.Group("", authMiddleware.OrgAdminRequired())
+	authAdmin := auth.Group("", authMiddleware.OrgAdminRequired(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger))
 	authAdmin.Post("/invite", authHandler.InviteUser)
 	authAdmin.Get("/invitations", authHandler.ListInvitations)
 	authAdmin.Delete("/invitations/:id", authHandler.DeleteInvitation)
 
 	// Platform admin routes (requires platform admin)
-	authPlatformAdmin := auth.Group("", authMiddleware.PlatformAdminRequired())
+	authPlatformAdmin := auth.Group("", authMiddleware.PlatformAdminRequired(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger))
 	authPlatformAdmin.Post("/impersonate", authHandler.Impersonate)
 
 	// ==========================================
 	// Protected API routes (authentication required - all users)
 	// ==========================================
-	// Chain auth middleware (sets orgID) then password change enforcement then tenant middleware (resolves tenant DB)
+	// Chain: auth (JWT validation) -> session timeout (idle/absolute) -> 403 audit -> password change -> body limit -> tenant (resolve DB)
 	// SECURITY: Apply 1MB body limit to most routes (HARD-06)
-	protected := api.Group("", authMiddleware.Required(), middleware.RequirePasswordChange(), middleware.BodyLimit(middleware.DefaultBodyLimit), tenantMiddleware.ResolveTenant())
+	protected := api.Group("", authMiddleware.Required(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger), middleware.RequirePasswordChange(), middleware.BodyLimit(middleware.DefaultBodyLimit), tenantMiddleware.ResolveTenant())
 
 	// CRM entity routes (accessible to all authenticated users)
 	contactHandler.RegisterRoutes(protected)
@@ -388,7 +402,7 @@ func main() {
 
 	// Import routes need larger body limit for file uploads (10MB)
 	// Create separate group without the 1MB body limit restriction
-	importProtected := api.Group("", authMiddleware.Required(), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
+	importProtected := api.Group("", authMiddleware.Required(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
 	importHandler.RegisterRoutes(importProtected)
 
 	// User management - read-only for all authenticated users
@@ -431,7 +445,7 @@ func main() {
 	// ==========================================
 	// Admin routes (requires admin or owner role)
 	// ==========================================
-	adminProtected := api.Group("", authMiddleware.OrgAdminRequired(), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
+	adminProtected := api.Group("", authMiddleware.OrgAdminRequired(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
 
 	// API Token management (admin only - creating/revoking tokens)
 	apiTokens := adminProtected.Group("/api-tokens")
@@ -466,6 +480,12 @@ func main() {
 	// Org settings - admin can update homepage and other settings
 	orgSettingsHandler.RegisterAdminRoutes(adminProtected)
 
+	// Audit logs - admin can view, export, and verify
+	adminProtected.Get("/audit-logs", auditHandler.List)
+	adminProtected.Get("/audit-logs/export", auditHandler.Export)
+	adminProtected.Get("/audit-logs/verify", auditHandler.VerifyChain)
+	adminProtected.Get("/audit-logs/event-types", auditHandler.GetEventTypes)
+
 	// PDF Template public routes (read-only for all authenticated users)
 	pdfTemplateHandler.RegisterPublicRoutes(protected)
 
@@ -473,7 +493,7 @@ func main() {
 	// Platform Admin routes (SUPER ADMIN ONLY)
 	// NOTE: These routes do NOT use ResolveTenant middleware - they work with master DB only
 	// ==========================================
-	platformAdmin := api.Group("/platform", authMiddleware.PlatformAdminRequired())
+	platformAdmin := api.Group("/platform", authMiddleware.PlatformAdminRequired(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger))
 
 	// Debug endpoint to verify platform routes and tenant provisioning config
 	platformAdmin.Get("/debug", func(c *fiber.Ctx) error {
