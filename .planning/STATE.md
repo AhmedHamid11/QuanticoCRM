@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 **Milestone:** v2.0 Security Hardening
-**Phase:** 07 of 10 (Token Architecture) - VERIFIED ✓
-**Plan:** 03 of 03 complete
-**Status:** Phase 07 verified (4/4 truths), ready for Phase 08
+**Phase:** 08 of 10 (Security Hardening) - IN PROGRESS
+**Plan:** 02 of 04 complete
+**Status:** NIST password validation complete, ready for plan 03 (account lockout)
 
-**Last activity:** 2026-02-04 - Phase 07 verified, all 4 success criteria met
+**Last activity:** 2026-02-04 - Completed 08-02-PLAN.md (NIST password validation)
 
 Progress: [██--------] 20% (2/10 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
-- Average duration: 5.5 min
-- Total execution time: 44 min
+- Total plans completed: 9
+- Average duration: 5.1 min
+- Total execution time: 46 min
 
 **By Phase:**
 
@@ -31,6 +31,7 @@ Progress: [██--------] 20% (2/10 phases complete)
 |-------|-------|-------|----------|
 | 06-critical-fixes | 5 | 37min | 7.4min |
 | 07-token-architecture | 3 | 7min | 2.3min |
+| 08-security-hardening | 2 | 2min | 1.0min |
 
 *Updated after each plan completion*
 
@@ -66,6 +67,10 @@ Progress: [██--------] 20% (2/10 phases complete)
 - **07-03:** Access tokens memory-only in Svelte reactive state
 - **07-03:** credentials: include on all frontend API calls
 - **07-03:** silentRefresh on page load restores session from cookie
+- **08-02:** go:embed directive for compile-time password list embedding
+- **08-02:** Case-insensitive common password matching
+- **08-02:** Unicode character count (utf8.RuneCountInString) not byte count
+- **08-02:** Maximum 128 characters to support long passphrases per NIST
 
 ### Blockers/Concerns
 
@@ -89,9 +94,9 @@ Progress: [██--------] 20% (2/10 phases complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Phase 07 verified, ready for Phase 08
+Stopped at: Completed 08-02-PLAN.md (NIST password validation)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Phase 07 verified (4/4 truths) - Ready for Phase 08*
+*Updated: 2026-02-04 - Completed Phase 08 Plan 02 (NIST password validation)*
