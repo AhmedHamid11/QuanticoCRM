@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Milestone:** v2.0 Security Hardening
 **Phase:** 09 of 10 (Session Management)
-**Plan:** 02 of 04 complete
-**Status:** In progress - CSRF protection and timeout configuration complete
+**Plan:** 01 of 04 complete
+**Status:** In progress - Session timeout enforcement complete
 
-**Last activity:** 2026-02-04 - Completed 09-02-PLAN.md
+**Last activity:** 2026-02-04 - Completed 09-01-PLAN.md
 
-Progress: [███░------] 32% (13/40 plans complete)
+Progress: [███░------] 33% (13/40 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 13
-- Average duration: 4.7 min
-- Total execution time: 60.5 min
+- Average duration: 4.6 min
+- Total execution time: 61 min
 
 **By Phase:**
 
@@ -32,7 +32,7 @@ Progress: [███░------] 32% (13/40 plans complete)
 | 06-critical-fixes | 5 | 37min | 7.4min |
 | 07-token-architecture | 3 | 7min | 2.3min |
 | 08-security-hardening | 4 | 13min | 3.3min |
-| 09-session-management | 1 | 3.5min | 3.5min |
+| 09-session-management | 1 | 4min | 4.0min |
 
 *Updated after each plan completion*
 
@@ -82,10 +82,11 @@ Progress: [███░------] 32% (13/40 plans complete)
 - **08-04:** Middleware after auth but before tenant resolution for password change enforcement
 - **08-04:** API tokens skip password change requirement (org-level vs user-level)
 - **08-04:** Password change returns new tokens with mustChangePassword=false (seamless re-auth)
-- **09-02:** CSRF protection using Fiber's built-in middleware with X-CSRF-Token header
-- **09-02:** API tokens (fcr_ prefix) exempt from CSRF validation
-- **09-02:** Session timeout bounds: 15-60 min idle, 8-72h (480-4320 min) absolute
-- **09-02:** Default timeouts: 30 min idle, 24h absolute
+- **09-01:** Default session timeouts: 30 min idle, 1440 min (24h) absolute
+- **09-01:** Fire-and-forget activity updates (goroutine) to avoid blocking requests
+- **09-01:** Skip activity tracking for /auth/refresh and /auth/extend-session endpoints
+- **09-01:** 401 SESSION_EXPIRED response includes type (idle or absolute) for frontend
+- **09-01:** Session timeout middleware applied to all 7 protected route groups
 
 ### Blockers/Concerns
 
@@ -109,9 +110,9 @@ Progress: [███░------] 32% (13/40 plans complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 09-02-PLAN.md
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Completed 09-02: CSRF protection and session timeout configuration*
+*Updated: 2026-02-04 - Completed 09-01: Session timeout enforcement with idle and absolute limits*
