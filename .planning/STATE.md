@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Milestone:** v2.0 Security Hardening
 **Phase:** 10 of 10 (Audit Infrastructure) - In Progress
-**Plan:** 06 of 10 complete
-**Status:** CI security scanning workflow complete
+**Plan:** 01 of 04 complete
+**Status:** Audit log foundation with hash chain complete
 
-**Last activity:** 2026-02-04 - Completed 10-06-PLAN.md (CI Security Scanning)
+**Last activity:** 2026-02-04 - Completed 10-01-PLAN.md (Audit Infrastructure Foundation)
 
-Progress: [████░-----] 45% (4.6/10 phases complete)
+Progress: [████░-----] 45% (4.5/10 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
+- Total plans completed: 18
 - Average duration: 4.4 min
-- Total execution time: 75 min
+- Total execution time: 79 min
 
 **By Phase:**
 
@@ -33,7 +33,7 @@ Progress: [████░-----] 45% (4.6/10 phases complete)
 | 07-token-architecture | 3 | 7min | 2.3min |
 | 08-security-hardening | 4 | 13min | 3.3min |
 | 09-session-management | 4 | 17min | 4.3min |
-| 10-audit-infrastructure | 1 | 1min | 0.7min |
+| 10-audit-infrastructure | 1 | 4min | 4.0min |
 
 *Updated after each plan completion*
 
@@ -101,6 +101,11 @@ Progress: [████░-----] 45% (4.6/10 phases complete)
 - **10-06:** govulncheck runs parallel to gosec for faster CI feedback
 - **10-06:** SARIF upload with if: always() ensures results appear even on failures
 - **10-06:** No .gosec config file initially (can add later for false positive suppression)
+- **10-01:** SHA-256 for audit entry hash computation (deterministic field concatenation)
+- **10-01:** Fire-and-forget goroutine pattern for audit DB persistence (non-blocking)
+- **10-01:** Per-org hash chain with GENESIS start (multi-tenant isolation)
+- **10-01:** No foreign keys on actor_id/target_id (audit logs persist after user deletion)
+- **10-01:** Re-export event types from entity package for backwards compatibility
 
 ### Blockers/Concerns
 
@@ -124,9 +129,9 @@ Progress: [████░-----] 45% (4.6/10 phases complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 10-06-PLAN.md (CI Security Scanning)
+Stopped at: Completed 10-01-PLAN.md (Audit Infrastructure Foundation)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Completed 10-06 (CI Security Scanning) - Phase 10 in progress (6/10)*
+*Updated: 2026-02-04 - Completed 10-01 (Audit Infrastructure Foundation) - Phase 10 in progress (1/4)*
