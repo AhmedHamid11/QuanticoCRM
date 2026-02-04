@@ -77,7 +77,7 @@ Plans:
 **Goal:** Harden application against common attack vectors.
 **Depends on:** Phase 06 (foundation security must be in place)
 **Requirements:** HARD-01, HARD-05, HARD-06, HARD-07
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 **Success Criteria:**
 
@@ -85,11 +85,13 @@ Plans:
 2. Password registration rejects passwords under 8 characters and accepts passwords up to 128 characters
 3. Password registration warns or blocks passwords found in common passwords list
 4. API rejects request bodies larger than configured limit (default 1MB)
+5. Existing users with weak passwords are forced to update on next login
 
 Plans:
 - [ ] 08-01-PLAN.md — Security headers and body limits (X-Frame-Options, CSP, request size limits)
 - [ ] 08-02-PLAN.md — Password policy backend (NIST 800-63B, common password blocklist)
 - [ ] 08-03-PLAN.md — Password strength frontend (real-time feedback, strength meter)
+- [ ] 08-04-PLAN.md — Forced password change for existing weak passwords (mustChangePassword flow)
 
 ---
 
@@ -134,11 +136,11 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 06. Critical Fixes | v2.0 | 5/5 | Complete | 2026-02-04 |
 | 07. Token Architecture | v2.0 | 3/3 | Complete | 2026-02-04 |
-| 08. Security Hardening | v2.0 | 0/3 | Planned | - |
+| 08. Security Hardening | v2.0 | 0/4 | Planned | - |
 | 09. Session Management | v2.0 | 0/TBD | Not started | - |
 | 10. Audit Infrastructure | v2.0 | 0/TBD | Not started | - |
 
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 08 Planned*
+*Last updated: 2026-02-04 - Phase 08 revised with 08-04 for forced password change*
