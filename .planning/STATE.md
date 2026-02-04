@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 **Milestone:** v2.0 Security Hardening
-**Phase:** 08 of 10 (Security Hardening) - IN PROGRESS
-**Plan:** 03 of 04 complete
-**Status:** Plans 01 (security headers/body limits), 02 (password validation), and 03 (password strength UI) complete
+**Phase:** 08 of 10 (Security Hardening) - COMPLETE
+**Plan:** 04 of 04 complete
+**Status:** All plans complete - Phase 08 finished
 
-**Last activity:** 2026-02-04 - Completed 08-03-PLAN.md (password strength indicator)
+**Last activity:** 2026-02-04 - Completed 08-04-PLAN.md (forced password change)
 
 Progress: [██--------] 20% (2/10 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 4.6 min
-- Total execution time: 51 min
+- Total plans completed: 12
+- Average duration: 4.8 min
+- Total execution time: 57 min
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [██--------] 20% (2/10 phases complete)
 |-------|-------|-------|----------|
 | 06-critical-fixes | 5 | 37min | 7.4min |
 | 07-token-architecture | 3 | 7min | 2.3min |
-| 08-security-hardening | 3 | 7min | 2.3min |
+| 08-security-hardening | 4 | 13min | 3.3min |
 
 *Updated after each plan completion*
 
@@ -77,6 +77,10 @@ Progress: [██--------] 20% (2/10 phases complete)
 - **08-03:** Simple 4-level password strength without external library (red/orange/yellow/green)
 - **08-03:** Bindable value prop pattern for reusable form components
 - **08-03:** Real-time strength feedback via $derived reactive statement
+- **08-04:** JWT claim for mustChangePassword flag (stateless enforcement)
+- **08-04:** Middleware after auth but before tenant resolution for password change enforcement
+- **08-04:** API tokens skip password change requirement (org-level vs user-level)
+- **08-04:** Password change returns new tokens with mustChangePassword=false (seamless re-auth)
 
 ### Blockers/Concerns
 
@@ -100,9 +104,9 @@ Progress: [██--------] 20% (2/10 phases complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 08-03-PLAN.md (password strength indicator)
+Stopped at: Completed 08-04-PLAN.md (forced password change) - Phase 08 complete
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Completed Phase 08 Plan 03 (password strength indicator)*
+*Updated: 2026-02-04 - Completed Phase 08 Plan 04 (forced password change) - Phase 08 Security Hardening complete*
