@@ -122,6 +122,7 @@ Plans:
 **Goal:** Track security events and enable compliance reporting.
 **Depends on:** Phases 06-09 (all security controls must exist to audit them)
 **Requirements:** AUDT-01, AUDT-02, AUDT-03, AUDT-04, SCAN-01, SCAN-02
+**Plans:** 6 plans
 
 **Success Criteria:**
 
@@ -131,7 +132,13 @@ Plans:
 4. Audit logs are append-only with tamper-evident integrity verification
 5. CI pipeline runs gosec and fails on high-severity findings
 
-**Plans:** TBD
+Plans:
+- [ ] 10-01-PLAN.md — Audit infrastructure foundation (migration, entity, repo, service persistence)
+- [ ] 10-02-PLAN.md — Auth event capture (login, logout, password changes)
+- [ ] 10-03-PLAN.md — Admin action capture (user CRUD, role changes, org settings)
+- [ ] 10-04-PLAN.md — Authorization failure middleware (403 logging)
+- [ ] 10-05-PLAN.md — Admin UI activity feed (timeline, filters, export, verification)
+- [ ] 10-06-PLAN.md — CI security scanning (gosec, govulncheck)
 
 ---
 
@@ -143,9 +150,9 @@ Plans:
 | 07. Token Architecture | v2.0 | 3/3 | Complete | 2026-02-04 |
 | 08. Security Hardening | v2.0 | 4/4 | Complete | 2026-02-04 |
 | 09. Session Management | v2.0 | 4/4 | Complete | 2026-02-04 |
-| 10. Audit Infrastructure | v2.0 | 0/TBD | Not started | - |
+| 10. Audit Infrastructure | v2.0 | 0/6 | Planned | - |
 
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 09 complete (4/4 plans verified)*
+*Last updated: 2026-02-04 - Phase 10 planned (6 plans in 3 waves)*
