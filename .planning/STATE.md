@@ -5,31 +5,31 @@
 See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Core value:** Fast, secure multi-tenant CRM where customer data is protected
-**Current focus:** Phase 06 - Critical Fixes (COMPLETE)
+**Current focus:** Phase 06 - Critical Fixes (GAP CLOSURE)
 
 ## Current Position
 
 **Milestone:** v2.0 Security Hardening
-**Phase:** 06 of 10 (Critical Fixes) - PHASE COMPLETE
-**Plan:** 03 of 03 (Error Sanitization) - COMPLETE
-**Status:** Phase 06 complete, ready for Phase 07
+**Phase:** 06 of 10 (Critical Fixes) - GAP CLOSURE IN PROGRESS
+**Plan:** 04 of 05 (Error Sanitization Gap Closure) - COMPLETE
+**Status:** Executing gap closure plans (06-04, 06-05)
 
-**Last activity:** 2026-02-04 - Completed 06-03-PLAN.md (Error Sanitization)
+**Last activity:** 2026-02-04 - Completed 06-04-PLAN.md (Error Sanitization Gap Closure)
 
-Progress: [==========] 11% (3/27 plans)
+Progress: [==========] 15% (4/27 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 4 min
-- Total execution time: 11 min
+- Total plans completed: 4
+- Average duration: 5 min
+- Total execution time: 23 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 06-critical-fixes | 3 | 11min | 3.7min |
+| 06-critical-fixes | 4 | 23min | 5.75min |
 
 *Updated after each plan completion*
 
@@ -51,6 +51,8 @@ Progress: [==========] 11% (3/27 plans)
 - **06-03:** Pattern-based error classification using error string analysis
 - **06-03:** request_id field for support correlation on all error responses
 - **06-03:** Focus on critical handlers (metadata, generic_entity); lower-risk handlers can be updated incrementally
+- **06-04:** util.NewAPIErrorWithMessage for user-safe PDF generation errors
+- **06-04:** util.ErrCategoryDatabase for platform admin routes
 
 ### Blockers/Concerns
 
@@ -74,9 +76,9 @@ Progress: [==========] 11% (3/27 plans)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 06-03-PLAN.md (Phase 06 Complete)
+Stopped at: Completed 06-04-PLAN.md (Error Sanitization Gap Closure)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Plan 06-03 complete (Error Sanitization) - Phase 06 Complete*
+*Updated: 2026-02-04 - Plan 06-04 complete (Error Sanitization Gap Closure)*
