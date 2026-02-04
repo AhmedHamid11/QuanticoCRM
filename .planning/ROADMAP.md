@@ -32,6 +32,7 @@
 **Goal:** Eliminate critical vulnerabilities that block production deployment.
 **Depends on:** Nothing (first phase of milestone)
 **Requirements:** CRIT-01, CRIT-02, CRIT-03, CRIT-04, CRIT-05
+**Plans:** 3 plans
 
 **Success Criteria:**
 
@@ -41,7 +42,10 @@
 4. Application refuses to start in production without JWT_SECRET environment variable
 5. All HTTP responses include HSTS header with 1-year max-age
 
-**Plans:** TBD
+Plans:
+- [ ] 06-01-PLAN.md — Foundation security (CORS, HSTS, JWT validation)
+- [ ] 06-02-PLAN.md — Auth rate limiting
+- [ ] 06-03-PLAN.md — Error sanitization
 
 ---
 
@@ -118,7 +122,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 06. Critical Fixes | v2.0 | 0/TBD | Not started | - |
+| 06. Critical Fixes | v2.0 | 0/3 | Ready | - |
 | 07. Token Architecture | v2.0 | 0/TBD | Not started | - |
 | 08. Security Hardening | v2.0 | 0/TBD | Not started | - |
 | 09. Session Management | v2.0 | 0/TBD | Not started | - |
