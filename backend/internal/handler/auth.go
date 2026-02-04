@@ -4,9 +4,12 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/fastcrm/backend/internal/entity"
+	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/service"
+	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -14,13 +17,15 @@ import (
 type AuthHandler struct {
 	authService  *service.AuthService
 	auditLogger  *service.AuditLogger
+	isProduction bool
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, auditLogger *service.AuditLogger, isProduction bool) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
-		auditLogger: service.NewAuditLogger(),
+		authService:  authService,
+		auditLogger:  auditLogger,
+		isProduction: isProduction,
 	}
 }
 
@@ -50,7 +55,15 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return h.handleAuthError(c, err)
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(response)
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token in body only (refresh token is in cookie)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // Login handles user login
@@ -78,57 +91,76 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	response, err := h.authService.Login(c.Context(), input, userAgent, ipAddress)
 	if err != nil {
 		log.Printf("Login error: %v", err)
+		// AUDIT: Log failed login attempt
+		go h.auditLogger.LogLoginAttempt(c.Context(), input.Email, ipAddress, userAgent, false, err.Error())
 		return h.handleAuthError(c, err)
 	}
 
-	return c.JSON(response)
+	// AUDIT: Log successful login
+	go h.auditLogger.LogLoginAttempt(c.Context(), input.Email, ipAddress, userAgent, true, "")
+
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token in body only (refresh token is in cookie)
+	return c.JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // RefreshToken handles token refresh
 // POST /auth/refresh
 func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
-	var input entity.RefreshInput
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
+	// Read refresh token from HttpOnly cookie (not body)
+	refreshToken := middleware.GetRefreshTokenFromCookie(c)
+	if refreshToken == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Refresh token not found",
 		})
 	}
 
-	if input.RefreshToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Refresh token is required",
-		})
-	}
-
-	response, err := h.authService.RefreshTokens(c.Context(), input.RefreshToken)
+	response, err := h.authService.RefreshTokens(c.Context(), refreshToken)
 	if err != nil {
+		// On any auth error, clear the cookie
+		middleware.ClearRefreshTokenCookie(c, h.isProduction)
 		return h.handleAuthError(c, err)
 	}
 
-	return c.JSON(response)
+	// Set new refresh token cookie (rotation)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return new access token in body
+	return c.JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // Logout handles user logout
 // POST /auth/logout
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	var input entity.RefreshInput
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
+	// Read refresh token from cookie
+	refreshToken := middleware.GetRefreshTokenFromCookie(c)
+
+	if refreshToken != "" {
+		if err := h.authService.Logout(c.Context(), refreshToken); err != nil {
+			log.Printf("Logout error: %v", err)
+			// Continue to clear cookie even if server-side logout fails
+		}
 	}
 
-	if input.RefreshToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Refresh token is required",
-		})
+	// AUDIT: Log logout event
+	if userID, ok := c.Locals("userID").(string); ok {
+		email, _ := c.Locals("email").(string)
+		orgID, _ := c.Locals("orgID").(string)
+		go h.auditLogger.LogLogout(c.Context(), userID, email, orgID, c.IP(), c.Get("User-Agent"))
 	}
 
-	if err := h.authService.Logout(c.Context(), input.RefreshToken); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to logout",
-		})
-	}
+	// Always clear the cookie
+	middleware.ClearRefreshTokenCookie(c, h.isProduction)
 
 	return c.JSON(fiber.Map{
 		"message": "Logged out successfully",
@@ -215,7 +247,15 @@ func (h *AuthHandler) SwitchOrg(c *fiber.Ctx) error {
 		return h.handleAuthError(c, err)
 	}
 
-	return c.JSON(response)
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token in body only
+	return c.JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // Impersonate allows platform admins to impersonate organizations/users
@@ -254,7 +294,15 @@ func (h *AuthHandler) Impersonate(c *fiber.Ctx) error {
 		c.Get("User-Agent"),
 	)
 
-	return c.JSON(response)
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token in body only
+	return c.JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // StopImpersonate stops impersonation and returns to admin's own session
@@ -285,7 +333,15 @@ func (h *AuthHandler) StopImpersonate(c *fiber.Ctx) error {
 		c.Get("User-Agent"),
 	)
 
-	return c.JSON(response)
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token in body only
+	return c.JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // InviteUser invites a user to the current organization
@@ -378,7 +434,15 @@ func (h *AuthHandler) AcceptInvitation(c *fiber.Ctx) error {
 		return h.handleAuthError(c, err)
 	}
 
-	return c.JSON(response)
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token in body only
+	return c.JSON(fiber.Map{
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
+	})
 }
 
 // ChangePassword changes the current user's password
@@ -399,12 +463,40 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 		})
 	}
 
+	// Change password (invalidates all existing sessions)
 	if err := h.authService.ChangePassword(c.Context(), userID, input); err != nil {
 		return h.handleAuthError(c, err)
 	}
 
+	// AUDIT: Log password change
+	email, _ := c.Locals("email").(string)
+	orgID, _ := c.Locals("orgID").(string)
+	go h.auditLogger.LogPasswordChange(c.Context(), userID, email, orgID, c.IP())
+
+	// Generate new auth response with fresh tokens (mustChangePassword=false)
+	// Use Login to get fresh credentials after password change
+	loginInput := entity.LoginInput{
+		Email:    email,
+		Password: input.NewPassword,
+	}
+	response, err := h.authService.Login(c.Context(), loginInput, c.Get("User-Agent"), c.IP())
+	if err != nil {
+		// Password was changed but re-login failed
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "Password changed but failed to generate new session",
+			"message": "Please log in again with your new password",
+		})
+	}
+
+	// SECURITY: Set refresh token as HttpOnly cookie
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+
+	// Return access token and user info
 	return c.JSON(fiber.Map{
-		"message": "Password changed successfully",
+		"message":     "Password changed successfully",
+		"accessToken": response.AccessToken,
+		"expiresAt":   response.ExpiresAt,
+		"user":        response.User,
 	})
 }
 
@@ -477,6 +569,38 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	})
 }
 
+// ExtendSession explicitly extends the session when user clicks "Stay logged in"
+// POST /auth/extend-session
+func (h *AuthHandler) ExtendSession(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	orgID := c.Locals("orgID").(string)
+
+	err := h.authService.ExtendSession(c.Context(), userID, orgID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to extend session",
+		})
+	}
+
+	// Calculate new idle expiry time for frontend countdown reset
+	// Default idle timeout is 30 minutes
+	session, err := h.authService.GetSessionWithTimeouts(c.Context(), userID, orgID)
+	if err != nil {
+		// Session extended but couldn't fetch details
+		return c.JSON(fiber.Map{
+			"message": "Session extended",
+		})
+	}
+
+	// Return the new idle expiry time
+	idleExpiresAt := session.LastActivityAt.Add(time.Duration(session.IdleTimeoutMinutes) * time.Minute)
+
+	return c.JSON(fiber.Map{
+		"message":       "Session extended",
+		"idleExpiresAt": idleExpiresAt,
+	})
+}
+
 // handleAuthError converts service errors to appropriate HTTP responses
 func (h *AuthHandler) handleAuthError(c *fiber.Ctx, err error) error {
 	switch {
@@ -512,6 +636,10 @@ func (h *AuthHandler) handleAuthError(c *fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid or expired token",
 		})
+	case errors.Is(err, service.ErrTokenReuse):
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Session invalidated for security reasons. Please log in again.",
+		})
 	case errors.Is(err, service.ErrNotMember):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "User is not a member of this organization",
@@ -533,14 +661,10 @@ func (h *AuthHandler) handleAuthError(c *fiber.Ctx, err error) error {
 			"error": "Invalid email address",
 		})
 	default:
-		// Check for permission errors
+		// Check for permission errors - these are safe to expose as they contain no internal details
 		if strings.Contains(err.Error(), "only owners and admins") {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": err.Error(),
-			})
+			return util.NewAPIErrorWithMessage(c, fiber.StatusForbidden, err.Error(), util.ErrCategoryPermission)
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "An unexpected error occurred",
-		})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ErrCategoryInternal)
 	}
 }

@@ -5,17 +5,22 @@ import (
 
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/service"
 	"github.com/gofiber/fiber/v2"
 )
 
 // UserHandler handles HTTP requests for user management
 type UserHandler struct {
-	authRepo *repo.AuthRepo
+	authRepo    *repo.AuthRepo
+	auditLogger *service.AuditLogger
 }
 
 // NewUserHandler creates a new UserHandler
-func NewUserHandler(authRepo *repo.AuthRepo) *UserHandler {
-	return &UserHandler{authRepo: authRepo}
+func NewUserHandler(authRepo *repo.AuthRepo, auditLogger *service.AuditLogger) *UserHandler {
+	return &UserHandler{
+		authRepo:    authRepo,
+		auditLogger: auditLogger,
+	}
 }
 
 // List returns all users in the current organization
@@ -103,6 +108,9 @@ func (h *UserHandler) UpdateRole(c *fiber.Ctx) error {
 		})
 	}
 
+	// Capture old role for audit logging
+	oldRole := targetUser.Role
+
 	// Permission checks (platform admins bypass these)
 	if !isPlatformAdmin {
 		// Only owners and admins can change roles
@@ -150,6 +158,19 @@ func (h *UserHandler) UpdateRole(c *fiber.Ctx) error {
 			"error": "Failed to update user role",
 		})
 	}
+
+	// Audit log the role change
+	go h.auditLogger.LogRoleChange(
+		c.Context(),
+		currentUserID,
+		c.Locals("email").(string),
+		targetUserID,
+		targetUser.Email,
+		orgID,
+		oldRole,
+		input.Role,
+		c.IP(),
+	)
 
 	// Return the updated user
 	updatedUser, err := h.authRepo.GetUserByIDInOrg(c.Context(), targetUserID, orgID)
@@ -237,6 +258,18 @@ func (h *UserHandler) UpdateStatus(c *fiber.Ctx) error {
 		})
 	}
 
+	// Audit log the status change
+	go h.auditLogger.LogUserStatusChange(
+		c.Context(),
+		currentUserID,
+		c.Locals("email").(string),
+		targetUserID,
+		targetUser.Email,
+		orgID,
+		input.IsActive,
+		c.IP(),
+	)
+
 	// If deactivating, also delete all their sessions to log them out immediately
 	if !input.IsActive {
 		_ = h.authRepo.DeleteUserSessions(c.Context(), targetUserID)
@@ -313,6 +346,17 @@ func (h *UserHandler) Remove(c *fiber.Ctx) error {
 			"error": "Failed to remove user from organization",
 		})
 	}
+
+	// Audit log the user removal
+	go h.auditLogger.LogUserDelete(
+		c.Context(),
+		currentUserID,
+		c.Locals("email").(string),
+		targetUserID,
+		targetUser.Email,
+		orgID,
+		map[string]interface{}{"action": "removed_from_org"},
+	)
 
 	return c.JSON(fiber.Map{
 		"message": "User removed from organization",

@@ -4,18 +4,23 @@ import (
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/service"
 	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
 )
 
 // OrgSettingsHandler handles HTTP requests for org settings
 type OrgSettingsHandler struct {
-	repo *repo.OrgSettingsRepo
+	repo        *repo.OrgSettingsRepo
+	auditLogger *service.AuditLogger
 }
 
 // NewOrgSettingsHandler creates a new OrgSettingsHandler
-func NewOrgSettingsHandler(repo *repo.OrgSettingsRepo) *OrgSettingsHandler {
-	return &OrgSettingsHandler{repo: repo}
+func NewOrgSettingsHandler(repo *repo.OrgSettingsRepo, auditLogger *service.AuditLogger) *OrgSettingsHandler {
+	return &OrgSettingsHandler{
+		repo:        repo,
+		auditLogger: auditLogger,
+	}
 }
 
 // getRepo returns the repo with the correct tenant DB from context
@@ -63,6 +68,15 @@ func (h *OrgSettingsHandler) UpdateHomePage(c *fiber.Ctx) error {
 		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
+	// Audit log the settings change
+	go h.auditLogger.LogOrgSettingsChange(
+		c.Context(),
+		c.Locals("userID").(string),
+		c.Locals("email").(string),
+		orgID,
+		[]string{"homePage"},
+	)
+
 	return c.JSON(settings)
 }
 
@@ -107,6 +121,29 @@ func (h *OrgSettingsHandler) Update(c *fiber.Ctx) error {
 	settings, err := h.getRepo(c).Update(c.Context(), orgID, &input)
 	if err != nil {
 		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
+	}
+
+	// Determine which fields changed for audit logging
+	changedFields := []string{}
+	if input.IdleTimeoutMinutes != nil {
+		changedFields = append(changedFields, "idleTimeoutMinutes")
+	}
+	if input.AbsoluteTimeoutMinutes != nil {
+		changedFields = append(changedFields, "absoluteTimeoutMinutes")
+	}
+	if input.HomePage != nil {
+		changedFields = append(changedFields, "homePage")
+	}
+
+	// Audit log the settings change
+	if len(changedFields) > 0 {
+		go h.auditLogger.LogOrgSettingsChange(
+			c.Context(),
+			c.Locals("userID").(string),
+			c.Locals("email").(string),
+			orgID,
+			changedFields,
+		)
 	}
 
 	return c.JSON(settings)

@@ -38,6 +38,8 @@ const (
 	PrefixPdfTemplate        = "0Pt" // PDF template
 	PrefixPasswordResetToken = "0Pr" // Password reset token
 	PrefixMigrationRun       = "0Mr" // Migration run
+	PrefixTokenFamily        = "0Tf" // Token family (for refresh token rotation)
+	PrefixAuditLog           = "0Ad" // Audit log entry
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -253,4 +255,15 @@ func NewPdfTemplate() string {
 // NewPasswordResetToken generates a new Password Reset Token ID (prefix: 0Pr)
 func NewPasswordResetToken() string {
 	return New(PrefixPasswordResetToken)
+}
+
+// NewTokenFamily generates a new Token Family ID (prefix: 0Tf)
+// Used to group refresh tokens from the same login session for reuse detection
+func NewTokenFamily() string {
+	return New(PrefixTokenFamily)
+}
+
+// NewAuditLog generates a new Audit Log Entry ID (prefix: 0Ad)
+func NewAuditLog() string {
+	return New(PrefixAuditLog)
 }
