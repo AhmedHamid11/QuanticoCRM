@@ -74,6 +74,14 @@ func (a *AuditLogger) Log(ctx context.Context, event AuditEvent) {
 	// Persist to database if repo is available (fire-and-forget to avoid blocking)
 	if a.repo != nil {
 		go func() {
+			ctx := context.Background()
+
+			// Ensure table exists before persisting
+			if err := a.repo.EnsureTableExists(ctx); err != nil {
+				log.Printf("[AUDIT ERROR] Failed to ensure audit table: %v", err)
+				return
+			}
+
 			// Convert AuditEvent to AuditLogEntry
 			entry, err := repo.ConvertEventToEntry(event)
 			if err != nil {
@@ -82,7 +90,7 @@ func (a *AuditLogger) Log(ctx context.Context, event AuditEvent) {
 			}
 
 			// Persist to database
-			if err := a.repo.Create(context.Background(), entry); err != nil {
+			if err := a.repo.Create(ctx, entry); err != nil {
 				log.Printf("[AUDIT ERROR] Failed to persist audit log: %v", err)
 			}
 		}()
