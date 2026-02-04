@@ -36,9 +36,10 @@ func NewCSRFMiddleware(config CSRFConfig) fiber.Handler {
 			})
 		},
 
-		// Skip CSRF for safe methods and API tokens
+		// Skip CSRF for safe methods, API tokens, and pre-auth endpoints
 		Next: func(c *fiber.Ctx) bool {
 			method := c.Method()
+			path := c.Path()
 
 			// Safe methods don't need CSRF
 			if method == "GET" || method == "HEAD" || method == "OPTIONS" || method == "TRACE" {
@@ -49,6 +50,20 @@ func NewCSRFMiddleware(config CSRFConfig) fiber.Handler {
 			auth := c.Get("Authorization")
 			if strings.HasPrefix(auth, "Bearer fcr_") {
 				return true
+			}
+
+			// Pre-authentication endpoints are exempt (no session to protect yet)
+			authExemptPaths := []string{
+				"/api/v1/auth/login",
+				"/api/v1/auth/register",
+				"/api/v1/auth/forgot-password",
+				"/api/v1/auth/reset-password",
+				"/api/v1/auth/refresh",
+			}
+			for _, exempt := range authExemptPaths {
+				if path == exempt {
+					return true
+				}
 			}
 
 			return false

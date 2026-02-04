@@ -672,29 +672,47 @@ func (r *AuthRepo) CountPendingInvitations(ctx context.Context, orgID string) (i
 
 // --- Session Operations ---
 
-// CreateSession creates a new session
+// CreateSession creates a new session with auto-generated family ID
 func (r *AuthRepo) CreateSession(ctx context.Context, userID, orgID, refreshTokenHash, userAgent, ipAddress string, isImpersonation bool, impersonatedBy *string, expiresAt time.Time) (*entity.Session, error) {
+	// Auto-generate family ID for new sessions (login starts a new family)
+	return r.CreateSessionWithFamily(ctx, userID, orgID, refreshTokenHash, "", userAgent, ipAddress, isImpersonation, impersonatedBy, expiresAt)
+}
+
+// CreateSessionWithFamily creates a session with an explicit family ID (for token rotation)
+// If familyID is empty, a new family is generated
+func (r *AuthRepo) CreateSessionWithFamily(ctx context.Context, userID, orgID, refreshTokenHash, familyID, userAgent, ipAddress string, isImpersonation bool, impersonatedBy *string, expiresAt time.Time) (*entity.Session, error) {
+	if familyID == "" {
+		familyID = sfid.NewTokenFamily()
+	}
+
+	now := time.Now().UTC()
 	session := &entity.Session{
-		ID:               sfid.NewSession(),
-		UserID:           userID,
-		OrgID:            orgID,
-		RefreshTokenHash: refreshTokenHash,
-		UserAgent:        userAgent,
-		IPAddress:        ipAddress,
-		IsImpersonation:  isImpersonation,
-		ImpersonatedBy:   impersonatedBy,
-		ExpiresAt:        expiresAt,
-		CreatedAt:        time.Now().UTC(),
+		ID:                     sfid.NewSession(),
+		UserID:                 userID,
+		OrgID:                  orgID,
+		RefreshTokenHash:       refreshTokenHash,
+		UserAgent:              userAgent,
+		IPAddress:              ipAddress,
+		IsImpersonation:        isImpersonation,
+		ImpersonatedBy:         impersonatedBy,
+		FamilyID:               familyID,
+		IsRevoked:              false,
+		ExpiresAt:              expiresAt,
+		CreatedAt:              now,
+		LastActivityAt:         now, // Initialize activity timestamp
+		IdleTimeoutMinutes:     30,  // Default 30 min idle timeout
+		AbsoluteTimeoutMinutes: 1440, // Default 24 hour absolute timeout
 	}
 
 	query := `
-		INSERT INTO sessions (id, user_id, org_id, refresh_token_hash, user_agent, ip_address, is_impersonation, impersonated_by, expires_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO sessions (id, user_id, org_id, refresh_token_hash, user_agent, ip_address, is_impersonation, impersonated_by, family_id, is_revoked, expires_at, created_at, last_activity_at, idle_timeout_minutes, absolute_timeout_minutes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
 		session.ID, session.UserID, session.OrgID, session.RefreshTokenHash, session.UserAgent, session.IPAddress,
-		session.IsImpersonation, session.ImpersonatedBy, session.ExpiresAt, session.CreatedAt,
+		session.IsImpersonation, session.ImpersonatedBy, session.FamilyID, session.IsRevoked, session.ExpiresAt, session.CreatedAt,
+		session.LastActivityAt, session.IdleTimeoutMinutes, session.AbsoluteTimeoutMinutes,
 	)
 	if err != nil {
 		return nil, err
@@ -704,20 +722,30 @@ func (r *AuthRepo) CreateSession(ctx context.Context, userID, orgID, refreshToke
 }
 
 // GetSessionByRefreshToken retrieves a session by refresh token hash
+// NOTE: Does NOT filter by is_revoked - the service layer needs to detect reuse
+// of revoked tokens to trigger family-wide revocation
 func (r *AuthRepo) GetSessionByRefreshToken(ctx context.Context, refreshTokenHash string) (*entity.Session, error) {
 	session := &entity.Session{}
+	var expiresAt, createdAt, lastActivityAt sql.NullString
 	query := `
-		SELECT id, user_id, org_id, refresh_token_hash, user_agent, ip_address, is_impersonation, impersonated_by, expires_at, created_at
+		SELECT id, user_id, org_id, refresh_token_hash, user_agent, ip_address, is_impersonation,
+		       impersonated_by, family_id, is_revoked, expires_at, created_at, last_activity_at,
+		       idle_timeout_minutes, absolute_timeout_minutes
 		FROM sessions WHERE refresh_token_hash = ? AND expires_at > ?
 	`
 
 	err := r.db.QueryRowContext(ctx, query, refreshTokenHash, time.Now().UTC()).Scan(
 		&session.ID, &session.UserID, &session.OrgID, &session.RefreshTokenHash, &session.UserAgent, &session.IPAddress,
-		&session.IsImpersonation, &session.ImpersonatedBy, &session.ExpiresAt, &session.CreatedAt,
+		&session.IsImpersonation, &session.ImpersonatedBy, &session.FamilyID, &session.IsRevoked, &expiresAt, &createdAt, &lastActivityAt,
+		&session.IdleTimeoutMinutes, &session.AbsoluteTimeoutMinutes,
 	)
 	if err != nil {
 		return nil, err
 	}
+
+	session.ExpiresAt = parseTimestamp(expiresAt)
+	session.CreatedAt = parseTimestamp(createdAt)
+	session.LastActivityAt = parseTimestamp(lastActivityAt)
 
 	return session, nil
 }
@@ -743,6 +771,56 @@ func (r *AuthRepo) DeleteUserSessions(ctx context.Context, userID string) error 
 // CleanExpiredSessions removes expired sessions
 func (r *AuthRepo) CleanExpiredSessions(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at < ?`, time.Now().UTC())
+	return err
+}
+
+// RevokeSession marks a single session as revoked (used when rotating tokens)
+func (r *AuthRepo) RevokeSession(ctx context.Context, sessionID string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE sessions SET is_revoked = 1 WHERE id = ?`, sessionID)
+	return err
+}
+
+// RevokeTokenFamily revokes all sessions in a token family (used on reuse detection)
+// This is a security measure - if a token is reused after rotation, it indicates
+// potential token theft, so we invalidate the entire family
+func (r *AuthRepo) RevokeTokenFamily(ctx context.Context, familyID string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE sessions SET is_revoked = 1 WHERE family_id = ?`, familyID)
+	return err
+}
+
+// GetSessionByUserAndOrg retrieves an active session for a user in an organization
+func (r *AuthRepo) GetSessionByUserAndOrg(ctx context.Context, userID, orgID string) (*entity.Session, error) {
+	session := &entity.Session{}
+	var expiresAt, createdAt, lastActivityAt sql.NullString
+	query := `
+		SELECT id, user_id, org_id, refresh_token_hash, user_agent, ip_address, is_impersonation,
+		       impersonated_by, family_id, is_revoked, expires_at, created_at, last_activity_at,
+		       idle_timeout_minutes, absolute_timeout_minutes
+		FROM sessions
+		WHERE user_id = ? AND org_id = ? AND is_revoked = 0 AND expires_at > ?
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	err := r.db.QueryRowContext(ctx, query, userID, orgID, time.Now().UTC()).Scan(
+		&session.ID, &session.UserID, &session.OrgID, &session.RefreshTokenHash, &session.UserAgent, &session.IPAddress,
+		&session.IsImpersonation, &session.ImpersonatedBy, &session.FamilyID, &session.IsRevoked, &expiresAt, &createdAt, &lastActivityAt,
+		&session.IdleTimeoutMinutes, &session.AbsoluteTimeoutMinutes,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	session.ExpiresAt = parseTimestamp(expiresAt)
+	session.CreatedAt = parseTimestamp(createdAt)
+	session.LastActivityAt = parseTimestamp(lastActivityAt)
+
+	return session, nil
+}
+
+// UpdateLastActivity updates the last_activity_at timestamp for a session
+func (r *AuthRepo) UpdateLastActivity(ctx context.Context, sessionID string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE sessions SET last_activity_at = ? WHERE id = ?`, time.Now().UTC(), sessionID)
 	return err
 }
 

@@ -77,6 +77,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	bearingRepo := repo.NewBearingRepo(db, metadataRepo)
 	validationRepo := repo.NewValidationRepo(db)
 	authRepo := repo.NewAuthRepo(db)
+	auditRepo := repo.NewAuditRepo(db)
 
 	// Initialize services
 	tripwireService := service.NewTripwireService(db, tripwireRepo)
@@ -85,6 +86,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authConfig := service.DefaultAuthConfig("test-jwt-secret-for-testing")
 	authService := service.NewAuthService(authRepo, authConfig, provisioningService)
 	apiTokenService := service.NewAPITokenService(repo.NewAPITokenRepo(db))
+	auditLogger := service.NewAuditLogger(auditRepo)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
@@ -102,8 +104,8 @@ func SetupTestApp(t *testing.T) *TestApp {
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
-	authHandler := handler.NewAuthHandler(authService, false) // false = not production for tests
-	userHandler := handler.NewUserHandler(authRepo)
+	authHandler := handler.NewAuthHandler(authService, auditLogger, false) // false = not production for tests
+	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	bulkHandler := handler.NewBulkHandler(db, metadataRepo, tripwireService, validationService)
 	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService)
 

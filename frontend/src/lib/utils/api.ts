@@ -1,8 +1,8 @@
 import { PUBLIC_API_URL } from '$env/static/public';
 import type { FieldValidationError } from '$lib/types/validation';
+import { auth } from '$lib/stores/auth.svelte';
 
 const API_BASE = PUBLIC_API_URL || '/api/v1';
-const STORAGE_KEY = 'quantico_auth';
 
 interface ApiOptions {
 	method?: string;
@@ -25,26 +25,14 @@ export class ApiError extends Error {
 }
 
 function getAuthToken(): string | null {
-	if (typeof window === 'undefined') return null;
-	try {
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored) {
-			const data = JSON.parse(stored);
-			return data.accessToken || null;
-		}
-	} catch {
-		// Ignore parse errors
-	}
-	return null;
+	// Get token from auth store (memory-only for security)
+	return auth.accessToken;
 }
 
 function handleSessionExpired(): void {
 	if (typeof window === 'undefined') return;
 
-	// Clear auth state from localStorage
-	localStorage.removeItem(STORAGE_KEY);
-
-	// Redirect to login with message
+	// Redirect to login with message (auth store handles cleanup)
 	window.location.href = '/login?session_expired=true';
 }
 

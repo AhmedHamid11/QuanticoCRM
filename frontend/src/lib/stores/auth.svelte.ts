@@ -1,5 +1,8 @@
 // Auth store for Quantico CRM using Svelte 5 runes
+// SECURITY: Access tokens are stored only in memory (reactive state)
+// SECURITY: Refresh tokens are in HttpOnly cookies - never accessible to JavaScript
 import { PUBLIC_API_URL } from '$env/static/public';
+import { initSessionTracking, stopSessionTracking } from './session.svelte';
 import type {
 	AuthState,
 	AuthResponse,
@@ -15,32 +18,89 @@ import type {
 
 const STORAGE_KEY = 'quantico_auth';
 
-// Initial state
+// Mutex to prevent concurrent refresh attempts (causes token reuse detection)
+let refreshPromise: Promise<boolean> | null = null;
+
+// Silent refresh function - declared here so it can be used before definition
+async function silentRefresh(): Promise<boolean> {
+	// If a refresh is already in progress, wait for it instead of starting another
+	if (refreshPromise) {
+		return refreshPromise;
+	}
+
+	refreshPromise = doSilentRefresh();
+	try {
+		return await refreshPromise;
+	} finally {
+		refreshPromise = null;
+	}
+}
+
+async function doSilentRefresh(): Promise<boolean> {
+	try {
+		// No body needed - refresh token is in HttpOnly cookie
+		// Browser sends it automatically with credentials: 'include'
+		const API_BASE = PUBLIC_API_URL || '/api/v1';
+		const response = await fetch(`${API_BASE}/auth/refresh`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include' // CRITICAL: Sends HttpOnly cookie
+		});
+
+		if (response.ok) {
+			const data = await response.json();
+			state.accessToken = data.accessToken;
+			state.expiresAt = new Date(data.expiresAt);
+			state.isAuthenticated = true;
+			if (data.user) {
+				state.user = data.user;
+				const defaultOrg =
+					data.user.memberships.find((m: Membership) => m.isDefault) || data.user.memberships[0];
+				state.currentOrg = defaultOrg || null;
+			}
+			// Decode JWT to get mustChangePassword flag
+			const claims = decodeJWT(data.accessToken);
+			state.mustChangePassword = claims?.mustChangePassword === true;
+			persistState();
+			return true;
+		}
+		return false;
+	} catch {
+		return false;
+	}
+}
+
+// Initial state - SECURITY: tokens are NOT restored from localStorage
 function getInitialState(): AuthState {
 	if (typeof window === 'undefined') {
 		return {
 			user: null,
 			currentOrg: null,
-			accessToken: null,
-			refreshToken: null,
+			accessToken: null, // Memory only - NOT restored from storage
 			expiresAt: null,
 			isAuthenticated: false,
-			isLoading: true,
+			isLoading: true, // Start true - we'll try silent refresh
 			isImpersonation: false,
-			impersonatedBy: null
+			impersonatedBy: null,
+			mustChangePassword: false
 		};
 	}
 
-	// Try to restore from localStorage
+	// Restore only non-sensitive data from localStorage
 	try {
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (stored) {
 			const data = JSON.parse(stored);
 			return {
-				...data,
-				expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-				isLoading: false,
-				isAuthenticated: !!data.accessToken
+				user: data.user,
+				currentOrg: data.currentOrg,
+				accessToken: null, // DO NOT restore - memory only
+				expiresAt: null, // Must re-validate via refresh
+				isAuthenticated: false, // Not authenticated until refresh succeeds
+				isLoading: true, // Will attempt silent refresh
+				isImpersonation: data.isImpersonation || false,
+				impersonatedBy: data.impersonatedBy || null,
+				mustChangePassword: false // Will be set on login/refresh
 			};
 		}
 	} catch (e) {
@@ -51,31 +111,32 @@ function getInitialState(): AuthState {
 		user: null,
 		currentOrg: null,
 		accessToken: null,
-		refreshToken: null,
 		expiresAt: null,
 		isAuthenticated: false,
 		isLoading: false,
 		isImpersonation: false,
-		impersonatedBy: null
+		impersonatedBy: null,
+		mustChangePassword: false
 	};
 }
 
 // Create reactive state
 let state = $state<AuthState>(getInitialState());
 
-// Persist to localStorage
+// Persist to localStorage - SECURITY: NEVER persist tokens
 function persistState() {
 	if (typeof window === 'undefined') return;
 
 	try {
+		// SECURITY: Only persist non-sensitive data
+		// Access token: memory only (XSS protection)
+		// Refresh token: HttpOnly cookie only (not accessible to JS)
 		const toStore = {
 			user: state.user,
 			currentOrg: state.currentOrg,
-			accessToken: state.accessToken,
-			refreshToken: state.refreshToken,
-			expiresAt: state.expiresAt?.toISOString() ?? null,
 			isImpersonation: state.isImpersonation,
 			impersonatedBy: state.impersonatedBy
+			// NO tokens persisted
 		};
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
 	} catch (e) {
@@ -89,7 +150,7 @@ function clearPersistedState() {
 	localStorage.removeItem(STORAGE_KEY);
 }
 
-// API helper with auth
+// API helper with auth - CRITICAL: credentials: 'include' for cookie transmission
 async function authFetch<T>(
 	endpoint: string,
 	options: {
@@ -108,40 +169,46 @@ async function authFetch<T>(
 		headers['Authorization'] = `Bearer ${state.accessToken}`;
 	}
 
-	const config: RequestInit = {
-		method,
-		headers
-	};
-
-	if (body) {
-		config.body = JSON.stringify(body);
-	}
-
 	const API_BASE = PUBLIC_API_URL || '/api/v1';
-	const response = await fetch(`${API_BASE}${endpoint}`, config);
+	const response = await fetch(`${API_BASE}${endpoint}`, {
+		method,
+		headers,
+		body: body ? JSON.stringify(body) : undefined,
+		credentials: 'include' // CRITICAL: Send HttpOnly cookies
+	});
 
 	if (!response.ok) {
-		// Handle 401 - try to refresh token
-		if (response.status === 401 && requiresAuth && state.refreshToken) {
-			const refreshed = await refreshTokens();
+		const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+
+		// Handle PASSWORD_CHANGE_REQUIRED - redirect to change-password
+		if (response.status === 403 && error.code === 'PASSWORD_CHANGE_REQUIRED') {
+			if (typeof window !== 'undefined') {
+				window.location.href = '/change-password?required=true';
+			}
+			throw new Error(error.message || 'Password change required');
+		}
+
+		// Handle 401 - try silent refresh
+		if (response.status === 401 && requiresAuth) {
+			const refreshed = await silentRefresh();
 			if (refreshed) {
-				// Retry the request with new token
+				// Retry with new token
 				headers['Authorization'] = `Bearer ${state.accessToken}`;
 				const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
-					...config,
-					headers
+					method,
+					headers,
+					body: body ? JSON.stringify(body) : undefined,
+					credentials: 'include'
 				});
 				if (retryResponse.ok) {
 					if (retryResponse.status === 204) return undefined as T;
 					return retryResponse.json();
 				}
 			}
-			// Refresh failed, logout and redirect to login
 			await logoutWithSessionExpired();
 			throw new Error('Session expired');
 		}
 
-		const error = await response.json().catch(() => ({ error: 'Unknown error' }));
 		throw new Error(error.error || `HTTP ${response.status}`);
 	}
 
@@ -152,19 +219,46 @@ async function authFetch<T>(
 	return response.json();
 }
 
-// Set auth state from response
+// Decode JWT to extract claims (client-side only, no verification)
+function decodeJWT(token: string): Record<string, unknown> | null {
+	try {
+		const base64Url = token.split('.')[1];
+		const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+		const jsonPayload = decodeURIComponent(
+			atob(base64)
+				.split('')
+				.map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+				.join('')
+		);
+		return JSON.parse(jsonPayload);
+	} catch {
+		return null;
+	}
+}
+
+// Set auth state from response - no refreshToken (it's in cookie)
 function setAuthState(response: AuthResponse) {
-	const defaultOrg = response.user.memberships.find((m) => m.isDefault) || response.user.memberships[0];
+	const defaultOrg =
+		response.user.memberships.find((m) => m.isDefault) || response.user.memberships[0];
 
 	state.user = response.user;
 	state.currentOrg = defaultOrg || null;
 	state.accessToken = response.accessToken;
-	state.refreshToken = response.refreshToken;
+	// No refreshToken - it's in HttpOnly cookie
 	state.expiresAt = new Date(response.expiresAt);
 	state.isAuthenticated = true;
 	state.isLoading = false;
 
+	// Decode JWT to get mustChangePassword flag
+	const claims = decodeJWT(response.accessToken);
+	state.mustChangePassword = claims?.mustChangePassword === true;
+
 	persistState();
+
+	// Initialize session tracking with org settings (defaults if not present)
+	const idleTimeout = (response.user as any).orgSettings?.idleTimeoutMinutes ?? 30;
+	const absoluteTimeout = (response.user as any).orgSettings?.absoluteTimeoutMinutes ?? 1440;
+	initSessionTracking(idleTimeout, absoluteTimeout);
 }
 
 // Auth actions
@@ -196,37 +290,38 @@ export async function login(input: LoginInput): Promise<void> {
 	}
 }
 
+// Logout - no body needed, server reads refresh token from cookie
 export async function logout(): Promise<void> {
 	try {
-		if (state.refreshToken) {
-			await authFetch('/auth/logout', {
-				method: 'POST',
-				body: { refreshToken: state.refreshToken }
-			}).catch(() => {});
-		}
+		// No body needed - server reads refresh token from cookie
+		await authFetch('/auth/logout', {
+			method: 'POST'
+		}).catch(() => {});
 	} finally {
+		stopSessionTracking();
 		state.user = null;
 		state.currentOrg = null;
 		state.accessToken = null;
-		state.refreshToken = null;
 		state.expiresAt = null;
 		state.isAuthenticated = false;
 		state.isImpersonation = false;
 		state.impersonatedBy = null;
+		state.mustChangePassword = false;
 		clearPersistedState();
 	}
 }
 
 // Logout and redirect to login with session expired message
 export async function logoutWithSessionExpired(): Promise<void> {
+	stopSessionTracking();
 	state.user = null;
 	state.currentOrg = null;
 	state.accessToken = null;
-	state.refreshToken = null;
 	state.expiresAt = null;
 	state.isAuthenticated = false;
 	state.isImpersonation = false;
 	state.impersonatedBy = null;
+	state.mustChangePassword = false;
 	clearPersistedState();
 
 	// Redirect to login with session expired flag
@@ -235,21 +330,9 @@ export async function logoutWithSessionExpired(): Promise<void> {
 	}
 }
 
+// Refresh tokens - uses HttpOnly cookie automatically
 export async function refreshTokens(): Promise<boolean> {
-	if (!state.refreshToken) return false;
-
-	try {
-		const response = await authFetch<AuthResponse>('/auth/refresh', {
-			method: 'POST',
-			body: { refreshToken: state.refreshToken },
-			requiresAuth: false
-		});
-		setAuthState(response);
-		return true;
-	} catch (e) {
-		console.error('Failed to refresh token:', e);
-		return false;
-	}
+	return silentRefresh();
 }
 
 export async function switchOrg(input: SwitchOrgInput): Promise<void> {
@@ -270,10 +353,12 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 }
 
 export async function changePassword(input: ChangePasswordInput): Promise<void> {
-	await authFetch('/auth/change-password', {
+	const response = await authFetch<AuthResponse>('/auth/change-password', {
 		method: 'POST',
 		body: input
 	});
+	// Update auth state with new tokens (mustChangePassword will be false)
+	setAuthState(response);
 }
 
 // Platform admin actions
@@ -306,20 +391,30 @@ export async function stopImpersonation(): Promise<void> {
 	}
 }
 
-// Initialize auth state on page load
-export function initAuth(): void {
+// Initialize auth state on page load - attempts silent refresh via HttpOnly cookie
+export async function initAuth(): Promise<void> {
 	state = getInitialState();
-	state.isLoading = false;
 
-	// Check if token is expired and try to refresh
-	if (state.accessToken && state.expiresAt) {
-		const now = new Date();
-		const expiresIn = state.expiresAt.getTime() - now.getTime();
-
-		// If token expires in less than 5 minutes, refresh it
-		if (expiresIn < 5 * 60 * 1000) {
-			refreshTokens();
+	// If we have user info from localStorage, attempt silent refresh
+	// to restore the session using the HttpOnly cookie
+	if (state.user) {
+		state.isLoading = true;
+		const refreshed = await silentRefresh();
+		if (!refreshed) {
+			// Refresh failed - clear state
+			state.user = null;
+			state.currentOrg = null;
+			state.isImpersonation = false;
+			state.impersonatedBy = null;
+			clearPersistedState();
 		}
+		state.isLoading = false;
+	} else {
+		// No user info - attempt silent refresh anyway
+		// (browser may have valid cookie from previous session)
+		state.isLoading = true;
+		await silentRefresh();
+		state.isLoading = false;
 	}
 }
 
@@ -363,6 +458,9 @@ export const auth = {
 	get canAccessSetup() {
 		// Platform admins and org admins/owners can access setup
 		return state.user?.isPlatformAdmin || this.isAdmin;
+	},
+	get mustChangePassword() {
+		return state.mustChangePassword;
 	}
 };
 

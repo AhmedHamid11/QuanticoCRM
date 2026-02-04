@@ -114,6 +114,8 @@ func main() {
 
 	// Ensure submittals table has client_id column (migration 040)
 	ensureSubmittalsClientID(masterDB)
+	// Ensure sessions table has timeout columns (migration 046, 047)
+	ensureSessionsColumns(masterDB)
 	navigationRepo := repo.NewNavigationRepo(masterDBConn)
 	relatedListRepo := repo.NewRelatedListRepo(masterDBConn, metadataRepo) // Uses DBConn for auto-reconnect
 	tripwireRepo := repo.NewTripwireRepo(masterDB)
@@ -698,4 +700,71 @@ func ensureSubmittalsClientID(db *sql.DB) {
 		DELETE FROM field_defs
 		WHERE entity_name = 'Submittal' AND name = 'clientName' AND type = 'varchar'
 	`)
+}
+
+// ensureSessionsColumns ensures the sessions table has all required columns
+// for token family support (migration 046) and session timeouts (migration 047)
+func ensureSessionsColumns(db *sql.DB) {
+	// Check if sessions table exists
+	var tableExists int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'").Scan(&tableExists); err != nil || tableExists == 0 {
+		return // Table doesn't exist yet, will be created by migrations
+	}
+
+	// Columns to ensure exist with their default values
+	columns := []struct {
+		name         string
+		definition   string
+		defaultValue string
+	}{
+		{"family_id", "TEXT", ""},
+		{"is_revoked", "INTEGER DEFAULT 0", "0"},
+		{"last_activity_at", "TEXT", "CURRENT_TIMESTAMP"},
+		{"idle_timeout_minutes", "INTEGER DEFAULT 30", "30"},
+		{"absolute_timeout_minutes", "INTEGER DEFAULT 1440", "1440"},
+	}
+
+	for _, col := range columns {
+		var colCount int
+		query := "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = ?"
+		if err := db.QueryRow(query, col.name).Scan(&colCount); err != nil {
+			log.Printf("Note: sessions column check failed for %s: %v", col.name, err)
+			continue
+		}
+
+		if colCount == 0 {
+			// Add the column
+			alterSQL := "ALTER TABLE sessions ADD COLUMN " + col.name + " " + col.definition
+			if _, err := db.Exec(alterSQL); err != nil {
+				log.Printf("Warning: failed to add %s to sessions: %v", col.name, err)
+			} else {
+				log.Printf("Added %s column to sessions table", col.name)
+
+				// Backfill existing rows if needed
+				if col.defaultValue != "" {
+					updateSQL := "UPDATE sessions SET " + col.name + " = " + col.defaultValue + " WHERE " + col.name + " IS NULL"
+					if _, err := db.Exec(updateSQL); err != nil {
+						log.Printf("Warning: failed to backfill %s: %v", col.name, err)
+					}
+				}
+			}
+		}
+	}
+
+	// Backfill family_id with session's own ID if NULL
+	if _, err := db.Exec("UPDATE sessions SET family_id = id WHERE family_id IS NULL"); err != nil {
+		log.Printf("Warning: failed to backfill family_id: %v", err)
+	}
+
+	// Create indexes if they don't exist
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_sessions_family ON sessions(family_id)",
+		"CREATE INDEX IF NOT EXISTS idx_sessions_family_revoked ON sessions(family_id, is_revoked)",
+		"CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity_at)",
+	}
+	for _, idx := range indexes {
+		if _, err := db.Exec(idx); err != nil {
+			log.Printf("Warning: failed to create index: %v", err)
+		}
+	}
 }
