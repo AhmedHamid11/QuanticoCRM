@@ -32,7 +32,7 @@
 **Goal:** Eliminate critical vulnerabilities that block production deployment.
 **Depends on:** Nothing (first phase of milestone)
 **Requirements:** CRIT-01, CRIT-02, CRIT-03, CRIT-04, CRIT-05
-**Plans:** 3 plans
+**Plans:** 5 plans (3 original + 2 gap closure)
 
 **Success Criteria:**
 
@@ -43,9 +43,11 @@
 5. All HTTP responses include HSTS header with 1-year max-age
 
 Plans:
-- [ ] 06-01-PLAN.md — Foundation security (CORS, HSTS, JWT validation)
-- [ ] 06-02-PLAN.md — Auth rate limiting
-- [ ] 06-03-PLAN.md — Error sanitization
+- [x] 06-01-PLAN.md — Foundation security (CORS, HSTS, JWT validation)
+- [x] 06-02-PLAN.md — Auth rate limiting
+- [x] 06-03-PLAN.md — Error sanitization (critical handlers)
+- [ ] 06-04-PLAN.md — Gap closure: sanitize high-occurrence handlers (contact, account, schema, admin, etc.)
+- [ ] 06-05-PLAN.md — Gap closure: sanitize remaining handlers (task, bulk, lookup, etc.)
 
 ---
 
@@ -122,7 +124,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 06. Critical Fixes | v2.0 | 0/3 | Ready | - |
+| 06. Critical Fixes | v2.0 | 3/5 | Gap closure needed | - |
 | 07. Token Architecture | v2.0 | 0/TBD | Not started | - |
 | 08. Security Hardening | v2.0 | 0/TBD | Not started | - |
 | 09. Session Management | v2.0 | 0/TBD | Not started | - |
@@ -131,4 +133,4 @@ Plans:
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-04*
