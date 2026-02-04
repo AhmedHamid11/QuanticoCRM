@@ -46,8 +46,8 @@ Plans:
 - [x] 06-01-PLAN.md — Foundation security (CORS, HSTS, JWT validation)
 - [x] 06-02-PLAN.md — Auth rate limiting
 - [x] 06-03-PLAN.md — Error sanitization (critical handlers)
-- [ ] 06-04-PLAN.md — Gap closure: sanitize high-occurrence handlers (contact, account, schema, admin, etc.)
-- [ ] 06-05-PLAN.md — Gap closure: sanitize remaining handlers (task, bulk, lookup, etc.)
+- [x] 06-04-PLAN.md — Gap closure: sanitize high-occurrence handlers (contact, account, schema, admin, etc.)
+- [x] 06-05-PLAN.md — Gap closure: sanitize remaining handlers (task, bulk, lookup, etc.)
 
 ---
 
@@ -56,6 +56,7 @@ Plans:
 **Goal:** Secure token storage and rotation to prevent XSS token theft.
 **Depends on:** Phase 06 (HSTS must be working for Secure cookies)
 **Requirements:** HARD-02, HARD-03, HARD-04
+**Plans:** 3 plans
 
 **Success Criteria:**
 
@@ -64,7 +65,10 @@ Plans:
 3. Token refresh returns new refresh token (rotation), invalidating the old one
 4. Reusing an old refresh token invalidates entire token family (reuse detection)
 
-**Plans:** TBD
+Plans:
+- [ ] 07-01-PLAN.md — Token family infrastructure (migration, entity, repo, service rotation logic)
+- [ ] 07-02-PLAN.md — Backend HttpOnly cookie implementation (auth handlers)
+- [ ] 07-03-PLAN.md — Frontend memory-only tokens (auth store refactor)
 
 ---
 
@@ -125,7 +129,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 06. Critical Fixes | v2.0 | 5/5 | Complete | 2026-02-04 |
-| 07. Token Architecture | v2.0 | 0/TBD | Not started | - |
+| 07. Token Architecture | v2.0 | 0/3 | Planned | - |
 | 08. Security Hardening | v2.0 | 0/TBD | Not started | - |
 | 09. Session Management | v2.0 | 0/TBD | Not started | - |
 | 10. Audit Infrastructure | v2.0 | 0/TBD | Not started | - |
@@ -133,4 +137,4 @@ Plans:
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 06 Complete*
+*Last updated: 2026-02-04 - Phase 07 Planned*
