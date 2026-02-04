@@ -11,25 +11,25 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Milestone:** v2.0 Security Hardening
 **Phase:** 06 of 10 (Critical Fixes)
-**Plan:** 01 of 03 (Foundation Security)
-**Status:** Plan 01 complete
+**Plan:** 02 of 03 (Auth Rate Limiting)
+**Status:** Plan 02 complete
 
-**Last activity:** 2026-02-04 — Completed 06-01-PLAN.md (Foundation Security)
+**Last activity:** 2026-02-04 - Completed 06-02-PLAN.md (Auth Rate Limiting)
 
-Progress: [===-------] 3% (1/27 plans)
+Progress: [======----] 7% (2/27 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 5 min
-- Total execution time: 5 min
+- Total execution time: 9 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 06-critical-fixes | 1 | 5min | 5min |
+| 06-critical-fixes | 2 | 9min | 4.5min |
 
 *Updated after each plan completion*
 
@@ -44,6 +44,9 @@ Progress: [===-------] 3% (1/27 plans)
 - Silent CORS reject (no headers) rather than 403 error to prevent origin enumeration
 - HSTS with 1-year max-age and includeSubDomains directive
 - Production detection via ENVIRONMENT env var OR presence of TURSO_URL
+- **06-02:** Custom rate limiter for consistent 429 JSON response format
+- **06-02:** In-memory sync.Map rate limit storage (acceptable per-instance reset)
+- **06-02:** Rate limit applied at auth group level (protects all auth endpoints)
 
 ### Blockers/Concerns
 
@@ -67,9 +70,9 @@ Progress: [===-------] 3% (1/27 plans)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 06-01-PLAN.md
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 — Plan 06-01 complete (Foundation Security)*
+*Updated: 2026-02-04 - Plan 06-02 complete (Auth Rate Limiting)*
