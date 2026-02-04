@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 )
@@ -19,23 +21,19 @@ func TestTripwire_CRUD(t *testing.T) {
 		body := map[string]interface{}{
 			"name":       "Contact Created Webhook",
 			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/contact-created",
-			"httpMethod": "POST",
-			"headers": map[string]string{
-				"X-Custom-Header": "value",
+			"enabled":    true,
+			"endpointUrl": "https://webhook.example.com/contact-created",
+			"conditions": []map[string]interface{}{
+				{"type": "ISNEW"}, // Condition for CREATE events
 			},
-			"conditions": []map[string]interface{}{},
 		}
 
 		var response struct {
-			ID         string `json:"id"`
-			Name       string `json:"name"`
-			EntityType string `json:"entityType"`
-			Event      string `json:"event"`
-			IsActive   bool   `json:"isActive"`
-			WebhookUrl string `json:"webhookUrl"`
+			ID          string `json:"id"`
+			Name        string `json:"name"`
+			EntityType  string `json:"entityType"`
+			Enabled     bool   `json:"enabled"`
+			EndpointUrl string `json:"endpointUrl"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/tripwires/", body, user.AccessToken, &response)
@@ -50,24 +48,19 @@ func TestTripwire_CRUD(t *testing.T) {
 		if response.EntityType != "Contact" {
 			t.Errorf("Expected entityType 'Contact', got %s", response.EntityType)
 		}
-		if response.Event != "CREATE" {
-			t.Errorf("Expected event 'CREATE', got %s", response.Event)
-		}
 	})
 
-	t.Run("creates tripwire with conditions", func(t *testing.T) {
+	t.Run("creates tripwire with field conditions", func(t *testing.T) {
 		body := map[string]interface{}{
 			"name":       "VIP Contact Webhook",
 			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/vip",
-			"httpMethod": "POST",
+			"enabled":    true,
+			"endpointUrl": "https://webhook.example.com/vip",
 			"conditions": []map[string]interface{}{
 				{
-					"field":    "description",
-					"operator": "CONTAINS",
-					"value":    "VIP",
+					"type":      "FIELD_EQUALS",
+					"fieldName": "description",
+					"value":     "VIP",
 				},
 			},
 			"conditionLogic": "AND",
@@ -76,9 +69,9 @@ func TestTripwire_CRUD(t *testing.T) {
 		var response struct {
 			ID         string `json:"id"`
 			Conditions []struct {
-				Field    string `json:"field"`
-				Operator string `json:"operator"`
-				Value    string `json:"value"`
+				Type      string  `json:"type"`
+				FieldName *string `json:"fieldName"`
+				Value     *string `json:"value"`
 			} `json:"conditions"`
 		}
 
@@ -109,11 +102,11 @@ func TestTripwire_CRUD(t *testing.T) {
 		createBody := map[string]interface{}{
 			"name":       "Get Test Tripwire",
 			"entityType": "Account",
-			"event":      "UPDATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/account",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
+			"enabled":    true,
+			"endpointUrl": "https://webhook.example.com/account",
+			"conditions": []map[string]interface{}{
+				{"type": "ISCHANGED"},
+			},
 		}
 
 		var created struct {
@@ -140,11 +133,11 @@ func TestTripwire_CRUD(t *testing.T) {
 		createBody := map[string]interface{}{
 			"name":       "Update Test Tripwire",
 			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/original",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
+			"enabled":    true,
+			"endpointUrl": "https://webhook.example.com/original",
+			"conditions": []map[string]interface{}{
+				{"type": "ISNEW"},
+			},
 		}
 
 		var created struct {
@@ -155,15 +148,15 @@ func TestTripwire_CRUD(t *testing.T) {
 
 		// Update it
 		updateBody := map[string]interface{}{
-			"name":       "Updated Tripwire Name",
-			"webhookUrl": "https://webhook.example.com/updated",
-			"isActive":   false,
+			"name":        "Updated Tripwire Name",
+			"endpointUrl": "https://webhook.example.com/updated",
+			"enabled":     false,
 		}
 
 		var updated struct {
-			Name       string `json:"name"`
-			WebhookUrl string `json:"webhookUrl"`
-			IsActive   bool   `json:"isActive"`
+			Name        string `json:"name"`
+			EndpointUrl string `json:"endpointUrl"`
+			Enabled     bool   `json:"enabled"`
 		}
 		resp = app.MakeRequestWithResponse(t, "PUT", "/api/v1/tripwires/"+created.ID, updateBody, user.AccessToken, &updated)
 		AssertStatus(t, resp, http.StatusOK)
@@ -171,8 +164,8 @@ func TestTripwire_CRUD(t *testing.T) {
 		if updated.Name != "Updated Tripwire Name" {
 			t.Errorf("Expected name 'Updated Tripwire Name', got %s", updated.Name)
 		}
-		if updated.IsActive != false {
-			t.Error("Expected isActive to be false")
+		if updated.Enabled != false {
+			t.Error("Expected enabled to be false")
 		}
 	})
 
@@ -181,11 +174,11 @@ func TestTripwire_CRUD(t *testing.T) {
 		createBody := map[string]interface{}{
 			"name":       "Delete Test Tripwire",
 			"entityType": "Contact",
-			"event":      "DELETE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/delete",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
+			"enabled":    true,
+			"endpointUrl": "https://webhook.example.com/delete",
+			"conditions": []map[string]interface{}{
+				{"type": "ISDELETED"},
+			},
 		}
 
 		var created struct {
@@ -204,80 +197,47 @@ func TestTripwire_CRUD(t *testing.T) {
 	})
 }
 
-func TestTripwire_Events(t *testing.T) {
+func TestTripwire_ConditionTypes(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
 	user := app.CreateTestUser(t, "admin@example.com", "password123", "Tripwire Test Org")
 
-	t.Run("creates tripwire for CREATE event", func(t *testing.T) {
-		body := map[string]interface{}{
-			"name":       "Create Event Tripwire",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/create",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
-		}
+	conditionTypes := []struct {
+		name     string
+		condType string
+	}{
+		{"ISNEW (Create)", "ISNEW"},
+		{"ISCHANGED (Update)", "ISCHANGED"},
+		{"ISDELETED (Delete)", "ISDELETED"},
+	}
 
-		var response struct {
-			Event string `json:"event"`
-		}
+	for _, tc := range conditionTypes {
+		t.Run("creates tripwire for "+tc.name, func(t *testing.T) {
+			body := map[string]interface{}{
+				"name":       tc.name + " Tripwire",
+				"entityType": "Contact",
+				"enabled":    true,
+				"endpointUrl": "https://webhook.example.com/test",
+				"conditions": []map[string]interface{}{
+					{"type": tc.condType},
+				},
+			}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/tripwires/", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusCreated)
+			var response struct {
+				Conditions []struct {
+					Type string `json:"type"`
+				} `json:"conditions"`
+			}
 
-		if response.Event != "CREATE" {
-			t.Errorf("Expected event 'CREATE', got %s", response.Event)
-		}
-	})
+			resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/tripwires/", body, user.AccessToken, &response)
+			AssertStatus(t, resp, http.StatusCreated)
 
-	t.Run("creates tripwire for UPDATE event", func(t *testing.T) {
-		body := map[string]interface{}{
-			"name":       "Update Event Tripwire",
-			"entityType": "Contact",
-			"event":      "UPDATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/update",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
-		}
-
-		var response struct {
-			Event string `json:"event"`
-		}
-
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/tripwires/", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusCreated)
-
-		if response.Event != "UPDATE" {
-			t.Errorf("Expected event 'UPDATE', got %s", response.Event)
-		}
-	})
-
-	t.Run("creates tripwire for DELETE event", func(t *testing.T) {
-		body := map[string]interface{}{
-			"name":       "Delete Event Tripwire",
-			"entityType": "Contact",
-			"event":      "DELETE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/delete",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
-		}
-
-		var response struct {
-			Event string `json:"event"`
-		}
-
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/tripwires/", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusCreated)
-
-		if response.Event != "DELETE" {
-			t.Errorf("Expected event 'DELETE', got %s", response.Event)
-		}
-	})
+			if len(response.Conditions) != 1 || response.Conditions[0].Type != tc.condType {
+				t.Errorf("Expected condition type '%s', got %+v", tc.condType, response.Conditions)
+			}
+		})
+	}
 }
 
 func TestTripwire_EntityTypes(t *testing.T) {
@@ -293,11 +253,11 @@ func TestTripwire_EntityTypes(t *testing.T) {
 			body := map[string]interface{}{
 				"name":       entityType + " Tripwire",
 				"entityType": entityType,
-				"event":      "CREATE",
-				"isActive":   true,
-				"webhookUrl": "https://webhook.example.com/" + entityType,
-				"httpMethod": "POST",
-				"conditions": []map[string]interface{}{},
+				"enabled":    true,
+				"endpointUrl": "https://webhook.example.com/" + entityType,
+				"conditions": []map[string]interface{}{
+					{"type": "ISNEW"},
+				},
 			}
 
 			var response struct {
@@ -309,40 +269,6 @@ func TestTripwire_EntityTypes(t *testing.T) {
 
 			if response.EntityType != entityType {
 				t.Errorf("Expected entityType '%s', got %s", entityType, response.EntityType)
-			}
-		})
-	}
-}
-
-func TestTripwire_HttpMethods(t *testing.T) {
-	app := SetupTestApp(t)
-	defer app.Cleanup()
-
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Tripwire Test Org")
-
-	httpMethods := []string{"POST", "PUT", "PATCH"}
-
-	for _, method := range httpMethods {
-		t.Run("creates tripwire with "+method+" method", func(t *testing.T) {
-			body := map[string]interface{}{
-				"name":       method + " Method Tripwire",
-				"entityType": "Contact",
-				"event":      "CREATE",
-				"isActive":   true,
-				"webhookUrl": "https://webhook.example.com/test",
-				"httpMethod": method,
-				"conditions": []map[string]interface{}{},
-			}
-
-			var response struct {
-				HttpMethod string `json:"httpMethod"`
-			}
-
-			resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/tripwires/", body, user.AccessToken, &response)
-			AssertStatus(t, resp, http.StatusCreated)
-
-			if response.HttpMethod != method {
-				t.Errorf("Expected httpMethod '%s', got %s", method, response.HttpMethod)
 			}
 		})
 	}
@@ -360,11 +286,11 @@ func TestTripwire_OrgIsolation(t *testing.T) {
 	createBody := map[string]interface{}{
 		"name":       "Private Tripwire",
 		"entityType": "Contact",
-		"event":      "CREATE",
-		"isActive":   true,
-		"webhookUrl": "https://webhook.example.com/private",
-		"httpMethod": "POST",
-		"conditions": []map[string]interface{}{},
+		"enabled":    true,
+		"endpointUrl": "https://webhook.example.com/private",
+		"conditions": []map[string]interface{}{
+			{"type": "ISNEW"},
+		},
 	}
 	var created struct {
 		ID string `json:"id"`
@@ -418,16 +344,14 @@ func TestTripwire_NonAdminAccess(t *testing.T) {
 		"role":  "user",
 	}
 	var inviteResp struct {
-		Invitation struct {
-			Token string `json:"token"`
-		} `json:"invitation"`
+		Token string `json:"token"` // Token is at top level, not nested
 	}
 	resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/invite", inviteBody, admin.AccessToken, &inviteResp)
 	AssertStatus(t, resp, http.StatusCreated)
 
 	// Accept the invitation
 	acceptBody := map[string]interface{}{
-		"token":    inviteResp.Invitation.Token,
+		"token":    inviteResp.Token,
 		"password": "password123",
 	}
 	var acceptResp struct {
@@ -442,11 +366,11 @@ func TestTripwire_NonAdminAccess(t *testing.T) {
 		body := map[string]interface{}{
 			"name":       "Unauthorized Tripwire",
 			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"webhookUrl": "https://webhook.example.com/unauthorized",
-			"httpMethod": "POST",
-			"conditions": []map[string]interface{}{},
+			"enabled":    true,
+			"endpointUrl": "https://webhook.example.com/unauthorized",
+			"conditions": []map[string]interface{}{
+				{"type": "ISNEW"},
+			},
 		}
 
 		resp := app.MakeRequest(t, "POST", "/api/v1/tripwires/", body, regularUserToken)
@@ -457,4 +381,15 @@ func TestTripwire_NonAdminAccess(t *testing.T) {
 		resp := app.MakeRequest(t, "GET", "/api/v1/tripwires/", nil, regularUserToken)
 		AssertStatus(t, resp, http.StatusForbidden)
 	})
+}
+
+// Helper function to read token from response
+func readTokenFromResponse(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	var result struct {
+		Token string `json:"token"`
+	}
+	json.Unmarshal(bodyBytes, &result)
+	return result.Token
 }

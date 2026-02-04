@@ -411,8 +411,8 @@ func TestAuth_Invitation(t *testing.T) {
 				ID    string `json:"id"`
 				Email string `json:"email"`
 				Role  string `json:"role"`
-				Token string `json:"token"`
 			} `json:"invitation"`
+			Token string `json:"token"` // Token is at top level, not nested
 		}
 
 		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/invite", body, admin.AccessToken, &response)
@@ -421,7 +421,7 @@ func TestAuth_Invitation(t *testing.T) {
 		if response.Invitation.Email != "invited@example.com" {
 			t.Errorf("Expected email invited@example.com, got %s", response.Invitation.Email)
 		}
-		if response.Invitation.Token == "" {
+		if response.Token == "" {
 			t.Error("Expected invitation token to be set")
 		}
 	})
@@ -470,9 +470,7 @@ func TestAuth_AcceptInvitation(t *testing.T) {
 	}
 
 	var inviteResp struct {
-		Invitation struct {
-			Token string `json:"token"`
-		} `json:"invitation"`
+		Token string `json:"token"` // Token is at top level, not nested
 	}
 
 	resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/invite", inviteBody, admin.AccessToken, &inviteResp)
@@ -480,7 +478,7 @@ func TestAuth_AcceptInvitation(t *testing.T) {
 
 	t.Run("new user can accept invitation", func(t *testing.T) {
 		body := map[string]interface{}{
-			"token":     inviteResp.Invitation.Token,
+			"token":     inviteResp.Token,
 			"password":  "newuserpassword123",
 			"firstName": "New",
 			"lastName":  "User",

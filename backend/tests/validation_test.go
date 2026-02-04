@@ -17,39 +17,36 @@ func TestValidationRule_CRUD(t *testing.T) {
 
 	t.Run("admin can create validation rule", func(t *testing.T) {
 		body := map[string]interface{}{
-			"name":       "Require Email for VIP",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Email is required for VIP contacts",
+			"name":            "Require Email for VIP",
+			"enabled":         true,
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
 			"conditions": []map[string]interface{}{
 				{
-					"field":    "description",
-					"operator": "CONTAINS",
-					"value":    "VIP",
+					"fieldName": "description",
+					"operator":  "CONTAINS",
+					"value":     "VIP",
 				},
 			},
-			"validations": []map[string]interface{}{
+			"actions": []map[string]interface{}{
 				{
-					"field":    "emailAddress",
-					"operator": "NOT_EMPTY",
+					"type":         "REQUIRE_VALUE",
+					"fields":       []string{"emailAddress"},
+					"errorMessage": "Email is required for VIP contacts",
 				},
 			},
-			"conditionLogic": "AND",
-			"validationLogic": "AND",
 		}
 
 		var response struct {
 			ID         string `json:"id"`
 			Name       string `json:"name"`
 			EntityType string `json:"entityType"`
-			Event      string `json:"event"`
-			IsActive   bool   `json:"isActive"`
-			Action     string `json:"action"`
+			Enabled    bool   `json:"enabled"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/validation-rules/", body, user.AccessToken, &response)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", body, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		if response.ID == "" {
@@ -69,7 +66,7 @@ func TestValidationRule_CRUD(t *testing.T) {
 			Total int           `json:"total"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/validation-rules/", nil, user.AccessToken, &response)
+		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/admin/entities/Contact/validation-rules", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
 		if len(response.Data) == 0 {
@@ -80,17 +77,22 @@ func TestValidationRule_CRUD(t *testing.T) {
 	t.Run("gets validation rule by ID", func(t *testing.T) {
 		// First create a rule
 		createBody := map[string]interface{}{
-			"name":       "Get Test Rule",
-			"entityType": "Account",
-			"event":      "UPDATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Test message",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Get Test Rule",
+			"enabled":         true,
+			"triggerOnCreate": false,
+			"triggerOnUpdate": true,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "name",
-					"operator": "NOT_EMPTY",
+					"fieldName": "name",
+					"operator":  "IS_EMPTY",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Name cannot be empty",
 				},
 			},
 		}
@@ -98,7 +100,7 @@ func TestValidationRule_CRUD(t *testing.T) {
 		var created struct {
 			ID string `json:"id"`
 		}
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/validation-rules/", createBody, user.AccessToken, &created)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/entities/Account/validation-rules", createBody, user.AccessToken, &created)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		// Now get it
@@ -106,7 +108,7 @@ func TestValidationRule_CRUD(t *testing.T) {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 		}
-		resp = app.MakeRequestWithResponse(t, "GET", "/api/v1/validation-rules/"+created.ID, nil, user.AccessToken, &response)
+		resp = app.MakeRequestWithResponse(t, "GET", "/api/v1/admin/entities/Account/validation-rules/"+created.ID, nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
 		if response.ID != created.ID {
@@ -117,17 +119,22 @@ func TestValidationRule_CRUD(t *testing.T) {
 	t.Run("updates validation rule", func(t *testing.T) {
 		// First create a rule
 		createBody := map[string]interface{}{
-			"name":       "Update Test Rule",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Original message",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Update Test Rule",
+			"enabled":         true,
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "lastName",
-					"operator": "NOT_EMPTY",
+					"fieldName": "lastName",
+					"operator":  "IS_EMPTY",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Last name is required",
 				},
 			},
 		}
@@ -135,46 +142,49 @@ func TestValidationRule_CRUD(t *testing.T) {
 		var created struct {
 			ID string `json:"id"`
 		}
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/validation-rules/", createBody, user.AccessToken, &created)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", createBody, user.AccessToken, &created)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		// Update it
 		updateBody := map[string]interface{}{
-			"name":     "Updated Rule Name",
-			"message":  "Updated message",
-			"isActive": false,
+			"name":    "Updated Rule Name",
+			"enabled": false,
 		}
 
 		var updated struct {
-			Name     string `json:"name"`
-			Message  string `json:"message"`
-			IsActive bool   `json:"isActive"`
+			Name    string `json:"name"`
+			Enabled bool   `json:"enabled"`
 		}
-		resp = app.MakeRequestWithResponse(t, "PUT", "/api/v1/validation-rules/"+created.ID, updateBody, user.AccessToken, &updated)
+		resp = app.MakeRequestWithResponse(t, "PUT", "/api/v1/admin/entities/Contact/validation-rules/"+created.ID, updateBody, user.AccessToken, &updated)
 		AssertStatus(t, resp, http.StatusOK)
 
 		if updated.Name != "Updated Rule Name" {
 			t.Errorf("Expected name 'Updated Rule Name', got %s", updated.Name)
 		}
-		if updated.IsActive != false {
-			t.Error("Expected isActive to be false")
+		if updated.Enabled != false {
+			t.Error("Expected enabled to be false")
 		}
 	})
 
 	t.Run("deletes validation rule", func(t *testing.T) {
 		// First create a rule
 		createBody := map[string]interface{}{
-			"name":       "Delete Test Rule",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Test message",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Delete Test Rule",
+			"enabled":         true,
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "lastName",
-					"operator": "NOT_EMPTY",
+					"fieldName": "lastName",
+					"operator":  "IS_EMPTY",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Last name is required",
 				},
 			},
 		}
@@ -182,15 +192,15 @@ func TestValidationRule_CRUD(t *testing.T) {
 		var created struct {
 			ID string `json:"id"`
 		}
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/validation-rules/", createBody, user.AccessToken, &created)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", createBody, user.AccessToken, &created)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		// Delete it
-		resp = app.MakeRequest(t, "DELETE", "/api/v1/validation-rules/"+created.ID, nil, user.AccessToken)
+		resp = app.MakeRequest(t, "DELETE", "/api/v1/admin/entities/Contact/validation-rules/"+created.ID, nil, user.AccessToken)
 		AssertStatus(t, resp, http.StatusNoContent)
 
 		// Verify it's deleted
-		resp = app.MakeRequest(t, "GET", "/api/v1/validation-rules/"+created.ID, nil, user.AccessToken)
+		resp = app.MakeRequest(t, "GET", "/api/v1/admin/entities/Contact/validation-rules/"+created.ID, nil, user.AccessToken)
 		AssertStatus(t, resp, http.StatusNotFound)
 	})
 }
@@ -204,30 +214,29 @@ func TestValidationRule_Enforcement(t *testing.T) {
 	t.Run("BLOCK_SAVE prevents record creation", func(t *testing.T) {
 		// Create a validation rule that requires email for contacts with "VIP" in description
 		ruleBody := map[string]interface{}{
-			"name":       "Require Email for VIP",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Email is required for VIP contacts",
+			"name":            "Require Email for VIP",
+			"enabled":         true,
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
 			"conditions": []map[string]interface{}{
 				{
-					"field":    "description",
-					"operator": "CONTAINS",
-					"value":    "VIP",
+					"fieldName": "description",
+					"operator":  "CONTAINS",
+					"value":     "VIP",
 				},
 			},
-			"validations": []map[string]interface{}{
+			"actions": []map[string]interface{}{
 				{
-					"field":    "emailAddress",
-					"operator": "NOT_EMPTY",
+					"type":         "REQUIRE_VALUE",
+					"fields":       []string{"emailAddress"},
+					"errorMessage": "Email is required for VIP contacts",
 				},
 			},
-			"conditionLogic": "AND",
-			"validationLogic": "AND",
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/validation-rules/", ruleBody, user.AccessToken)
+		resp := app.MakeRequest(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", ruleBody, user.AccessToken)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		// Try to create a VIP contact without email - should fail
@@ -253,28 +262,33 @@ func TestValidationRule_Enforcement(t *testing.T) {
 		AssertStatus(t, resp, http.StatusCreated)
 	})
 
-	t.Run("inactive rule does not block", func(t *testing.T) {
-		// Create an inactive validation rule
+	t.Run("disabled rule does not block", func(t *testing.T) {
+		// Create a disabled validation rule
 		ruleBody := map[string]interface{}{
-			"name":       "Inactive Rule",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   false, // Inactive
-			"action":     "BLOCK_SAVE",
-			"message":    "Should not block",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Disabled Rule",
+			"enabled":         false, // Disabled
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "phoneNumber",
-					"operator": "NOT_EMPTY",
+					"fieldName": "phoneNumber",
+					"operator":  "IS_EMPTY",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Phone number is required",
 				},
 			},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/validation-rules/", ruleBody, user.AccessToken)
+		resp := app.MakeRequest(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", ruleBody, user.AccessToken)
 		AssertStatus(t, resp, http.StatusCreated)
 
-		// Create a contact without phone - should succeed because rule is inactive
+		// Create a contact without phone - should succeed because rule is disabled
 		contactBody := map[string]interface{}{
 			"lastName": "NoPhone",
 		}
@@ -285,22 +299,27 @@ func TestValidationRule_Enforcement(t *testing.T) {
 	t.Run("rule applies to UPDATE events", func(t *testing.T) {
 		// Create a validation rule for UPDATE
 		ruleBody := map[string]interface{}{
-			"name":       "Require Website on Update",
-			"entityType": "Account",
-			"event":      "UPDATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Website is required when updating accounts",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Require Website on Update",
+			"enabled":         true,
+			"triggerOnCreate": false,
+			"triggerOnUpdate": true,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "website",
-					"operator": "NOT_EMPTY",
+					"fieldName": "website",
+					"operator":  "IS_EMPTY",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Website is required when updating accounts",
 				},
 			},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/validation-rules/", ruleBody, user.AccessToken)
+		resp := app.MakeRequest(t, "POST", "/api/v1/admin/entities/Account/validation-rules", ruleBody, user.AccessToken)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		// Create an account without website - should succeed (rule is for UPDATE)
@@ -333,25 +352,30 @@ func TestValidationRule_Operators(t *testing.T) {
 
 	user := app.CreateTestUser(t, "admin@example.com", "password123", "Validation Test Org")
 
-	t.Run("EQUALS operator", func(t *testing.T) {
+	t.Run("EQUALS operator blocks specific values", func(t *testing.T) {
 		ruleBody := map[string]interface{}{
-			"name":       "Block Specific Status",
-			"entityType": "Task",
-			"event":      "CREATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Cannot create tasks with 'Cancelled' status",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Block Cancelled Status",
+			"enabled":         true,
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "status",
-					"operator": "NOT_EQUALS",
-					"value":    "Cancelled",
+					"fieldName": "status",
+					"operator":  "EQUALS",
+					"value":     "Cancelled",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Cannot create tasks with 'Cancelled' status",
 				},
 			},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/validation-rules/", ruleBody, user.AccessToken)
+		resp := app.MakeRequest(t, "POST", "/api/v1/admin/entities/Task/validation-rules", ruleBody, user.AccessToken)
 		AssertStatus(t, resp, http.StatusCreated)
 
 		// Create contact for task parent
@@ -364,7 +388,7 @@ func TestValidationRule_Operators(t *testing.T) {
 
 		// Try to create a cancelled task - should fail
 		taskBody := map[string]interface{}{
-			"name":       "Cancelled Task",
+			"subject":    "Cancelled Task",
 			"type":       "Todo",
 			"status":     "Cancelled",
 			"parentType": "Contact",
@@ -374,7 +398,7 @@ func TestValidationRule_Operators(t *testing.T) {
 		AssertStatus(t, resp, http.StatusUnprocessableEntity)
 
 		// Create with different status - should succeed
-		taskBody["status"] = "Not Started"
+		taskBody["status"] = "Open"
 		resp = app.MakeRequest(t, "POST", "/api/v1/tasks/", taskBody, user.AccessToken)
 		AssertStatus(t, resp, http.StatusCreated)
 	})
@@ -395,16 +419,14 @@ func TestValidationRule_NonAdminAccess(t *testing.T) {
 		"role":  "user",
 	}
 	var inviteResp struct {
-		Invitation struct {
-			Token string `json:"token"`
-		} `json:"invitation"`
+		Token string `json:"token"` // Token is at top level, not nested
 	}
 	resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/invite", inviteBody, admin.AccessToken, &inviteResp)
 	AssertStatus(t, resp, http.StatusCreated)
 
 	// Accept the invitation
 	acceptBody := map[string]interface{}{
-		"token":    inviteResp.Invitation.Token,
+		"token":    inviteResp.Token,
 		"password": "password123",
 	}
 	var acceptResp struct {
@@ -417,27 +439,32 @@ func TestValidationRule_NonAdminAccess(t *testing.T) {
 
 	t.Run("regular user cannot create validation rules", func(t *testing.T) {
 		ruleBody := map[string]interface{}{
-			"name":       "Unauthorized Rule",
-			"entityType": "Contact",
-			"event":      "CREATE",
-			"isActive":   true,
-			"action":     "BLOCK_SAVE",
-			"message":    "Test",
-			"conditions": []map[string]interface{}{},
-			"validations": []map[string]interface{}{
+			"name":            "Unauthorized Rule",
+			"enabled":         true,
+			"triggerOnCreate": true,
+			"triggerOnUpdate": false,
+			"triggerOnDelete": false,
+			"conditionLogic":  "AND",
+			"conditions": []map[string]interface{}{
 				{
-					"field":    "lastName",
-					"operator": "NOT_EMPTY",
+					"fieldName": "lastName",
+					"operator":  "IS_EMPTY",
+				},
+			},
+			"actions": []map[string]interface{}{
+				{
+					"type":         "BLOCK_SAVE",
+					"errorMessage": "Test",
 				},
 			},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/validation-rules/", ruleBody, regularUserToken)
+		resp := app.MakeRequest(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", ruleBody, regularUserToken)
 		AssertStatus(t, resp, http.StatusForbidden)
 	})
 
 	t.Run("regular user cannot list validation rules", func(t *testing.T) {
-		resp := app.MakeRequest(t, "GET", "/api/v1/validation-rules/", nil, regularUserToken)
+		resp := app.MakeRequest(t, "GET", "/api/v1/admin/entities/Contact/validation-rules", nil, regularUserToken)
 		AssertStatus(t, resp, http.StatusForbidden)
 	})
 }

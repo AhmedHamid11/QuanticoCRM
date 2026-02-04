@@ -2,7 +2,9 @@ package handler
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -63,7 +65,7 @@ func (h *TripwireHandler) List(c *fiber.Ctx) error {
 
 	result, err := h.tripwireRepo.ListByOrg(c.Context(), orgID, params)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.JSON(result)
@@ -102,7 +104,7 @@ func (h *TripwireHandler) Create(c *fiber.Ctx) error {
 
 	tripwire, err := h.tripwireRepo.Create(c.Context(), orgID, input, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(tripwire)
@@ -115,7 +117,7 @@ func (h *TripwireHandler) Get(c *fiber.Ctx) error {
 
 	tripwire, err := h.tripwireRepo.GetByID(c.Context(), orgID, id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 	if tripwire == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Tripwire not found"})
@@ -146,7 +148,7 @@ func (h *TripwireHandler) Update(c *fiber.Ctx) error {
 
 	tripwire, err := h.tripwireRepo.Update(c.Context(), orgID, id, input, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 	if tripwire == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Tripwire not found"})
@@ -162,7 +164,10 @@ func (h *TripwireHandler) Delete(c *fiber.Ctx) error {
 
 	err := h.tripwireRepo.Delete(c.Context(), orgID, id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Tripwire not found"})
+		}
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
@@ -176,7 +181,7 @@ func (h *TripwireHandler) Toggle(c *fiber.Ctx) error {
 
 	tripwire, err := h.tripwireRepo.Toggle(c.Context(), orgID, id, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 	if tripwire == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Tripwire not found"})
@@ -193,7 +198,7 @@ func (h *TripwireHandler) Test(c *fiber.Ctx) error {
 	// Get the tripwire
 	tripwire, err := h.tripwireRepo.GetByID(c.Context(), orgID, id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 	if tripwire == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Tripwire not found"})
@@ -202,7 +207,7 @@ func (h *TripwireHandler) Test(c *fiber.Ctx) error {
 	// Get webhook settings for auth
 	settings, err := h.tripwireRepo.GetWebhookSettings(c.Context(), orgID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	// Create test payload
@@ -310,7 +315,7 @@ func (h *TripwireHandler) ListLogs(c *fiber.Ctx) error {
 
 	result, err := h.tripwireRepo.ListLogs(c.Context(), orgID, params)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.JSON(result)
@@ -322,7 +327,7 @@ func (h *TripwireHandler) GetWebhookSettings(c *fiber.Ctx) error {
 
 	settings, err := h.tripwireRepo.GetWebhookSettings(c.Context(), orgID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.JSON(settings)
@@ -339,7 +344,7 @@ func (h *TripwireHandler) SaveWebhookSettings(c *fiber.Ctx) error {
 
 	settings, err := h.tripwireRepo.SaveWebhookSettings(c.Context(), orgID, input)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.JSON(settings)
