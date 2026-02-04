@@ -18,9 +18,9 @@ Requirements for Security Hardening milestone. Each maps to roadmap phases.
 ### Security Hardening (P1)
 
 - [ ] **HARD-01**: Security headers set (X-Frame-Options, X-Content-Type-Options, Content-Security-Policy)
-- [ ] **HARD-02**: Refresh tokens stored in HttpOnly, Secure, SameSite=Strict cookies
-- [ ] **HARD-03**: Access tokens stored in memory only (not localStorage)
-- [ ] **HARD-04**: Token rotation implemented with family tracking for reuse detection
+- [x] **HARD-02**: Refresh tokens stored in HttpOnly, Secure, SameSite=Strict cookies
+- [x] **HARD-03**: Access tokens stored in memory only (not localStorage)
+- [x] **HARD-04**: Token rotation implemented with family tracking for reuse detection
 - [ ] **HARD-05**: Password policy follows NIST 800-63B (length-based, breach check, no complexity rules)
 - [ ] **HARD-06**: Request body size limited (prevent DoS via large payloads)
 - [ ] **HARD-07**: Input validation hardened across all endpoints (prevent injection)
@@ -90,9 +90,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CRIT-04 | Phase 06 | Complete |
 | CRIT-05 | Phase 06 | Complete |
 | HARD-01 | Phase 08 | Pending |
-| HARD-02 | Phase 07 | Pending |
-| HARD-03 | Phase 07 | Pending |
-| HARD-04 | Phase 07 | Pending |
+| HARD-02 | Phase 07 | Complete |
+| HARD-03 | Phase 07 | Complete |
+| HARD-04 | Phase 07 | Complete |
 | HARD-05 | Phase 08 | Pending |
 | HARD-06 | Phase 08 | Pending |
 | HARD-07 | Phase 08 | Pending |

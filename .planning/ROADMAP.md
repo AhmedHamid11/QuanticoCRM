@@ -66,9 +66,9 @@ Plans:
 4. Reusing an old refresh token invalidates entire token family (reuse detection)
 
 Plans:
-- [ ] 07-01-PLAN.md — Token family infrastructure (migration, entity, repo, service rotation logic)
-- [ ] 07-02-PLAN.md — Backend HttpOnly cookie implementation (auth handlers)
-- [ ] 07-03-PLAN.md — Frontend memory-only tokens (auth store refactor)
+- [x] 07-01-PLAN.md — Token family infrastructure (migration, entity, repo, service rotation logic)
+- [x] 07-02-PLAN.md — Backend HttpOnly cookie implementation (auth handlers)
+- [x] 07-03-PLAN.md — Frontend memory-only tokens (auth store refactor)
 
 ---
 
@@ -129,7 +129,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 06. Critical Fixes | v2.0 | 5/5 | Complete | 2026-02-04 |
-| 07. Token Architecture | v2.0 | 0/3 | Planned | - |
+| 07. Token Architecture | v2.0 | 3/3 | Complete | 2026-02-04 |
 | 08. Security Hardening | v2.0 | 0/TBD | Not started | - |
 | 09. Session Management | v2.0 | 0/TBD | Not started | - |
 | 10. Audit Infrastructure | v2.0 | 0/TBD | Not started | - |
@@ -137,4 +137,4 @@ Plans:
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 07 Planned*
+*Last updated: 2026-02-04 - Phase 07 Complete*
