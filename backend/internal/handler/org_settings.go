@@ -4,6 +4,7 @@ import (
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -33,9 +34,7 @@ func (h *OrgSettingsHandler) Get(c *fiber.Ctx) error {
 
 	settings, err := h.getRepo(c).Get(c.Context(), orgID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.JSON(settings)
@@ -61,9 +60,53 @@ func (h *OrgSettingsHandler) UpdateHomePage(c *fiber.Ctx) error {
 
 	settings, err := h.getRepo(c).UpdateHomePage(c.Context(), orgID, *input.HomePage)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
+	}
+
+	return c.JSON(settings)
+}
+
+// Update updates organization settings (including session timeouts)
+// PUT /admin/settings
+func (h *OrgSettingsHandler) Update(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+
+	var input entity.OrgSettingsUpdateInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
 		})
+	}
+
+	// Validate session timeouts if provided
+	if input.IdleTimeoutMinutes != nil || input.AbsoluteTimeoutMinutes != nil {
+		// Get current settings to determine which value to validate
+		current, err := h.getRepo(c).Get(c.Context(), orgID)
+		if err != nil {
+			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
+		}
+
+		idle := current.IdleTimeoutMinutes
+		absolute := current.AbsoluteTimeoutMinutes
+
+		if input.IdleTimeoutMinutes != nil {
+			idle = *input.IdleTimeoutMinutes
+		}
+		if input.AbsoluteTimeoutMinutes != nil {
+			absolute = *input.AbsoluteTimeoutMinutes
+		}
+
+		if err := repo.ValidateSessionTimeouts(idle, absolute); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": err.Error(),
+				"code":  "INVALID_TIMEOUT_SETTINGS",
+			})
+		}
+	}
+
+	settings, err := h.getRepo(c).Update(c.Context(), orgID, &input)
+	if err != nil {
+		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
 	}
 
 	return c.JSON(settings)
@@ -78,4 +121,5 @@ func (h *OrgSettingsHandler) RegisterPublicRoutes(app fiber.Router) {
 func (h *OrgSettingsHandler) RegisterAdminRoutes(app fiber.Router) {
 	admin := app.Group("/admin/settings")
 	admin.Put("/homepage", h.UpdateHomePage)
+	admin.Put("", h.Update) // General settings update including session timeouts
 }
