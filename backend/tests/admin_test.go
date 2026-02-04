@@ -16,18 +16,17 @@ func TestAdmin_EntityManagement(t *testing.T) {
 	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
 
 	t.Run("admin can list entities", func(t *testing.T) {
-		var response struct {
-			Entities []struct {
-				Name  string `json:"name"`
-				Label string `json:"label"`
-			} `json:"entities"`
+		// API returns array directly, not wrapped in object
+		var response []struct {
+			Name  string `json:"name"`
+			Label string `json:"label"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/admin/entities", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
 		// Should have built-in entities
-		if len(response.Entities) == 0 {
+		if len(response) == 0 {
 			t.Error("Expected at least some entities")
 		}
 	})
@@ -63,24 +62,23 @@ func TestAdmin_FieldTypes(t *testing.T) {
 	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
 
 	t.Run("admin can list field types", func(t *testing.T) {
-		var response struct {
-			FieldTypes []struct {
-				Name  string `json:"name"`
-				Label string `json:"label"`
-			} `json:"fieldTypes"`
+		// API returns array directly, not wrapped in object
+		var response []struct {
+			Name  string `json:"name"`
+			Label string `json:"label"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/admin/field-types", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
-		if len(response.FieldTypes) == 0 {
+		if len(response) == 0 {
 			t.Error("Expected at least some field types")
 		}
 
 		// Check for common field types
 		foundText := false
 		foundNumber := false
-		for _, ft := range response.FieldTypes {
+		for _, ft := range response {
 			if ft.Name == "text" || ft.Name == "varchar" {
 				foundText = true
 			}
@@ -105,23 +103,22 @@ func TestAdmin_Fields(t *testing.T) {
 	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
 
 	t.Run("admin can list entity fields", func(t *testing.T) {
-		var response struct {
-			Fields []struct {
-				Name string `json:"name"`
-				Type string `json:"type"`
-			} `json:"fields"`
+		// API returns array directly, not wrapped in object
+		var response []struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/admin/entities/Contact/fields", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
-		if len(response.Fields) == 0 {
+		if len(response) == 0 {
 			t.Error("Expected Contact to have fields")
 		}
 
 		// Check for required fields
 		foundLastName := false
-		for _, f := range response.Fields {
+		for _, f := range response {
 			if f.Name == "lastName" {
 				foundLastName = true
 			}
@@ -139,18 +136,17 @@ func TestAdmin_Navigation(t *testing.T) {
 	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
 
 	t.Run("user can get navigation", func(t *testing.T) {
-		var response struct {
-			Tabs []struct {
-				Entity string `json:"entity"`
-				Label  string `json:"label"`
-			} `json:"tabs"`
+		// API returns array directly, not wrapped in object
+		var response []struct {
+			Entity string `json:"entity"`
+			Label  string `json:"label"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/navigation/", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
 		// Should have some navigation tabs
-		if len(response.Tabs) == 0 {
+		if len(response) == 0 {
 			t.Log("Warning: No navigation tabs returned (might need to be configured)")
 		}
 	})

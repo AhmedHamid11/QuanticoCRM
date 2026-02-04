@@ -83,6 +83,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	tripwireService := service.NewTripwireService(db, tripwireRepo)
 	validationService := service.NewValidationService(db, validationRepo)
 	provisioningService := service.NewProvisioningService(db)
+	provisioningService.SkipSampleData = true // Skip sample data for cleaner test assertions
 	authConfig := service.DefaultAuthConfig("test-jwt-secret-for-testing")
 	authService := service.NewAuthService(authRepo, authConfig, provisioningService)
 	apiTokenService := service.NewAPITokenService(repo.NewAPITokenRepo(db))
@@ -226,6 +227,9 @@ func (ta *TestApp) CreateTestUser(t *testing.T, email, password, orgName string)
 		t.Fatalf("Failed to create test user: %d - %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	// Extract refresh token from cookie (secure HttpOnly cookie)
+	refreshToken := GetRefreshTokenFromCookies(resp)
+
 	// Read the raw response for debugging
 	bodyBytes, _ := io.ReadAll(resp.Body)
 
@@ -239,8 +243,7 @@ func (ta *TestApp) CreateTestUser(t *testing.T, email, password, orgName string)
 				Role    string `json:"role"`
 			} `json:"memberships"`
 		} `json:"user"`
-		AccessToken  string `json:"accessToken"`
-		RefreshToken string `json:"refreshToken"`
+		AccessToken string `json:"accessToken"`
 	}
 
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
@@ -262,7 +265,7 @@ func (ta *TestApp) CreateTestUser(t *testing.T, email, password, orgName string)
 		OrgName:      resultOrgName,
 		Role:         resultRole,
 		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
+		RefreshToken: refreshToken,
 	}
 }
 
@@ -281,6 +284,12 @@ func (ta *TestApp) LoginUser(t *testing.T, email, password string) *TestUser {
 		t.Fatalf("Failed to login: %d - %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	// Extract refresh token from cookie (secure HttpOnly cookie)
+	refreshToken := GetRefreshTokenFromCookies(resp)
+
+	// Read body for JSON response
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
 	var result struct {
 		User struct {
 			ID          string `json:"id"`
@@ -291,12 +300,11 @@ func (ta *TestApp) LoginUser(t *testing.T, email, password string) *TestUser {
 				Role    string `json:"role"`
 			} `json:"memberships"`
 		} `json:"user"`
-		AccessToken  string `json:"accessToken"`
-		RefreshToken string `json:"refreshToken"`
+		AccessToken string `json:"accessToken"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		t.Fatalf("Failed to decode login response: %v", err)
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		t.Fatalf("Failed to decode login response: %v (body: %s)", err, string(bodyBytes))
 	}
 
 	// Extract org info from first membership
@@ -314,7 +322,7 @@ func (ta *TestApp) LoginUser(t *testing.T, email, password string) *TestUser {
 		OrgName:      orgName,
 		Role:         role,
 		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
+		RefreshToken: refreshToken,
 	}
 }
 
@@ -343,6 +351,46 @@ func (ta *TestApp) MakeRequest(t *testing.T, method, path string, body interface
 	}
 
 	return resp
+}
+
+// MakeRequestWithCookies makes an HTTP request and includes cookies in the request
+func (ta *TestApp) MakeRequestWithCookies(t *testing.T, method, path string, body interface{}, token string, cookies []*http.Cookie) *http.Response {
+	t.Helper()
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonBytes, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("Failed to marshal request body: %v", err)
+		}
+		reqBody = bytes.NewReader(jsonBytes)
+	}
+
+	req := httptest.NewRequest(method, path, reqBody)
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+
+	resp, err := ta.App.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make request: %v", err)
+	}
+
+	return resp
+}
+
+// GetRefreshTokenFromCookies extracts the refresh token from response cookies
+func GetRefreshTokenFromCookies(resp *http.Response) string {
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "refresh_token" {
+			return cookie.Value
+		}
+	}
+	return ""
 }
 
 // MakeRequestWithResponse makes a request and decodes the response into the provided struct

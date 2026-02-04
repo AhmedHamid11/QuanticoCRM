@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 )
@@ -22,23 +24,22 @@ func TestAuth_Register(t *testing.T) {
 
 		var response struct {
 			User struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
+				ID          string `json:"id"`
+				Email       string `json:"email"`
+				Memberships []struct {
+					OrgID   string `json:"orgId"`
+					OrgName string `json:"orgName"`
+					Role    string `json:"role"`
+				} `json:"memberships"`
 			} `json:"user"`
-			Organization struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-				Slug string `json:"slug"`
-			} `json:"organization"`
-			Membership struct {
-				Role string `json:"role"`
-			} `json:"membership"`
-			AccessToken  string `json:"accessToken"`
-			RefreshToken string `json:"refreshToken"`
+			AccessToken string `json:"accessToken"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/register", body, "", &response)
 		AssertStatus(t, resp, http.StatusCreated)
+
+		// Check refresh token in cookie (HttpOnly cookie for security)
+		refreshToken := GetRefreshTokenFromCookies(resp)
 
 		if response.User.ID == "" {
 			t.Error("Expected user ID to be set")
@@ -46,20 +47,21 @@ func TestAuth_Register(t *testing.T) {
 		if response.User.Email != "test@example.com" {
 			t.Errorf("Expected email to be test@example.com, got %s", response.User.Email)
 		}
-		if response.Organization.ID == "" {
-			t.Error("Expected organization ID to be set")
-		}
-		if response.Organization.Name != "Test Organization" {
-			t.Errorf("Expected org name to be 'Test Organization', got %s", response.Organization.Name)
-		}
-		if response.Membership.Role != "owner" {
-			t.Errorf("Expected role to be 'owner', got %s", response.Membership.Role)
+		if len(response.User.Memberships) == 0 {
+			t.Error("Expected at least one membership")
+		} else {
+			if response.User.Memberships[0].OrgName != "Test Organization" {
+				t.Errorf("Expected org name to be 'Test Organization', got %s", response.User.Memberships[0].OrgName)
+			}
+			if response.User.Memberships[0].Role != "owner" {
+				t.Errorf("Expected role to be 'owner', got %s", response.User.Memberships[0].Role)
+			}
 		}
 		if response.AccessToken == "" {
 			t.Error("Expected access token to be set")
 		}
-		if response.RefreshToken == "" {
-			t.Error("Expected refresh token to be set")
+		if refreshToken == "" {
+			t.Error("Expected refresh token to be set in cookie")
 		}
 	})
 
@@ -139,15 +141,14 @@ func TestAuth_Login(t *testing.T) {
 				ID    string `json:"id"`
 				Email string `json:"email"`
 			} `json:"user"`
-			Organization struct {
-				ID string `json:"id"`
-			} `json:"organization"`
-			AccessToken  string `json:"accessToken"`
-			RefreshToken string `json:"refreshToken"`
+			AccessToken string `json:"accessToken"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/login", body, "", &response)
 		AssertStatus(t, resp, http.StatusOK)
+
+		// Check refresh token in cookie (HttpOnly cookie for security)
+		refreshToken := GetRefreshTokenFromCookies(resp)
 
 		if response.User.ID != user.UserID {
 			t.Errorf("Expected user ID %s, got %s", user.UserID, response.User.ID)
@@ -155,8 +156,8 @@ func TestAuth_Login(t *testing.T) {
 		if response.AccessToken == "" {
 			t.Error("Expected access token to be set")
 		}
-		if response.RefreshToken == "" {
-			t.Error("Expected refresh token to be set")
+		if refreshToken == "" {
+			t.Error("Expected refresh token to be set in cookie")
 		}
 	})
 
@@ -252,40 +253,46 @@ func TestAuth_RefreshToken(t *testing.T) {
 	user := app.CreateTestUser(t, "refresh@example.com", "password123", "Refresh Test Org")
 
 	t.Run("refreshes tokens successfully", func(t *testing.T) {
-		body := map[string]string{
-			"refreshToken": user.RefreshToken,
+		// Refresh token is sent via cookie
+		cookies := []*http.Cookie{
+			{Name: "refresh_token", Value: user.RefreshToken},
 		}
 
 		var response struct {
-			AccessToken  string `json:"accessToken"`
-			RefreshToken string `json:"refreshToken"`
+			AccessToken string `json:"accessToken"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/auth/refresh", body, "", &response)
+		resp := app.MakeRequestWithCookies(t, "POST", "/api/v1/auth/refresh", nil, "", cookies)
 		AssertStatus(t, resp, http.StatusOK)
+
+		// Parse response
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &response)
+
+		// New refresh token is in cookie
+		newRefreshToken := GetRefreshTokenFromCookies(resp)
 
 		if response.AccessToken == "" {
 			t.Error("Expected new access token")
 		}
-		if response.RefreshToken == "" {
-			t.Error("Expected new refresh token")
+		if newRefreshToken == "" {
+			t.Error("Expected new refresh token in cookie")
 		}
 	})
 
 	t.Run("fails with invalid refresh token", func(t *testing.T) {
-		body := map[string]string{
-			"refreshToken": "invalid-refresh-token",
+		cookies := []*http.Cookie{
+			{Name: "refresh_token", Value: "invalid-refresh-token"},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/auth/refresh", body, "")
+		resp := app.MakeRequestWithCookies(t, "POST", "/api/v1/auth/refresh", nil, "", cookies)
 		AssertStatus(t, resp, http.StatusUnauthorized)
 	})
 
 	t.Run("fails with missing refresh token", func(t *testing.T) {
-		body := map[string]string{}
-
-		resp := app.MakeRequest(t, "POST", "/api/v1/auth/refresh", body, "")
-		AssertStatus(t, resp, http.StatusBadRequest)
+		// No cookie = missing refresh token
+		resp := app.MakeRequest(t, "POST", "/api/v1/auth/refresh", nil, "")
+		AssertStatus(t, resp, http.StatusUnauthorized)
 	})
 }
 
@@ -297,19 +304,17 @@ func TestAuth_Logout(t *testing.T) {
 	user := app.CreateTestUser(t, "logout@example.com", "password123", "Logout Test Org")
 
 	t.Run("logout invalidates session", func(t *testing.T) {
-		body := map[string]string{
-			"refreshToken": user.RefreshToken,
+		// Logout using cookie-based refresh token
+		cookies := []*http.Cookie{
+			{Name: "refresh_token", Value: user.RefreshToken},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/auth/logout", body, user.AccessToken)
+		resp := app.MakeRequestWithCookies(t, "POST", "/api/v1/auth/logout", nil, user.AccessToken, cookies)
 		AssertStatus(t, resp, http.StatusOK)
 
 		// The access token might still work until it expires (JWT based)
 		// But the refresh token should no longer work
-		refreshBody := map[string]string{
-			"refreshToken": user.RefreshToken,
-		}
-		resp = app.MakeRequest(t, "POST", "/api/v1/auth/refresh", refreshBody, "")
+		resp = app.MakeRequestWithCookies(t, "POST", "/api/v1/auth/refresh", nil, "", cookies)
 		AssertStatus(t, resp, http.StatusUnauthorized)
 	})
 }
