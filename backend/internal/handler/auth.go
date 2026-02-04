@@ -652,9 +652,17 @@ func (h *AuthHandler) handleAuthError(c *fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid or expired invitation",
 		})
-	case errors.Is(err, service.ErrPasswordTooWeak):
+	case errors.Is(err, service.ErrPasswordTooWeak), errors.Is(err, service.ErrPasswordTooShort):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Password must be at least 8 characters",
+		})
+	case errors.Is(err, service.ErrPasswordTooLong):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Password must be 128 characters or less",
+		})
+	case errors.Is(err, service.ErrPasswordCommon):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "This password is too common, please choose a different one",
 		})
 	case errors.Is(err, service.ErrInvalidEmail):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

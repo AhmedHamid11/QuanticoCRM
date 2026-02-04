@@ -13,7 +13,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/fastcrm/backend/internal/data"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/golang-jwt/jwt/v5"
@@ -21,28 +23,32 @@ import (
 )
 
 var (
-	ErrInvalidCredentials  = errors.New("invalid email or password")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrUserInactive        = errors.New("user account is inactive")
-	ErrOrgNotFound         = errors.New("organization not found")
-	ErrOrgInactive         = errors.New("organization is inactive")
-	ErrEmailExists         = errors.New("email already registered")
-	ErrSlugExists          = errors.New("organization slug already exists")
-	ErrInvalidToken        = errors.New("invalid or expired token")
-	ErrNotMember           = errors.New("user is not a member of this organization")
-	ErrNotPlatformAdmin    = errors.New("user is not a platform administrator")
-	ErrInvalidInvitation   = errors.New("invalid or expired invitation")
-	ErrPasswordTooWeak     = errors.New("password must be at least 8 characters")
-	ErrInvalidEmail        = errors.New("invalid email address")
+	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrUserInactive       = errors.New("user account is inactive")
+	ErrOrgNotFound        = errors.New("organization not found")
+	ErrOrgInactive        = errors.New("organization is inactive")
+	ErrEmailExists        = errors.New("email already registered")
+	ErrSlugExists         = errors.New("organization slug already exists")
+	ErrInvalidToken       = errors.New("invalid or expired token")
+	ErrTokenReuse         = errors.New("refresh token reuse detected")
+	ErrNotMember          = errors.New("user is not a member of this organization")
+	ErrNotPlatformAdmin   = errors.New("user is not a platform administrator")
+	ErrInvalidInvitation  = errors.New("invalid or expired invitation")
+	ErrPasswordTooWeak    = errors.New("password must be at least 8 characters")
+	ErrPasswordTooShort   = errors.New("password must be at least 8 characters")
+	ErrPasswordTooLong    = errors.New("password must be 128 characters or less")
+	ErrPasswordCommon     = errors.New("this password is too common, please choose a different one")
+	ErrInvalidEmail       = errors.New("invalid email address")
 )
 
 // AuthConfig holds configuration for the auth service
 type AuthConfig struct {
-	JWTSecret           string
-	AccessTokenExpiry   time.Duration
-	RefreshTokenExpiry  time.Duration
-	InvitationExpiry    time.Duration
-	BcryptCost          int
+	JWTSecret          string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenExpiry time.Duration
+	InvitationExpiry   time.Duration
+	BcryptCost         int
 }
 
 // DefaultAuthConfig returns sensible default configuration
@@ -215,6 +221,9 @@ func (s *AuthService) Login(ctx context.Context, input entity.LoginInput, userAg
 		return nil, ErrInvalidCredentials
 	}
 
+	// Check if password is weak (after successful authentication)
+	mustChangePassword := s.isPasswordWeak(input.Password)
+
 	// Get user's default organization
 	membership, err := s.repo.GetDefaultMembership(ctx, user.ID)
 	if err != nil {
@@ -224,18 +233,18 @@ func (s *AuthService) Login(ctx context.Context, input entity.LoginInput, userAg
 	// Update last login
 	_ = s.repo.UpdateUserLastLogin(ctx, user.ID)
 
-	// Generate tokens and return auth response
-	return s.createAuthResponse(ctx, user, membership.OrgID, false, nil)
+	// Generate tokens and return auth response with password change flag
+	return s.createAuthResponseWithPasswordFlag(ctx, user, membership.OrgID, false, nil, mustChangePassword)
 }
 
 // --- Token Refresh ---
 
-// RefreshTokens generates new access and refresh tokens
+// RefreshTokens generates new access and refresh tokens with rotation and reuse detection
 func (s *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*entity.AuthResponse, error) {
 	// Hash the refresh token to look it up
 	tokenHash := s.hashToken(refreshToken)
 
-	// Get session by refresh token
+	// Get session by refresh token - includes revoked sessions for reuse detection
 	session, err := s.repo.GetSessionByRefreshToken(ctx, tokenHash)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -243,6 +252,19 @@ func (s *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		}
 		return nil, fmt.Errorf("getting session: %w", err)
 	}
+
+	// SECURITY: Token reuse detection
+	// If the token has already been used (is_revoked = true), an attacker may have stolen it
+	// Invalidate the entire token family to kick out both legitimate user and attacker
+	if session.IsRevoked {
+		log.Printf("[SECURITY] Token reuse detected for family %s, user %s", session.FamilyID, session.UserID)
+		// Revoke entire family - this invalidates all tokens from this login session
+		_ = s.repo.RevokeTokenFamily(ctx, session.FamilyID)
+		return nil, ErrTokenReuse
+	}
+
+	// Mark current token as revoked (it's been used for rotation)
+	_ = s.repo.RevokeSession(ctx, session.ID)
 
 	// Get user
 	user, err := s.repo.GetUserByID(ctx, session.UserID)
@@ -254,11 +276,8 @@ func (s *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		return nil, ErrUserInactive
 	}
 
-	// Delete old session
-	_ = s.repo.DeleteSession(ctx, session.ID)
-
-	// Create new auth response (with new tokens)
-	return s.createAuthResponse(ctx, user, session.OrgID, session.IsImpersonation, session.ImpersonatedBy)
+	// Create new auth response with SAME family ID (rotation within family)
+	return s.createAuthResponseWithFamily(ctx, user, session.OrgID, session.FamilyID, session.IsImpersonation, session.ImpersonatedBy)
 }
 
 // --- Logout ---
@@ -693,19 +712,45 @@ func (s *AuthService) ValidateAccessToken(tokenString string) (*entity.TokenClai
 	}
 
 	return &entity.TokenClaims{
-		UserID:          claims["userId"].(string),
-		OrgID:           claims["orgId"].(string),
-		Email:           claims["email"].(string),
-		Role:            claims["role"].(string),
-		IsPlatformAdmin: claims["isPlatformAdmin"].(bool),
-		IsImpersonation: claims["isImpersonation"].(bool),
-		ImpersonatedBy:  getStringClaim(claims, "impersonatedBy"),
+		UserID:             claims["userId"].(string),
+		OrgID:              claims["orgId"].(string),
+		Email:              claims["email"].(string),
+		Role:               claims["role"].(string),
+		IsPlatformAdmin:    claims["isPlatformAdmin"].(bool),
+		IsImpersonation:    claims["isImpersonation"].(bool),
+		ImpersonatedBy:     getStringClaim(claims, "impersonatedBy"),
+		MustChangePassword: getBoolClaim(claims, "mustChangePassword"),
 	}, nil
 }
 
 // --- Helper Functions ---
 
+// createAuthResponse creates a new auth response with a NEW token family
+// Used for login, register, org switch, stop impersonation (security: new context = new family)
 func (s *AuthService) createAuthResponse(ctx context.Context, user *entity.User, orgID string, isImpersonation bool, impersonatedBy *string) (*entity.AuthResponse, error) {
+	// Empty familyID means create a new family, mustChangePassword defaults to false
+	return s.createAuthResponseWithFamilyAndPasswordFlag(ctx, user, orgID, "", isImpersonation, impersonatedBy, false)
+}
+
+// createAuthResponseWithPasswordFlag creates a new auth response with password change flag
+// Used for login when we need to flag users with weak passwords
+func (s *AuthService) createAuthResponseWithPasswordFlag(ctx context.Context, user *entity.User, orgID string, isImpersonation bool, impersonatedBy *string, mustChangePassword bool) (*entity.AuthResponse, error) {
+	// Empty familyID means create a new family
+	return s.createAuthResponseWithFamilyAndPasswordFlag(ctx, user, orgID, "", isImpersonation, impersonatedBy, mustChangePassword)
+}
+
+// createAuthResponseWithFamily creates an auth response with an explicit family ID
+// If familyID is empty, a new family is created (for login/register/org switch)
+// If familyID is provided, it's used for token rotation within the same family
+func (s *AuthService) createAuthResponseWithFamily(ctx context.Context, user *entity.User, orgID string, familyID string, isImpersonation bool, impersonatedBy *string) (*entity.AuthResponse, error) {
+	// Default mustChangePassword to false for backward compatibility
+	return s.createAuthResponseWithFamilyAndPasswordFlag(ctx, user, orgID, familyID, isImpersonation, impersonatedBy, false)
+}
+
+// createAuthResponseWithFamilyAndPasswordFlag creates an auth response with an explicit family ID and password change flag
+// If familyID is empty, a new family is created (for login/register/org switch)
+// If familyID is provided, it's used for token rotation within the same family
+func (s *AuthService) createAuthResponseWithFamilyAndPasswordFlag(ctx context.Context, user *entity.User, orgID string, familyID string, isImpersonation bool, impersonatedBy *string, mustChangePassword bool) (*entity.AuthResponse, error) {
 	// Get organization and verify it exists and is active
 	org, err := s.repo.GetOrganizationByID(ctx, orgID)
 	if err != nil {
@@ -736,7 +781,7 @@ func (s *AuthService) createAuthResponse(ctx context.Context, user *entity.User,
 
 	// Generate access token
 	expiresAt := time.Now().Add(s.config.AccessTokenExpiry)
-	accessToken, err := s.generateAccessToken(user, orgID, role, isImpersonation, impersonatedBy, expiresAt)
+	accessToken, err := s.generateAccessToken(user, orgID, role, isImpersonation, impersonatedBy, mustChangePassword, expiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("generating access token: %w", err)
 	}
@@ -747,10 +792,10 @@ func (s *AuthService) createAuthResponse(ctx context.Context, user *entity.User,
 		return nil, fmt.Errorf("generating refresh token: %w", err)
 	}
 
-	// Store session with hashed refresh token
+	// Store session with hashed refresh token and family ID
 	refreshTokenHash := s.hashToken(refreshToken)
 	refreshExpiresAt := time.Now().Add(s.config.RefreshTokenExpiry)
-	_, err = s.repo.CreateSession(ctx, user.ID, orgID, refreshTokenHash, "", "", isImpersonation, impersonatedBy, refreshExpiresAt)
+	_, err = s.repo.CreateSessionWithFamily(ctx, user.ID, orgID, refreshTokenHash, familyID, "", "", isImpersonation, impersonatedBy, refreshExpiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("creating session: %w", err)
 	}
@@ -807,16 +852,17 @@ func (s *AuthService) createAuthResponse(ctx context.Context, user *entity.User,
 	}, nil
 }
 
-func (s *AuthService) generateAccessToken(user *entity.User, orgID, role string, isImpersonation bool, impersonatedBy *string, expiresAt time.Time) (string, error) {
+func (s *AuthService) generateAccessToken(user *entity.User, orgID, role string, isImpersonation bool, impersonatedBy *string, mustChangePassword bool, expiresAt time.Time) (string, error) {
 	claims := jwt.MapClaims{
-		"userId":          user.ID,
-		"orgId":           orgID,
-		"email":           user.Email,
-		"role":            role,
-		"isPlatformAdmin": user.IsPlatformAdmin,
-		"isImpersonation": isImpersonation,
-		"exp":             expiresAt.Unix(),
-		"iat":             time.Now().Unix(),
+		"userId":             user.ID,
+		"orgId":              orgID,
+		"email":              user.Email,
+		"role":               role,
+		"isPlatformAdmin":    user.IsPlatformAdmin,
+		"isImpersonation":    isImpersonation,
+		"mustChangePassword": mustChangePassword,
+		"exp":                expiresAt.Unix(),
+		"iat":                time.Now().Unix(),
 	}
 
 	if impersonatedBy != nil {
@@ -974,10 +1020,42 @@ func (s *AuthService) validateEmail(email string) error {
 }
 
 func (s *AuthService) validatePassword(password string) error {
-	if len(password) < 8 {
-		return ErrPasswordTooWeak
+	// NIST SP 800-63B: Use character count, not byte count for Unicode support
+	length := utf8.RuneCountInString(password)
+
+	// NIST: Minimum 8 characters
+	if length < 8 {
+		return ErrPasswordTooShort
 	}
+
+	// NIST: Maximum 128 characters (allow long passphrases)
+	if length > 128 {
+		return ErrPasswordTooLong
+	}
+
+	// NIST: Check against blocklist of common passwords
+	if data.IsCommonPassword(password) {
+		return ErrPasswordCommon
+	}
+
 	return nil
+}
+
+// isPasswordWeak checks if a password fails current security requirements
+// Used to flag existing users who need to update their password
+func (s *AuthService) isPasswordWeak(password string) bool {
+	// Length check (NIST: 8-128 characters)
+	length := utf8.RuneCountInString(password)
+	if length < 8 || length > 128 {
+		return true
+	}
+
+	// Blocklist check
+	if data.IsCommonPassword(password) {
+		return true
+	}
+
+	return false
 }
 
 func getStringClaim(claims jwt.MapClaims, key string) string {
@@ -987,6 +1065,13 @@ func getStringClaim(claims jwt.MapClaims, key string) string {
 		}
 	}
 	return ""
+}
+
+func getBoolClaim(claims jwt.MapClaims, key string) bool {
+	if val, ok := claims[key].(bool); ok {
+		return val
+	}
+	return false
 }
 
 // --- User Retrieval (for handlers) ---
@@ -1042,4 +1127,30 @@ func (s *AuthService) GetUserWithOrgs(ctx context.Context, userID string) (*enti
 		User:        *user,
 		Memberships: memberships,
 	}, nil
+}
+
+// --- Session Timeout Management ---
+
+// GetSessionWithTimeouts retrieves an active session with timeout configuration
+func (s *AuthService) GetSessionWithTimeouts(ctx context.Context, userID, orgID string) (*entity.Session, error) {
+	session, err := s.repo.GetSessionByUserAndOrg(ctx, userID, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("getting session: %w", err)
+	}
+	return session, nil
+}
+
+// UpdateSessionActivity updates the last activity timestamp for a session
+func (s *AuthService) UpdateSessionActivity(ctx context.Context, sessionID string) error {
+	return s.repo.UpdateLastActivity(ctx, sessionID)
+}
+
+// ExtendSession explicitly extends a session by updating last_activity_at
+// This is called when the user clicks "Stay logged in" in the session warning
+func (s *AuthService) ExtendSession(ctx context.Context, userID, orgID string) error {
+	session, err := s.repo.GetSessionByUserAndOrg(ctx, userID, orgID)
+	if err != nil {
+		return fmt.Errorf("getting session: %w", err)
+	}
+	return s.repo.UpdateLastActivity(ctx, session.ID)
 }
