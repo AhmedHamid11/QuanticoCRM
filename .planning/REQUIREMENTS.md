@@ -9,11 +9,11 @@ Requirements for Security Hardening milestone. Each maps to roadmap phases.
 
 ### Critical Fixes (P0)
 
-- [ ] **CRIT-01**: CORS configuration restricts origins to explicit allowlist (no wildcards in production)
-- [ ] **CRIT-02**: Auth endpoints are rate limited (5 requests/minute per IP)
-- [ ] **CRIT-03**: Error responses never expose internal details (database errors, stack traces, schema)
-- [ ] **CRIT-04**: JWT secret is required in production (no fallback to weak default)
-- [ ] **CRIT-05**: HSTS header enforces HTTPS with 1-year max-age
+- [x] **CRIT-01**: CORS configuration restricts origins to explicit allowlist (no wildcards in production)
+- [x] **CRIT-02**: Auth endpoints are rate limited (5 requests/minute per IP)
+- [x] **CRIT-03**: Error responses never expose internal details (database errors, stack traces, schema)
+- [x] **CRIT-04**: JWT secret is required in production (no fallback to weak default)
+- [x] **CRIT-05**: HSTS header enforces HTTPS with 1-year max-age
 
 ### Security Hardening (P1)
 
@@ -84,11 +84,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CRIT-01 | Phase 06 | Pending |
-| CRIT-02 | Phase 06 | Pending |
-| CRIT-03 | Phase 06 | Pending |
-| CRIT-04 | Phase 06 | Pending |
-| CRIT-05 | Phase 06 | Pending |
+| CRIT-01 | Phase 06 | Complete |
+| CRIT-02 | Phase 06 | Complete |
+| CRIT-03 | Phase 06 | Complete |
+| CRIT-04 | Phase 06 | Complete |
+| CRIT-05 | Phase 06 | Complete |
 | HARD-01 | Phase 08 | Pending |
 | HARD-02 | Phase 07 | Pending |
 | HARD-03 | Phase 07 | Pending |
@@ -114,4 +114,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-03 after roadmap creation*
+*Last updated: 2026-02-04 - Phase 06 requirements complete*
