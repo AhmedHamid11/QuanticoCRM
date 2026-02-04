@@ -98,11 +98,11 @@ func SetupTestApp(t *testing.T) *TestApp {
 	lookupHandler := handler.NewLookupHandler(db, metadataRepo)
 	relatedHandler := handler.NewRelatedHandler(db)
 	relatedListHandler := handler.NewRelatedListHandler(relatedListRepo, metadataRepo, db)
-	genericEntityHandler := handler.NewGenericEntityHandler(db, metadataRepo, tripwireService, validationService)
+	genericEntityHandler := handler.NewGenericEntityHandler(db, metadataRepo, authRepo, tripwireService, validationService)
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, false) // false = not production for tests
 	userHandler := handler.NewUserHandler(authRepo)
 	bulkHandler := handler.NewBulkHandler(db, metadataRepo, tripwireService, validationService)
 	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService)
@@ -146,6 +146,11 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authAdmin.Get("/invitations", authHandler.ListInvitations)
 	authAdmin.Delete("/invitations/:id", authHandler.DeleteInvitation)
 
+	// Platform admin routes (for impersonation tests)
+	authPlatformAdmin := auth.Group("", authMiddleware.PlatformAdminRequired())
+	authPlatformAdmin.Post("/impersonate", authHandler.Impersonate)
+	authPlatformAdmin.Post("/stop-impersonate", authHandler.StopImpersonate)
+
 	// Protected API routes
 	protected := api.Group("", authMiddleware.Required())
 
@@ -174,6 +179,12 @@ func SetupTestApp(t *testing.T) *TestApp {
 	bearingHandler.RegisterRoutes(adminProtected)
 	validationHandler.RegisterRoutes(adminProtected)
 	userHandler.RegisterAdminRoutes(adminProtected)
+
+	// Platform admin routes (for testing isolation)
+	platform := api.Group("/platform", authMiddleware.PlatformAdminRequired())
+	platform.Get("/organizations", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"organizations": []string{"org1", "org2"}})
+	})
 
 	return &TestApp{
 		App:               app,
@@ -213,32 +224,41 @@ func (ta *TestApp) CreateTestUser(t *testing.T, email, password, orgName string)
 		t.Fatalf("Failed to create test user: %d - %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	// Read the raw response for debugging
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
 	var result struct {
 		User struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
+			ID          string `json:"id"`
+			Email       string `json:"email"`
+			Memberships []struct {
+				OrgID   string `json:"orgId"`
+				OrgName string `json:"orgName"`
+				Role    string `json:"role"`
+			} `json:"memberships"`
 		} `json:"user"`
-		Organization struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"organization"`
-		Membership struct {
-			Role string `json:"role"`
-		} `json:"membership"`
 		AccessToken  string `json:"accessToken"`
 		RefreshToken string `json:"refreshToken"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		t.Fatalf("Failed to decode response: %v (body: %s)", err, string(bodyBytes))
+	}
+
+	// Extract org info from first membership (newly registered user has one membership)
+	var resultOrgID, resultOrgName, resultRole string
+	if len(result.User.Memberships) > 0 {
+		resultOrgID = result.User.Memberships[0].OrgID
+		resultOrgName = result.User.Memberships[0].OrgName
+		resultRole = result.User.Memberships[0].Role
 	}
 
 	return &TestUser{
 		UserID:       result.User.ID,
 		Email:        result.User.Email,
-		OrgID:        result.Organization.ID,
-		OrgName:      result.Organization.Name,
-		Role:         result.Membership.Role,
+		OrgID:        resultOrgID,
+		OrgName:      resultOrgName,
+		Role:         resultRole,
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	}
@@ -261,14 +281,14 @@ func (ta *TestApp) LoginUser(t *testing.T, email, password string) *TestUser {
 
 	var result struct {
 		User struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
+			ID          string `json:"id"`
+			Email       string `json:"email"`
+			Memberships []struct {
+				OrgID   string `json:"orgId"`
+				OrgName string `json:"orgName"`
+				Role    string `json:"role"`
+			} `json:"memberships"`
 		} `json:"user"`
-		Organization struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"organization"`
-		Role         string `json:"role"`
 		AccessToken  string `json:"accessToken"`
 		RefreshToken string `json:"refreshToken"`
 	}
@@ -277,12 +297,20 @@ func (ta *TestApp) LoginUser(t *testing.T, email, password string) *TestUser {
 		t.Fatalf("Failed to decode login response: %v", err)
 	}
 
+	// Extract org info from first membership
+	var orgID, orgName, role string
+	if len(result.User.Memberships) > 0 {
+		orgID = result.User.Memberships[0].OrgID
+		orgName = result.User.Memberships[0].OrgName
+		role = result.User.Memberships[0].Role
+	}
+
 	return &TestUser{
 		UserID:       result.User.ID,
 		Email:        result.User.Email,
-		OrgID:        result.Organization.ID,
-		OrgName:      result.Organization.Name,
-		Role:         result.Role,
+		OrgID:        orgID,
+		OrgName:      orgName,
+		Role:         role,
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	}
@@ -440,4 +468,104 @@ func BoolPtr(b bool) *bool {
 // IntPtr returns a pointer to an int
 func IntPtr(i int) *int {
 	return &i
+}
+
+// CreatePlatformAdmin creates a platform admin user for testing
+func (ta *TestApp) CreatePlatformAdmin(t *testing.T, email, password string) *TestUser {
+	t.Helper()
+
+	// First create a regular user with their own org
+	user := ta.CreateTestUser(t, email, password, "Platform Admin Org")
+
+	// Mark user as platform admin in database
+	_, err := ta.DB.Exec(`UPDATE users SET is_platform_admin = 1 WHERE id = ?`, user.UserID)
+	if err != nil {
+		t.Fatalf("Failed to make user platform admin: %v", err)
+	}
+
+	// Re-login to get updated token with platform admin claim
+	return ta.LoginUser(t, email, password)
+}
+
+// Impersonate makes a platform admin impersonate a specific org
+// Returns the impersonation access token
+func (ta *TestApp) Impersonate(t *testing.T, adminToken, targetOrgID string) string {
+	t.Helper()
+
+	// Create request body with proper JSON marshaling
+	reqBody := fmt.Sprintf(`{"orgId":"%s"}`, targetOrgID)
+	req := httptest.NewRequest("POST", "/api/v1/auth/impersonate", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	resp, err := ta.App.Test(req, -1)
+	if err != nil {
+		t.Fatalf("Failed to make impersonate request: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to impersonate (orgID=%s): %d - %s", targetOrgID, resp.StatusCode, string(bodyBytes))
+	}
+
+	var result struct {
+		AccessToken string `json:"accessToken"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode impersonate response: %v", err)
+	}
+
+	return result.AccessToken
+}
+
+// CreateContact creates a test contact for isolation testing
+func (ta *TestApp) CreateContact(t *testing.T, token string, data map[string]string) map[string]interface{} {
+	t.Helper()
+
+	resp := ta.MakeRequest(t, "POST", "/api/v1/contacts/", data, token)
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to create contact: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode contact response: %v", err)
+	}
+	return result
+}
+
+// CreateAccount creates a test account for isolation testing
+func (ta *TestApp) CreateAccount(t *testing.T, token string, data map[string]string) map[string]interface{} {
+	t.Helper()
+
+	resp := ta.MakeRequest(t, "POST", "/api/v1/accounts/", data, token)
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to create account: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode account response: %v", err)
+	}
+	return result
+}
+
+// CreateTask creates a test task for isolation testing
+func (ta *TestApp) CreateTask(t *testing.T, token string, data map[string]string) map[string]interface{} {
+	t.Helper()
+
+	resp := ta.MakeRequest(t, "POST", "/api/v1/tasks/", data, token)
+	if resp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to create task: %d - %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to decode task response: %v", err)
+	}
+	return result
 }
