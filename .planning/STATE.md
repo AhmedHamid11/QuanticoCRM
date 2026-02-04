@@ -12,18 +12,18 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 **Milestone:** v2.0 Security Hardening
 **Phase:** 08 of 10 (Security Hardening) - IN PROGRESS
 **Plan:** 02 of 04 complete
-**Status:** NIST password validation complete, ready for plan 03 (account lockout)
+**Status:** Plans 01 (security headers/body limits) and 02 (password validation) complete
 
-**Last activity:** 2026-02-04 - Completed 08-02-PLAN.md (NIST password validation)
+**Last activity:** 2026-02-04 - Completed 08-01-PLAN.md (security headers and body limits)
 
 Progress: [██--------] 20% (2/10 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 5.1 min
-- Total execution time: 46 min
+- Total plans completed: 10
+- Average duration: 4.9 min
+- Total execution time: 49 min
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [██--------] 20% (2/10 phases complete)
 |-------|-------|-------|----------|
 | 06-critical-fixes | 5 | 37min | 7.4min |
 | 07-token-architecture | 3 | 7min | 2.3min |
-| 08-security-hardening | 2 | 2min | 1.0min |
+| 08-security-hardening | 2 | 5min | 2.5min |
 
 *Updated after each plan completion*
 
@@ -67,6 +67,9 @@ Progress: [██--------] 20% (2/10 phases complete)
 - **07-03:** Access tokens memory-only in Svelte reactive state
 - **07-03:** credentials: include on all frontend API calls
 - **07-03:** silentRefresh on page load restores session from cookie
+- **08-01:** Manual security headers instead of Fiber Helmet (full control, explicit policy)
+- **08-01:** Content-Length check before reading body (prevent memory exhaustion)
+- **08-01:** Separate route groups for different body limits (1MB default, 10MB imports)
 - **08-02:** go:embed directive for compile-time password list embedding
 - **08-02:** Case-insensitive common password matching
 - **08-02:** Unicode character count (utf8.RuneCountInString) not byte count
@@ -94,9 +97,9 @@ Progress: [██--------] 20% (2/10 phases complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 08-02-PLAN.md (NIST password validation)
+Stopped at: Completed 08-01-PLAN.md (security headers and body limits)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Completed Phase 08 Plan 02 (NIST password validation)*
+*Updated: 2026-02-04 - Completed Phase 08 Plan 01 (security headers and body limits)*
