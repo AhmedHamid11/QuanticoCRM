@@ -88,10 +88,10 @@ Plans:
 5. Existing users with weak passwords are forced to update on next login
 
 Plans:
-- [ ] 08-01-PLAN.md — Security headers and body limits (X-Frame-Options, CSP, request size limits)
-- [ ] 08-02-PLAN.md — Password policy backend (NIST 800-63B, common password blocklist)
-- [ ] 08-03-PLAN.md — Password strength frontend (real-time feedback, strength meter)
-- [ ] 08-04-PLAN.md — Forced password change for existing weak passwords (mustChangePassword flow)
+- [x] 08-01-PLAN.md — Security headers and body limits (X-Frame-Options, CSP, request size limits)
+- [x] 08-02-PLAN.md — Password policy backend (NIST 800-63B, common password blocklist)
+- [x] 08-03-PLAN.md — Password strength frontend (real-time feedback, strength meter)
+- [x] 08-04-PLAN.md — Forced password change for existing weak passwords (mustChangePassword flow)
 
 ---
 
@@ -136,11 +136,11 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 06. Critical Fixes | v2.0 | 5/5 | Complete | 2026-02-04 |
 | 07. Token Architecture | v2.0 | 3/3 | Complete | 2026-02-04 |
-| 08. Security Hardening | v2.0 | 0/4 | Planned | - |
+| 08. Security Hardening | v2.0 | 4/4 | Complete | 2026-02-04 |
 | 09. Session Management | v2.0 | 0/TBD | Not started | - |
 | 10. Audit Infrastructure | v2.0 | 0/TBD | Not started | - |
 
 ---
 
 *Created: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 08 revised with 08-04 for forced password change*
+*Last updated: 2026-02-04 - Phase 08 complete (security headers, password policy, forced change)*

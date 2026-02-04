@@ -17,13 +17,13 @@ Requirements for Security Hardening milestone. Each maps to roadmap phases.
 
 ### Security Hardening (P1)
 
-- [ ] **HARD-01**: Security headers set (X-Frame-Options, X-Content-Type-Options, Content-Security-Policy)
+- [x] **HARD-01**: Security headers set (X-Frame-Options, X-Content-Type-Options, Content-Security-Policy)
 - [x] **HARD-02**: Refresh tokens stored in HttpOnly, Secure, SameSite=Strict cookies
 - [x] **HARD-03**: Access tokens stored in memory only (not localStorage)
 - [x] **HARD-04**: Token rotation implemented with family tracking for reuse detection
-- [ ] **HARD-05**: Password policy follows NIST 800-63B (length-based, breach check, no complexity rules)
-- [ ] **HARD-06**: Request body size limited (prevent DoS via large payloads)
-- [ ] **HARD-07**: Input validation hardened across all endpoints (prevent injection)
+- [x] **HARD-05**: Password policy follows NIST 800-63B (length-based, breach check, no complexity rules)
+- [x] **HARD-06**: Request body size limited (prevent DoS via large payloads)
+- [x] **HARD-07**: Input validation hardened across all endpoints (prevent injection)
 
 ### Session & Audit (P2)
 
@@ -89,13 +89,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CRIT-03 | Phase 06 | Complete |
 | CRIT-04 | Phase 06 | Complete |
 | CRIT-05 | Phase 06 | Complete |
-| HARD-01 | Phase 08 | Pending |
+| HARD-01 | Phase 08 | Complete |
 | HARD-02 | Phase 07 | Complete |
 | HARD-03 | Phase 07 | Complete |
 | HARD-04 | Phase 07 | Complete |
-| HARD-05 | Phase 08 | Pending |
-| HARD-06 | Phase 08 | Pending |
-| HARD-07 | Phase 08 | Pending |
+| HARD-05 | Phase 08 | Complete |
+| HARD-06 | Phase 08 | Complete |
+| HARD-07 | Phase 08 | Complete |
 | SESS-01 | Phase 09 | Pending |
 | SESS-02 | Phase 09 | Pending |
 | SESS-03 | Phase 09 | Pending |
@@ -114,4 +114,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-03*
-*Last updated: 2026-02-04 - Phase 06 requirements complete*
+*Last updated: 2026-02-04 - Phase 08 requirements complete (HARD-01, HARD-05, HARD-06, HARD-07)*
