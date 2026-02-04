@@ -10,26 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 ## Current Position
 
 **Milestone:** v2.0 Security Hardening
-**Phase:** 06 of 10 (Critical Fixes) - VERIFIED ✓
-**Plan:** 05 of 05 complete
-**Status:** Phase 06 verified (5/5 truths), ready for Phase 07
+**Phase:** 07 of 10 (Token Architecture)
+**Plan:** 01 of 03 complete
+**Status:** In progress
 
-**Last activity:** 2026-02-04 - Phase 06 verified, all 5 success criteria met
+**Last activity:** 2026-02-04 - Completed 07-01-PLAN.md (Token Family Infrastructure)
 
 Progress: [█---------] 10% (1/10 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: 7 min
-- Total execution time: 37 min
+- Total execution time: 40 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 06-critical-fixes | 5 | 37min | 7.4min |
+| 07-token-architecture | 1 | 3min | 3min |
 
 *Updated after each plan completion*
 
@@ -56,6 +57,9 @@ Progress: [█---------] 10% (1/10 phases complete)
 - **06-05:** auth.go permission errors use NewAPIErrorWithMessage (safe to expose)
 - **06-05:** api_token.go scope errors use NewAPIErrorWithMessage (user-facing validation)
 - **06-05:** custom_page.go added to plan (deviation) to complete handler package sanitization
+- **07-01:** Token family uses sfid pattern with 0Tf prefix
+- **07-01:** Soft revocation (is_revoked) for reuse detection vs deletion
+- **07-01:** Login/register/org-switch start new token families (security boundary)
 
 ### Blockers/Concerns
 
@@ -79,9 +83,9 @@ Progress: [█---------] 10% (1/10 phases complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Phase 06 verified, ready for Phase 07
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Phase 06 verified (5/5 truths) - Ready for Phase 07*
+*Updated: 2026-02-04 - Completed 07-01-PLAN.md (Token Family Infrastructure)*
