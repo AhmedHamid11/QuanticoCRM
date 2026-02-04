@@ -27,7 +27,7 @@ func TestTask_Create(t *testing.T) {
 
 	t.Run("creates task with required fields", func(t *testing.T) {
 		body := map[string]interface{}{
-			"name":       "Test Task",
+			"subject":    "Test Task",
 			"type":       "Todo",
 			"parentType": "Contact",
 			"parentId":   contact.ID,
@@ -35,7 +35,7 @@ func TestTask_Create(t *testing.T) {
 
 		var response struct {
 			ID         string `json:"id"`
-			Name       string `json:"name"`
+			Subject    string `json:"subject"`
 			Type       string `json:"type"`
 			Status     string `json:"status"`
 			ParentType string `json:"parentType"`
@@ -48,20 +48,20 @@ func TestTask_Create(t *testing.T) {
 		if response.ID == "" {
 			t.Error("Expected task ID to be set")
 		}
-		if response.Name != "Test Task" {
-			t.Errorf("Expected name 'Test Task', got %s", response.Name)
+		if response.Subject != "Test Task" {
+			t.Errorf("Expected subject 'Test Task', got %s", response.Subject)
 		}
 		if response.Type != "Todo" {
 			t.Errorf("Expected type 'Todo', got %s", response.Type)
 		}
-		if response.Status != "Not Started" {
-			t.Errorf("Expected default status 'Not Started', got %s", response.Status)
+		if response.Status != "Open" {
+			t.Errorf("Expected default status 'Open', got %s", response.Status)
 		}
 	})
 
 	t.Run("creates task with all fields", func(t *testing.T) {
 		body := map[string]interface{}{
-			"name":        "Full Task",
+			"subject":     "Full Task",
 			"type":        "Call",
 			"status":      "In Progress",
 			"priority":    "High",
@@ -73,7 +73,7 @@ func TestTask_Create(t *testing.T) {
 
 		var response struct {
 			ID          string `json:"id"`
-			Name        string `json:"name"`
+			Subject     string `json:"subject"`
 			Type        string `json:"type"`
 			Status      string `json:"status"`
 			Priority    string `json:"priority"`
@@ -100,7 +100,7 @@ func TestTask_Create(t *testing.T) {
 
 		for _, taskType := range taskTypes {
 			body := map[string]interface{}{
-				"name":       taskType + " Task",
+				"subject":    taskType + " Task",
 				"type":       taskType,
 				"parentType": "Contact",
 				"parentId":   contact.ID,
@@ -132,7 +132,7 @@ func TestTask_Create(t *testing.T) {
 
 	t.Run("fails without authentication", func(t *testing.T) {
 		body := map[string]interface{}{
-			"name":       "Unauthorized Task",
+			"subject":    "Unauthorized Task",
 			"type":       "Todo",
 			"parentType": "Contact",
 			"parentId":   contact.ID,
@@ -161,7 +161,7 @@ func TestTask_Get(t *testing.T) {
 
 	// Create a task
 	createBody := map[string]interface{}{
-		"name":       "Get Test Task",
+		"subject":    "Get Test Task",
 		"type":       "Todo",
 		"parentType": "Contact",
 		"parentId":   contact.ID,
@@ -174,9 +174,9 @@ func TestTask_Get(t *testing.T) {
 
 	t.Run("gets task by ID", func(t *testing.T) {
 		var response struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-			Type string `json:"type"`
+			ID      string `json:"id"`
+			Subject string `json:"subject"`
+			Type    string `json:"type"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/tasks/"+created.ID, nil, user.AccessToken, &response)
@@ -185,8 +185,8 @@ func TestTask_Get(t *testing.T) {
 		if response.ID != created.ID {
 			t.Errorf("Expected ID %s, got %s", created.ID, response.ID)
 		}
-		if response.Name != "Get Test Task" {
-			t.Errorf("Expected name 'Get Test Task', got %s", response.Name)
+		if response.Subject != "Get Test Task" {
+			t.Errorf("Expected subject 'Get Test Task', got %s", response.Subject)
 		}
 	})
 
@@ -214,9 +214,9 @@ func TestTask_List(t *testing.T) {
 
 	// Create multiple tasks
 	tasks := []map[string]interface{}{
-		{"name": "Task 1", "type": "Todo", "status": "Not Started", "parentType": "Contact", "parentId": contact.ID},
-		{"name": "Task 2", "type": "Call", "status": "In Progress", "parentType": "Contact", "parentId": contact.ID},
-		{"name": "Task 3", "type": "Meeting", "status": "Completed", "parentType": "Contact", "parentId": contact.ID},
+		{"subject": "Task 1", "type": "Todo", "status": "Open", "parentType": "Contact", "parentId": contact.ID},
+		{"subject": "Task 2", "type": "Call", "status": "In Progress", "parentType": "Contact", "parentId": contact.ID},
+		{"subject": "Task 3", "type": "Meeting", "status": "Completed", "parentType": "Contact", "parentId": contact.ID},
 	}
 
 	for _, task := range tasks {
@@ -303,18 +303,18 @@ func TestTask_List(t *testing.T) {
 	t.Run("sorts tasks", func(t *testing.T) {
 		var response struct {
 			Data []struct {
-				Name string `json:"name"`
+				Subject string `json:"subject"`
 			} `json:"data"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/tasks/?sortBy=name&sortDir=asc", nil, user.AccessToken, &response)
+		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/tasks/?sortBy=subject&sortDir=asc", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
 		if len(response.Data) < 2 {
 			t.Skip("Not enough tasks to test sorting")
 		}
-		if response.Data[0].Name != "Task 1" {
-			t.Errorf("Expected first task to be 'Task 1', got %s", response.Data[0].Name)
+		if response.Data[0].Subject != "Task 1" {
+			t.Errorf("Expected first task to be 'Task 1', got %s", response.Data[0].Subject)
 		}
 	})
 }
@@ -337,9 +337,9 @@ func TestTask_Update(t *testing.T) {
 
 	// Create a task
 	createBody := map[string]interface{}{
-		"name":       "Original Task",
+		"subject":    "Original Task",
 		"type":       "Todo",
-		"status":     "Not Started",
+		"status":     "Open",
 		"parentType": "Contact",
 		"parentId":   contact.ID,
 	}
@@ -351,20 +351,20 @@ func TestTask_Update(t *testing.T) {
 
 	t.Run("updates task with PUT", func(t *testing.T) {
 		updateBody := map[string]interface{}{
-			"name":   "Updated Task",
-			"status": "In Progress",
+			"subject": "Updated Task",
+			"status":  "In Progress",
 		}
 
 		var response struct {
-			Name   string `json:"name"`
-			Status string `json:"status"`
+			Subject string `json:"subject"`
+			Status  string `json:"status"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "PUT", "/api/v1/tasks/"+created.ID, updateBody, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
-		if response.Name != "Updated Task" {
-			t.Errorf("Expected name 'Updated Task', got %s", response.Name)
+		if response.Subject != "Updated Task" {
+			t.Errorf("Expected subject 'Updated Task', got %s", response.Subject)
 		}
 		if response.Status != "In Progress" {
 			t.Errorf("Expected status 'In Progress', got %s", response.Status)
@@ -416,7 +416,7 @@ func TestTask_Delete(t *testing.T) {
 
 	// Create a task
 	createBody := map[string]interface{}{
-		"name":       "ToDelete Task",
+		"subject":    "ToDelete Task",
 		"type":       "Todo",
 		"parentType": "Contact",
 		"parentId":   contact.ID,
@@ -461,7 +461,7 @@ func TestTask_OrgIsolation(t *testing.T) {
 	AssertStatus(t, resp, http.StatusCreated)
 
 	taskBody := map[string]interface{}{
-		"name":       "Private Task",
+		"subject":    "Private Task",
 		"type":       "Todo",
 		"parentType": "Contact",
 		"parentId":   contact.ID,
@@ -479,7 +479,7 @@ func TestTask_OrgIsolation(t *testing.T) {
 
 	t.Run("user cannot update other org's tasks", func(t *testing.T) {
 		updateBody := map[string]interface{}{
-			"name": "Hacked Task",
+			"subject": "Hacked Task",
 		}
 		resp := app.MakeRequest(t, "PUT", "/api/v1/tasks/"+task.ID, updateBody, user2.AccessToken)
 		AssertStatus(t, resp, http.StatusNotFound)
@@ -533,7 +533,7 @@ func TestTask_ParentTypeValidation(t *testing.T) {
 
 	t.Run("creates task linked to Contact", func(t *testing.T) {
 		body := map[string]interface{}{
-			"name":       "Contact Task",
+			"subject":    "Contact Task",
 			"type":       "Todo",
 			"parentType": "Contact",
 			"parentId":   contact.ID,
@@ -557,7 +557,7 @@ func TestTask_ParentTypeValidation(t *testing.T) {
 
 	t.Run("creates task linked to Account", func(t *testing.T) {
 		body := map[string]interface{}{
-			"name":       "Account Task",
+			"subject":    "Account Task",
 			"type":       "Todo",
 			"parentType": "Account",
 			"parentId":   account.ID,
