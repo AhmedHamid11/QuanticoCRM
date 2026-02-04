@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 **Milestone:** v2.0 Security Hardening
 **Phase:** 09 of 10 (Session Management)
-**Plan:** 04 of 04 complete
-**Status:** Phase 09 complete - Tenant isolation verified ✓
+**Plan:** 03 of 04 complete
+**Status:** Phase 09 in progress - Session warning UI complete
 
-**Last activity:** 2026-02-04 - Completed 09-04-PLAN.md
+**Last activity:** 2026-02-04 - Completed 09-03-PLAN.md
 
-Progress: [███░------] 35% (14/40 plans complete)
+Progress: [███░------] 35% (15/40 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 4.8 min
-- Total execution time: 67 min
+- Total plans completed: 15
+- Average duration: 4.7 min
+- Total execution time: 70 min
 
 **By Phase:**
 
@@ -32,7 +32,7 @@ Progress: [███░------] 35% (14/40 plans complete)
 | 06-critical-fixes | 5 | 37min | 7.4min |
 | 07-token-architecture | 3 | 7min | 2.3min |
 | 08-security-hardening | 4 | 13min | 3.3min |
-| 09-session-management | 4 | 10min | 2.5min |
+| 09-session-management | 3 | 13min | 4.3min |
 
 *Updated after each plan completion*
 
@@ -87,9 +87,10 @@ Progress: [███░------] 35% (14/40 plans complete)
 - **09-01:** Skip activity tracking for /auth/refresh and /auth/extend-session endpoints
 - **09-01:** 401 SESSION_EXPIRED response includes type (idle or absolute) for frontend
 - **09-01:** Session timeout middleware applied to all 7 protected route groups
-- **09-04:** Use distinctive data values (e.g., 'ListTestOrg1') instead of empty lists to verify isolation in presence of sample data
-- **09-04:** Extract orgID from memberships array (API response structure from auth service)
-- **09-04:** Matrix-based integration testing pattern for cross-tenant isolation coverage
+- **09-03:** User must explicitly click "Stay logged in" - activity alone does NOT extend session
+- **09-03:** Only clicks and typing track activity (not passive mouse movement)
+- **09-03:** Same 5-minute warning toast for both idle and absolute timeout
+- **09-03:** Return URL preserved for redirect after session expiration re-login
 
 ### Blockers/Concerns
 
@@ -113,9 +114,9 @@ Progress: [███░------] 35% (14/40 plans complete)
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 09-04-PLAN.md (Phase 09 complete)
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Completed 09-04: Tenant isolation testing - Phase 09 complete ✓*
+*Updated: 2026-02-04 - Completed 09-03: Frontend session timeout tracking and warning UI*
