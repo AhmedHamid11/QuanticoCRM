@@ -327,6 +327,9 @@
 			{@render children()}
 		</main>
 	</div>
+{:else}
+	<!-- Not authenticated, not on auth page - render children (root page shows login) -->
+	{@render children()}
 {/if}
 
 <Toast />
