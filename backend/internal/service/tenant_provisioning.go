@@ -647,6 +647,17 @@ func (s *TenantProvisioningService) runMigrations(ctx context.Context, db *sql.D
 			modified_at TEXT DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_pdf_templates_org ON pdf_templates(org_id, entity_type)`,
+
+		// Org settings
+		`CREATE TABLE IF NOT EXISTS org_settings (
+			org_id TEXT PRIMARY KEY,
+			home_page TEXT DEFAULT '/',
+			idle_timeout_minutes INTEGER NOT NULL DEFAULT 30,
+			absolute_timeout_minutes INTEGER NOT NULL DEFAULT 1440,
+			settings_json TEXT DEFAULT '{}',
+			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			modified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	// Execute each migration

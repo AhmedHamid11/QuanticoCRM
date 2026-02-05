@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -36,10 +38,33 @@ func (h *OrgSettingsHandler) getRepo(c *fiber.Ctx) *repo.OrgSettingsRepo {
 // GET /settings
 func (h *OrgSettingsHandler) Get(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
+	tenantRepo := h.getRepo(c)
 
-	settings, err := h.getRepo(c).Get(c.Context(), orgID)
+	settings, err := tenantRepo.Get(c.Context(), orgID)
 	if err != nil {
-		return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
+		// Auto-create table if missing (for existing orgs before this migration)
+		if strings.Contains(err.Error(), "no such table") {
+			if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+				_, createErr := tenantDB.ExecContext(c.Context(), `
+					CREATE TABLE IF NOT EXISTS org_settings (
+						org_id TEXT PRIMARY KEY,
+						home_page TEXT DEFAULT '/',
+						idle_timeout_minutes INTEGER NOT NULL DEFAULT 30,
+						absolute_timeout_minutes INTEGER NOT NULL DEFAULT 1440,
+						settings_json TEXT DEFAULT '{}',
+						created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+						modified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+					)
+				`)
+				if createErr == nil {
+					// Retry the get
+					settings, err = tenantRepo.Get(c.Context(), orgID)
+				}
+			}
+		}
+		if err != nil {
+			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ClassifyError(err))
+		}
 	}
 
 	return c.JSON(settings)
