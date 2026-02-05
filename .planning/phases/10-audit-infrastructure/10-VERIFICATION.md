@@ -1,28 +1,17 @@
 ---
 phase: 10-audit-infrastructure
-verified: 2026-02-04T12:15:00Z
-status: gaps_found
-score: 4/5 must-haves verified
-gaps:
-  - truth: "CI pipeline runs gosec and fails on high-severity findings"
-    status: failed
-    reason: "No .github/workflows directory exists, no CI pipeline configured with gosec"
-    artifacts:
-      - path: ".github/workflows/ci.yml"
-        issue: "File does not exist"
-    missing:
-      - "Create .github/workflows directory"
-      - "Create CI workflow file with gosec step"
-      - "Configure gosec to fail build on high-severity findings"
-      - "Add gosec badge to README"
+verified: 2026-02-04T14:30:00Z
+status: passed
+score: 5/5 must-haves verified
+gaps: []
 ---
 
 # Phase 10: Audit Infrastructure Verification Report
 
 **Phase Goal:** Track security events and enable compliance reporting.
-**Verified:** 2026-02-04T12:15:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-02-04T14:30:00Z
+**Status:** passed
+**Re-verification:** Yes — gap closure verification
 
 ## Goal Achievement
 
@@ -34,9 +23,9 @@ gaps:
 | 2 | User CRUD, role changes, and org settings changes are recorded | ✓ VERIFIED | user.go:163,262,351 logs role/status/delete, org_settings.go:72,140 logs settings changes |
 | 3 | Authorization failures (403 responses) are recorded with details | ✓ VERIFIED | middleware/audit_403.go captures all 403s with actor, path, method, IP, user agent |
 | 4 | Audit logs are append-only with tamper-evident integrity | ✓ VERIFIED | Hash chain in audit.go:79-109, no Update/Delete methods in repo, unique entry_hash constraint |
-| 5 | CI pipeline runs gosec and fails on high-severity findings | ✗ FAILED | No .github/workflows directory exists, no CI configured |
+| 5 | CI pipeline runs gosec and fails on high-severity findings | ✓ VERIFIED | .github/workflows/ci.yml:45-72 runs gosec with -severity=high, fails on HIGH/CRITICAL findings |
 
-**Score:** 4/5 truths verified
+**Score:** 5/5 truths verified
 
 ### Required Artifacts
 
@@ -51,7 +40,7 @@ gaps:
 | `backend/internal/handler/auth.go` | Auth events logging | ✓ VERIFIED | Lines 95-100 (login), 159 (logout), 474 (password change) call auditLogger |
 | `backend/internal/handler/user.go` | User CRUD events logging | ✓ VERIFIED | Lines 163 (role change), 262 (status change), 351 (delete) call auditLogger |
 | `backend/internal/handler/org_settings.go` | Org settings events logging | ✓ VERIFIED | Lines 72, 140 call auditLogger.LogOrgSettingsChange |
-| `.github/workflows/ci.yml` | CI pipeline with gosec | ✗ MISSING | No .github directory exists in project root |
+| `.github/workflows/ci.yml` | CI pipeline with gosec | ✓ VERIFIED | 156 lines, 4 jobs: backend, security, frontend, dependency-scan |
 
 ### Key Link Verification
 
@@ -69,6 +58,7 @@ gaps:
 | audit repo | database | INSERT INTO audit_logs | ✓ WIRED | repo.go:76-97 inserts with hash chain (prev_hash, entry_hash) |
 | main.go | audit middleware | AuditAuthorizationFailures | ✓ WIRED | main.go:367,377,383,391,405,448,496 apply middleware to all protected routes |
 | main.go | audit handler | GET /audit-logs | ✓ WIRED | main.go:484-487 register List/Export/VerifyChain/GetEventTypes routes |
+| CI workflow | gosec | security job | ✓ WIRED | ci.yml:45-72 installs and runs gosec, parses JSON output |
 
 ### Requirements Coverage
 
@@ -80,7 +70,7 @@ Based on success criteria (no formal REQUIREMENTS.md for this phase):
 | User CRUD/role/org settings logging | ✓ SATISFIED | None - all events logged |
 | 403 authorization failures logged | ✓ SATISFIED | None - middleware captures all 403s |
 | Append-only with integrity | ✓ SATISFIED | None - hash chain implemented, no Update/Delete methods |
-| gosec in CI pipeline | ✗ BLOCKED | No .github/workflows directory exists |
+| gosec in CI pipeline | ✓ SATISFIED | None - ci.yml created with gosec security job |
 
 ### Anti-Patterns Found
 
@@ -95,37 +85,29 @@ Based on success criteria (no formal REQUIREMENTS.md for this phase):
 - No Update or Delete methods exist in AuditRepo - truly append-only
 - All protected routes have AuditAuthorizationFailures middleware applied
 - Audit handler provides List, Export (CSV/JSON), VerifyChain, and GetEventTypes endpoints
+- CI pipeline includes 4 jobs: backend tests, security scan, frontend build, dependency scan
+- gosec configured to fail on HIGH/CRITICAL severity findings only
 
 ### Human Verification Required
 
-None. All success criteria can be verified programmatically except gosec CI (which is missing).
+None. All success criteria verified programmatically.
 
-### Gaps Summary
+### Gap Closure Summary
 
-**1 gap blocking goal achievement:**
+**Gap closed:** CI pipeline with gosec security scanning
 
-The audit infrastructure is fully implemented and operational. However, the CI pipeline with gosec security scanning is completely missing. This is a compliance and security best practice requirement from the success criteria.
+**What was created:**
+- `.github/workflows/ci.yml` - Complete CI pipeline (156 lines)
 
-**What exists:**
-- Complete audit logging for all security events
-- Tamper-evident hash chain implementation
-- Append-only database design
-- API for viewing, exporting, and verifying audit logs
+**CI Jobs:**
+1. **backend** - Go tests with race detection and coverage, uploads to Codecov
+2. **security** - gosec scan, fails build on HIGH/CRITICAL findings, uploads results as artifact
+3. **frontend** - Type check, lint, build with SvelteKit
+4. **dependency-scan** - govulncheck for Go, npm audit for frontend
 
-**What's missing:**
-- `.github/workflows/` directory
-- CI workflow configuration
-- gosec installation and execution step
-- Build failure on high-severity findings
-
-**Impact:**
-While the audit logging system is fully functional, the lack of automated security scanning means:
-- High-severity security issues won't be caught before deployment
-- No automated enforcement of secure coding standards
-- Manual code review is the only defense against common security vulnerabilities
-- Compliance frameworks (SOC 2, ISO 27001) expect automated security scanning
+**Commit:** `feat(10-ci): add CI pipeline with gosec security scanning` (6567377)
 
 ---
 
-_Verified: 2026-02-04T12:15:00Z_
+_Verified: 2026-02-04T14:30:00Z_
 _Verifier: Claude (gsd-verifier)_
