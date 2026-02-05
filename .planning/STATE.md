@@ -2,38 +2,35 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-03)
+See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Fast, secure multi-tenant CRM where customer data is protected
-**Current focus:** Phase 10 - Audit Infrastructure - In Progress
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-**Milestone:** v2.0 Security Hardening
-**Phase:** 10 of 10 (Audit Infrastructure) - Complete
-**Plan:** 05 of 05 complete
-**Status:** Phase 10 complete - Full audit infrastructure with admin UI
+**Milestone:** v2.0 Security Hardening — SHIPPED ✓
+**Phase:** Between milestones
+**Plan:** —
+**Status:** Ready for next milestone
 
-**Last activity:** 2026-02-04 - Completed 10-05-PLAN.md (Admin UI for Audit Logs)
+**Last activity:** 2026-02-04 — v2.0 milestone archived
 
-Progress: [██████----] 60% (6.0/10 phases complete)
+Progress: [██████████] 100% (v2.0 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
-- Average duration: 4.2 min
-- Total execution time: 89 min
+- Total plans completed: 31 (9 v1.0 + 22 v2.0)
+- Average duration: 4.1 min
+- Total execution time: ~130 min
 
-**By Phase:**
+**By Milestone:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 06-critical-fixes | 5 | 37min | 7.4min |
-| 07-token-architecture | 3 | 7min | 2.3min |
-| 08-security-hardening | 4 | 13min | 3.3min |
-| 09-session-management | 4 | 17min | 4.3min |
-| 10-audit-infrastructure | 5 | 16min | 3.2min |
+| Milestone | Phases | Plans | Duration |
+|-----------|--------|-------|----------|
+| v1.0 Platform Update | 01-05 | 9 | ~40 min |
+| v2.0 Security | 06-10 | 22 | ~91 min |
 
 *Updated after each plan completion*
 
@@ -41,106 +38,23 @@ Progress: [██████----] 60% (6.0/10 phases complete)
 
 ### Key Decisions
 
-- Use existing Fiber middleware for rate limiting
-- Move refresh tokens to HttpOnly cookies
-- Keep access tokens in memory only (not localStorage)
-- Implement token rotation with family tracking
-- Silent CORS reject (no headers) rather than 403 error to prevent origin enumeration
-- HSTS with 1-year max-age and includeSubDomains directive
-- Production detection via ENVIRONMENT env var OR presence of TURSO_URL
-- **06-02:** Custom rate limiter for consistent 429 JSON response format
-- **06-02:** In-memory sync.Map rate limit storage (acceptable per-instance reset)
-- **06-02:** Rate limit applied at auth group level (protects all auth endpoints)
-- **06-03:** 7 error categories for classification (database, validation, auth, permission, not_found, conflict, internal)
-- **06-03:** Pattern-based error classification using error string analysis
-- **06-03:** request_id field for support correlation on all error responses
-- **06-03:** Focus on critical handlers (metadata, generic_entity); lower-risk handlers can be updated incrementally
-- **06-04:** util.NewAPIErrorWithMessage for user-safe PDF generation errors
-- **06-04:** util.ErrCategoryDatabase for platform admin routes
-- **06-05:** auth.go permission errors use NewAPIErrorWithMessage (safe to expose)
-- **06-05:** api_token.go scope errors use NewAPIErrorWithMessage (user-facing validation)
-- **06-05:** custom_page.go added to plan (deviation) to complete handler package sanitization
-- **07-01:** Token family uses sfid pattern with 0Tf prefix
-- **07-01:** Soft revocation (is_revoked) for reuse detection vs deletion
-- **07-01:** Login/register/org-switch start new token families (security boundary)
-- **07-02:** Refresh tokens stored in HttpOnly cookies (XSS-immune)
-- **07-02:** Cookie path restricted to /api/v1/auth
-- **07-02:** SameSite=Strict for CSRF protection
-- **07-03:** Access tokens memory-only in Svelte reactive state
-- **07-03:** credentials: include on all frontend API calls
-- **07-03:** silentRefresh on page load restores session from cookie
-- **08-01:** Manual security headers instead of Fiber Helmet (full control, explicit policy)
-- **08-01:** Content-Length check before reading body (prevent memory exhaustion)
-- **08-01:** Separate route groups for different body limits (1MB default, 10MB imports)
-- **08-02:** go:embed directive for compile-time password list embedding
-- **08-02:** Case-insensitive common password matching
-- **08-02:** Unicode character count (utf8.RuneCountInString) not byte count
-- **08-02:** Maximum 128 characters to support long passphrases per NIST
-- **08-03:** Simple 4-level password strength without external library (red/orange/yellow/green)
-- **08-03:** Bindable value prop pattern for reusable form components
-- **08-03:** Real-time strength feedback via $derived reactive statement
-- **08-04:** JWT claim for mustChangePassword flag (stateless enforcement)
-- **08-04:** Middleware after auth but before tenant resolution for password change enforcement
-- **08-04:** API tokens skip password change requirement (org-level vs user-level)
-- **08-04:** Password change returns new tokens with mustChangePassword=false (seamless re-auth)
-- **09-01:** Default session timeouts: 30 min idle, 1440 min (24h) absolute
-- **09-01:** Fire-and-forget activity updates (goroutine) to avoid blocking requests
-- **09-01:** Skip activity tracking for /auth/refresh and /auth/extend-session endpoints
-- **09-01:** 401 SESSION_EXPIRED response includes type (idle or absolute) for frontend
-- **09-01:** Session timeout middleware applied to all 7 protected route groups
-- **09-03:** User must explicitly click "Stay logged in" - activity alone does NOT extend session
-- **09-03:** Only clicks and typing track activity (not passive mouse movement)
-- **09-03:** Same 5-minute warning toast for both idle and absolute timeout
-- **09-03:** Return URL preserved for redirect after session expiration re-login
-- **09-02:** CSRF middleware uses Fiber's double-submit cookie pattern
-- **09-02:** API tokens (fcr_ prefix) exempt from CSRF validation
-- **09-02:** Per-org session timeout config with bounds (idle: 15-60min, absolute: 8-72h)
-- **09-04:** 18 tenant isolation test scenarios covering Contact, Account, Task CRUD
-- **09-04:** Impersonation isolation verified - admin only sees target org data
-- **10-06:** gosec configured with -severity high (avoid false positive fatigue)
-- **10-06:** govulncheck runs parallel to gosec for faster CI feedback
-- **10-06:** SARIF upload with if: always() ensures results appear even on failures
-- **10-06:** No .gosec config file initially (can add later for false positive suppression)
-- **10-01:** SHA-256 for audit entry hash computation (deterministic field concatenation)
-- **10-01:** Fire-and-forget goroutine pattern for audit DB persistence (non-blocking)
-- **10-01:** Per-org hash chain with GENESIS start (multi-tenant isolation)
-- **10-01:** No foreign keys on actor_id/target_id (audit logs persist after user deletion)
-- **10-01:** Re-export event types from entity package for backwards compatibility
-- **10-03:** Capture old role before update for audit logging (need both old/new values)
-- **10-03:** Detect changed fields from input for settings audit (avoid noisy logs)
-- **10-04:** Post-handler middleware pattern for 403 capture (c.Next() first, then check status)
-- **10-04:** Middleware applied to all 7 protected route groups for comprehensive 403 coverage
-- **10-04:** Graceful handling of missing c.Locals values (auth may fail early)
-- **10-05:** Timeline-style UI for audit logs (GitHub-inspired activity feed)
-- **10-05:** Color-coded event icons for visual categorization (blue=login, red=failures, etc.)
-- **10-05:** Direct file download pattern for CSV/JSON export (<10K entries)
-- **10-05:** Platform admin cross-org support via orgId query parameter
+Decisions are logged in PROJECT.md Key Decisions table.
+Accumulated over v1.0 and v2.0 milestones.
+
+### Pending Todos
+
+None.
 
 ### Blockers/Concerns
 
-- Token migration must maintain backwards compatibility
-- Need to verify CORS changes don't break legitimate clients (VERIFIED: localhost works in dev, allowlisted origins work in prod)
-
-## Quick Tasks Completed (v1.0)
-
-| # | Description | Date | Commit |
-|---|-------------|------|--------|
-| 001 | Exit impersonation on own org select | 2026-02-01 | 64dbcd9 |
-| 002 | Configurable homepage per org | 2026-02-02 | 4b135e2 |
-| 003 | Fix text field saving on custom entities | 2026-02-02 | 09fc2a3 |
-| 004 | Fix related records 500 error | 2026-02-02 | 4c78931 |
-| 005 | Edit in list for related records | 2026-02-02 | 8158119 |
-| 006 | Add edit object icon to custom entities | 2026-02-02 | 0779eed |
-| 007 | Soft delete custom entities | 2026-02-02 | 9f43d06 |
-| 008 | Add created/modified by user tracking | 2026-02-03 | 82b4912 |
-| 009 | Experimental styling (fonts + colors) | 2026-02-03 | d7c147d |
+None.
 
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 10-05-PLAN.md (Admin UI for Audit Logs)
+Stopped at: v2.0 milestone archived, ready for v3.0 planning
 Resume file: None
 
 ---
 
-*Updated: 2026-02-04 - Completed 10-05 (Admin UI for Audit Logs) - Phase 10 complete (5/5)*
+*Updated: 2026-02-04 — v2.0 milestone complete*

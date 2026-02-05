@@ -2,21 +2,17 @@
 
 ## What This Is
 
-A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber backend with SvelteKit frontend, using Turso (SQLite edge) for per-tenant databases. Focuses on speed (<50ms perceived), optimistic UI, and transparent platform updates.
+A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber backend with SvelteKit frontend, using Turso (SQLite edge) for per-tenant databases. Focuses on speed (<50ms perceived), optimistic UI, security hardened for production, and transparent platform updates.
 
 ## Core Value
 
 Fast, secure multi-tenant CRM where customer data is protected and platform updates are transparent.
 
-## Current Milestone: v2.0 Security Hardening
+## Current State
 
-**Goal:** Address critical security vulnerabilities and achieve SOC 2/GDPR readiness for production deployment.
-
-**Target features:**
-- Fix critical vulnerabilities (CORS, JWT, error disclosure, XSS)
-- Implement security hardening (rate limiting, token rotation, session management)
-- Add audit logging infrastructure
-- Achieve OWASP Top 10 2025 compliance
+**Shipped:** v2.0 Security Hardening (2026-02-04)
+**Codebase:** 218,000+ LOC (Go/TypeScript/Svelte)
+**Status:** Production-ready with SOC 2/GDPR compliance foundation
 
 ## Requirements
 
@@ -33,12 +29,28 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 - ✓ Bcrypt password hashing — existing
 - ✓ Per-tenant database isolation — existing
 - ✓ Role-based access (admin/user) — existing
+- ✓ CORS lockdown with origin allowlist — v2.0
+- ✓ Auth rate limiting (5/min per IP) — v2.0
+- ✓ Error sanitization (no stack traces) — v2.0
+- ✓ JWT secret validation — v2.0
+- ✓ HSTS enforcement (1-year max-age) — v2.0
+- ✓ Security headers (X-Frame-Options, CSP) — v2.0
+- ✓ HttpOnly refresh token cookies — v2.0
+- ✓ Memory-only access tokens — v2.0
+- ✓ Token rotation with reuse detection — v2.0
+- ✓ NIST 800-63B password policy — v2.0
+- ✓ Request body size limits — v2.0
+- ✓ Session timeouts (30min idle, 24h absolute) — v2.0
+- ✓ CSRF protection (double-submit cookie) — v2.0
+- ✓ Tenant isolation verified — v2.0
+- ✓ Tamper-evident audit logging — v2.0
+- ✓ CI security scanning (gosec) — v2.0
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-See: `.planning/REQUIREMENTS.md` for v2.0 requirements
+Ready for next milestone. See `/gsd:new-milestone` to define v3.0 requirements.
 
 ### Out of Scope
 
@@ -48,38 +60,42 @@ See: `.planning/REQUIREMENTS.md` for v2.0 requirements
 - Per-tenant encryption keys — High complexity, defer
 - Real-time anomaly detection — Advanced ML feature, future
 - Mobile app — Web-first, mobile later
+- Mandatory password complexity rules — NIST removed; leads to weaker passwords
+- Periodic password expiration — NIST removed; causes predictable patterns
 
 ## Context
 
-**Security Assessment (2026-01-31):**
-- 5 Critical vulnerabilities identified in codebase audit
-- 5 High severity issues requiring attention
-- CORS wildcard (*) allows any origin
-- JWT secret has weak default fallback
-- Tokens stored in localStorage (XSS vulnerable)
-- No rate limiting on auth endpoints
+**Tech Stack:**
+- Backend: Go 1.22 / Fiber v2.52.0
+- Frontend: SvelteKit 2.x / TypeScript
+- Database: Turso (SQLite edge) with per-tenant isolation
+- Deployment: Railway (backend), Vercel (frontend)
 
-**Compliance targets:**
-- SOC 2 Type II certifiable
-- GDPR Article 32 compliant
+**Security Posture (v2.0):**
 - OWASP Top 10 2025 addressed
+- XSS-immune token storage
+- Tamper-evident audit trails
+- CI security scanning enforced
 
 ## Constraints
 
 - **Stack**: Go 1.22+/Fiber, SvelteKit 2.x, Turso — no changes
 - **Deployment**: Railway (backend), Vercel (frontend)
-- **Backwards compatibility**: Existing auth tokens must remain valid during migration
-- **Performance**: Security measures must not degrade <50ms response time target
+- **Performance**: <50ms response time target
+- **Backwards compatibility**: Must maintain existing integrations
 
 ## Key Decisions
-
-<!-- Decisions that constrain future work. Add throughout project lifecycle. -->
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Per-tenant Turso databases | Isolation by default, simpler security model | ✓ Good |
-| JWT with refresh tokens | Stateless auth, scalable | — Pending (needs rotation) |
-| localStorage for tokens | Simple implementation | ⚠️ Revisit (XSS risk) |
+| JWT with refresh tokens | Stateless auth, scalable | ✓ Good (with rotation) |
+| HttpOnly cookie for refresh token | XSS immunity | ✓ Good |
+| Memory-only access tokens | XSS immunity | ✓ Good |
+| Token family rotation | Reuse detection | ✓ Good |
+| NIST 800-63B password policy | Modern security best practice | ✓ Good |
+| Silent CORS reject | Prevent origin enumeration | ✓ Good |
+| SHA-256 hash chain for audit | Tamper evidence | ✓ Good |
 
 ---
-*Last updated: 2026-02-03 after milestone v2.0 start*
+*Last updated: 2026-02-04 after v2.0 milestone*
