@@ -150,6 +150,13 @@ function clearPersistedState() {
 	localStorage.removeItem(STORAGE_KEY);
 }
 
+// Get CSRF token from cookie for state-changing requests
+function getCSRFToken(): string | null {
+	if (typeof document === 'undefined') return null;
+	const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+	return match ? decodeURIComponent(match[1]) : null;
+}
+
 // API helper with auth - CRITICAL: credentials: 'include' for cookie transmission
 async function authFetch<T>(
 	endpoint: string,
@@ -167,6 +174,14 @@ async function authFetch<T>(
 
 	if (requiresAuth && state.accessToken) {
 		headers['Authorization'] = `Bearer ${state.accessToken}`;
+	}
+
+	// CSRF token required for state-changing requests (POST, PUT, PATCH, DELETE)
+	if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+		const csrfToken = getCSRFToken();
+		if (csrfToken) {
+			headers['X-CSRF-Token'] = csrfToken;
+		}
 	}
 
 	const API_BASE = PUBLIC_API_URL || '/api/v1';
@@ -192,8 +207,12 @@ async function authFetch<T>(
 		if (response.status === 401 && requiresAuth) {
 			const refreshed = await silentRefresh();
 			if (refreshed) {
-				// Retry with new token
+				// Retry with new token (and fresh CSRF token)
 				headers['Authorization'] = `Bearer ${state.accessToken}`;
+				const freshCsrfToken = getCSRFToken();
+				if (freshCsrfToken && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+					headers['X-CSRF-Token'] = freshCsrfToken;
+				}
 				const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
 					method,
 					headers,

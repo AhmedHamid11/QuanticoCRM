@@ -29,6 +29,13 @@ function getAuthToken(): string | null {
 	return auth.accessToken;
 }
 
+// Get CSRF token from cookie for state-changing requests
+function getCSRFToken(): string | null {
+	if (typeof document === 'undefined') return null;
+	const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+	return match ? decodeURIComponent(match[1]) : null;
+}
+
 function handleSessionExpired(): void {
 	if (typeof window === 'undefined') return;
 
@@ -68,6 +75,14 @@ export async function api<T>(endpoint: string, options: ApiOptions = {}): Promis
 		authHeaders['Authorization'] = `Bearer ${authToken}`;
 	}
 
+	// CSRF token required for state-changing requests (POST, PUT, PATCH, DELETE)
+	if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+		const csrfToken = getCSRFToken();
+		if (csrfToken) {
+			authHeaders['X-CSRF-Token'] = csrfToken;
+		}
+	}
+
 	const config: RequestInit = {
 		method,
 		headers: {
@@ -75,7 +90,8 @@ export async function api<T>(endpoint: string, options: ApiOptions = {}): Promis
 			...authHeaders,
 			...headers
 		},
-		signal
+		signal,
+		credentials: 'include' // Send cookies for CSRF
 	};
 
 	if (body) {
