@@ -36,7 +36,7 @@ func NewCSRFMiddleware(config CSRFConfig) fiber.Handler {
 			})
 		},
 
-		// Skip CSRF for safe methods, API tokens, and pre-auth endpoints
+		// Skip CSRF for safe methods, API tokens, JWT auth, and pre-auth endpoints
 		Next: func(c *fiber.Ctx) bool {
 			method := c.Method()
 			path := c.Path()
@@ -46,9 +46,12 @@ func NewCSRFMiddleware(config CSRFConfig) fiber.Handler {
 				return true
 			}
 
-			// API tokens (fcr_ prefix) are exempt - they're not browser-based
+			// Bearer tokens are exempt from CSRF:
+			// - API tokens (fcr_ prefix) are not browser-based
+			// - JWT tokens must be explicitly set by JavaScript (can't be forged by CSRF)
+			// CSRF protection is only needed for cookie-based auth where browsers auto-send credentials
 			auth := c.Get("Authorization")
-			if strings.HasPrefix(auth, "Bearer fcr_") {
+			if strings.HasPrefix(auth, "Bearer ") {
 				return true
 			}
 
