@@ -4,16 +4,21 @@ import "time"
 
 // Session represents an active user session
 type Session struct {
-	ID               string    `json:"id" db:"id"`
-	UserID           string    `json:"userId" db:"user_id"`
-	OrgID            string    `json:"orgId" db:"org_id"`
-	RefreshTokenHash string    `json:"-" db:"refresh_token_hash"`
-	UserAgent        string    `json:"userAgent" db:"user_agent"`
-	IPAddress        string    `json:"ipAddress" db:"ip_address"`
-	IsImpersonation  bool      `json:"isImpersonation" db:"is_impersonation"`
-	ImpersonatedBy   *string   `json:"impersonatedBy" db:"impersonated_by"`
-	ExpiresAt        time.Time `json:"expiresAt" db:"expires_at"`
-	CreatedAt        time.Time `json:"createdAt" db:"created_at"`
+	ID                     string    `json:"id" db:"id"`
+	UserID                 string    `json:"userId" db:"user_id"`
+	OrgID                  string    `json:"orgId" db:"org_id"`
+	RefreshTokenHash       string    `json:"-" db:"refresh_token_hash"`
+	UserAgent              string    `json:"userAgent" db:"user_agent"`
+	IPAddress              string    `json:"ipAddress" db:"ip_address"`
+	IsImpersonation        bool      `json:"isImpersonation" db:"is_impersonation"`
+	ImpersonatedBy         *string   `json:"impersonatedBy" db:"impersonated_by"`
+	FamilyID               string    `json:"familyId" db:"family_id"`
+	IsRevoked              bool      `json:"isRevoked" db:"is_revoked"`
+	ExpiresAt              time.Time `json:"expiresAt" db:"expires_at"`
+	CreatedAt              time.Time `json:"createdAt" db:"created_at"`
+	LastActivityAt         time.Time `json:"lastActivityAt" db:"last_activity_at"`
+	IdleTimeoutMinutes     int       `json:"idleTimeoutMinutes" db:"idle_timeout_minutes"`
+	AbsoluteTimeoutMinutes int       `json:"absoluteTimeoutMinutes" db:"absolute_timeout_minutes"`
 }
 
 // AuthResponse represents the response after successful authentication
@@ -42,13 +47,14 @@ type ImpersonateInput struct {
 
 // TokenClaims represents the JWT token claims
 type TokenClaims struct {
-	UserID          string `json:"userId"`
-	OrgID           string `json:"orgId"`
-	Email           string `json:"email"`
-	Role            string `json:"role"`
-	IsPlatformAdmin bool   `json:"isPlatformAdmin"`
-	IsImpersonation bool   `json:"isImpersonation"`
-	ImpersonatedBy  string `json:"impersonatedBy,omitempty"`
+	UserID             string `json:"userId"`
+	OrgID              string `json:"orgId"`
+	Email              string `json:"email"`
+	Role               string `json:"role"`
+	IsPlatformAdmin    bool   `json:"isPlatformAdmin"`
+	IsImpersonation    bool   `json:"isImpersonation"`
+	ImpersonatedBy     string `json:"impersonatedBy,omitempty"`
+	MustChangePassword bool   `json:"mustChangePassword,omitempty"`
 }
 
 // CurrentUser represents the authenticated user context
