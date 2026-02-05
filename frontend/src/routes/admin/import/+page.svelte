@@ -21,9 +21,9 @@
 
 	onMount(async () => {
 		try {
-			// Fetch available entities
-			const response = await api<{ entities: EntityDef[] }>('/admin/entities');
-			entities = response.entities || [];
+			// Fetch available entities (API returns array directly)
+			const response = await api<EntityDef[]>('/admin/entities');
+			entities = Array.isArray(response) ? response : [];
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load entities';
 			addToast('error', 'Failed to load entities');
