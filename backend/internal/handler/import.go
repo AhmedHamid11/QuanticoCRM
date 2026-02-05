@@ -24,6 +24,7 @@ type ImportHandler struct {
 	db                *sql.DB
 	metadataRepo      *repo.MetadataRepo
 	csvParser         *service.CSVParser
+	csvValidator      *service.CSVValidatorService
 	tripwireService   TripwireServiceInterface
 	validationService ValidationServiceInterface
 }
@@ -39,6 +40,7 @@ func NewImportHandler(
 		db:                db,
 		metadataRepo:      metadataRepo,
 		csvParser:         service.NewCSVParser(),
+		csvValidator:      service.NewCSVValidatorService(),
 		tripwireService:   tripwireService,
 		validationService: validationService,
 	}
@@ -756,6 +758,99 @@ func (h *ImportHandler) updateRecord(
 	return err
 }
 
+// AnalyzeCSV handles POST /api/v1/entities/:entity/import/csv/analyze
+func (h *ImportHandler) AnalyzeCSV(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+
+	// Verify entity exists
+	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if ent == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+	}
+
+	// Get the uploaded file
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No file uploaded. Use 'file' field in multipart form."})
+	}
+
+	// Validate file size (max 50MB)
+	if fileHeader.Size > 50*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "File too large. Maximum size is 50MB."})
+	}
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".csv") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid file type. Only CSV files are accepted."})
+	}
+
+	// Open the file
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
+	}
+	defer file.Close()
+
+	// Read file content into buffer
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read file content"})
+	}
+
+	// Parse options from form data (for column mapping)
+	var options ImportCSVRequest
+	if optionsStr := c.FormValue("options"); optionsStr != "" {
+		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid options JSON"})
+		}
+	}
+
+	// Get field definitions
+	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Parse CSV
+	var parseResult *service.CSVParseResult
+	if len(options.ColumnMapping) > 0 {
+		parseResult, err = h.csvParser.ParseWithMapping(bytes.NewReader(fileContent), options.ColumnMapping)
+	} else {
+		parseResult, err = h.csvParser.Parse(bytes.NewReader(fileContent), fields)
+	}
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Check for parse errors
+	if len(parseResult.Errors) > 0 {
+		var bulkErrors []BulkError
+		for _, e := range parseResult.Errors {
+			bulkErrors = append(bulkErrors, BulkError{
+				Index: e.Row,
+				Error: e.Message,
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":  "CSV parsing errors",
+			"errors": bulkErrors,
+		})
+	}
+
+	if len(parseResult.Records) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No valid records found in CSV"})
+	}
+
+	// Validate records
+	analyzeResult := h.csvValidator.Validate(parseResult.Records, fields)
+
+	return c.JSON(analyzeResult)
+}
+
 // PreviewCSV handles POST /api/v1/entities/:entity/import/csv/preview
 func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
@@ -1096,4 +1191,5 @@ func (h *ImportHandler) ensureTableExists(ctx context.Context, orgID, entityName
 func (h *ImportHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/entities/:entity/import/csv", h.ImportCSV)
 	app.Post("/entities/:entity/import/csv/preview", h.PreviewCSV)
+	app.Post("/entities/:entity/import/csv/analyze", h.AnalyzeCSV)
 }
