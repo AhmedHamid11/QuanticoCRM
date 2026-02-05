@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { api } from '$lib/utils/api';
+	import { PUBLIC_API_URL } from '$env/static/public';
 	import { addToast } from '$lib/stores/toast.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
+
+	const API_BASE = PUBLIC_API_URL || '/api/v1';
 
 	interface Props {
 		entityName: string;
@@ -80,12 +83,12 @@
 			const formData = new FormData();
 			formData.append('file', file);
 
-			const response = await fetch(`/api/v1/entities/${entityName}/import/csv/preview`, {
+			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv/preview`, {
 				method: 'POST',
 				body: formData,
 				credentials: 'include',
 				headers: {
-					'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+					'Authorization': `Bearer ${auth.accessToken || ''}`,
 					'X-CSRF-Token': getCsrfToken()
 				}
 			});
@@ -128,12 +131,12 @@
 			formData.append('file', file);
 			formData.append('options', JSON.stringify({ columnMapping }));
 
-			const response = await fetch(`/api/v1/entities/${entityName}/import/csv/analyze`, {
+			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv/analyze`, {
 				method: 'POST',
 				body: formData,
 				credentials: 'include',
 				headers: {
-					'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+					'Authorization': `Bearer ${auth.accessToken || ''}`,
 					'X-CSRF-Token': getCsrfToken()
 				}
 			});
@@ -168,12 +171,12 @@
 				skipErrors: false
 			}));
 
-			const response = await fetch(`/api/v1/entities/${entityName}/import/csv`, {
+			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv`, {
 				method: 'POST',
 				body: formData,
 				credentials: 'include',
 				headers: {
-					'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+					'Authorization': `Bearer ${auth.accessToken || ''}`,
 					'X-CSRF-Token': getCsrfToken()
 				}
 			});
