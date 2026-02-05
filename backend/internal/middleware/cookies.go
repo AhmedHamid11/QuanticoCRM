@@ -17,18 +17,30 @@ const (
 // SetRefreshTokenCookie sets the refresh token in an HttpOnly, Secure cookie
 // SECURITY: This cookie is:
 // - HttpOnly: Cannot be accessed by JavaScript (XSS protection)
-// - Secure: Only sent over HTTPS in production
-// - SameSite=Strict: Prevents CSRF attacks
+// - Secure: Always true in production (required for SameSite=None)
+// - SameSite=None: Required for cross-origin requests (Vercel frontend → Railway backend)
+// - CSRF protection is handled via X-CSRF-Token header for mutating requests
 func SetRefreshTokenCookie(c *fiber.Ctx, token string, isProduction bool) {
 	expiresAt := time.Now().Add(RefreshTokenMaxAge)
+
+	// SameSite=None requires Secure=true
+	// In production, we're always HTTPS; in dev, browsers may accept without Secure
+	sameSite := "None"
+	secure := true
+	if !isProduction {
+		// In development, use Lax to avoid issues with localhost
+		sameSite = "Lax"
+		secure = false
+	}
+
 	c.Cookie(&fiber.Cookie{
 		Name:     RefreshTokenCookieName,
 		Value:    token,
 		Expires:  expiresAt,
-		HTTPOnly: true,                   // CRITICAL: Not accessible to JavaScript
-		Secure:   isProduction,           // Only HTTPS in production
-		SameSite: "Strict",               // Strict CSRF protection
-		Path:     "/api/v1/auth",         // Only sent to auth endpoints
+		HTTPOnly: true,     // CRITICAL: Not accessible to JavaScript
+		Secure:   secure,   // Required for SameSite=None
+		SameSite: sameSite, // None for cross-site, Lax for dev
+		Path:     "/api/v1/auth", // Only sent to auth endpoints
 	})
 }
 
@@ -39,13 +51,21 @@ func GetRefreshTokenFromCookie(c *fiber.Ctx) string {
 
 // ClearRefreshTokenCookie removes the refresh token cookie by setting it to expire immediately
 func ClearRefreshTokenCookie(c *fiber.Ctx, isProduction bool) {
+	// Match the same SameSite settings as SetRefreshTokenCookie
+	sameSite := "None"
+	secure := true
+	if !isProduction {
+		sameSite = "Lax"
+		secure = false
+	}
+
 	c.Cookie(&fiber.Cookie{
 		Name:     RefreshTokenCookieName,
 		Value:    "",
 		Expires:  time.Now().Add(-1 * time.Hour), // Expire immediately
 		HTTPOnly: true,
-		Secure:   isProduction,
-		SameSite: "Strict",
+		Secure:   secure,
+		SameSite: sameSite,
 		Path:     "/api/v1/auth",
 	})
 }
