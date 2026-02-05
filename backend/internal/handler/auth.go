@@ -17,15 +17,15 @@ import (
 type AuthHandler struct {
 	authService  *service.AuthService
 	auditLogger  *service.AuditLogger
-	isProduction bool
+	cookieConfig middleware.CookieConfig
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(authService *service.AuthService, auditLogger *service.AuditLogger, isProduction bool) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, auditLogger *service.AuditLogger, cookieConfig middleware.CookieConfig) *AuthHandler {
 	return &AuthHandler{
 		authService:  authService,
 		auditLogger:  auditLogger,
-		isProduction: isProduction,
+		cookieConfig: cookieConfig,
 	}
 }
 
@@ -56,7 +56,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token in body only (refresh token is in cookie)
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -100,7 +100,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	go h.auditLogger.LogLoginAttempt(c.Context(), input.Email, ipAddress, userAgent, true, "")
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token in body only (refresh token is in cookie)
 	return c.JSON(fiber.Map{
@@ -124,12 +124,12 @@ func (h *AuthHandler) RefreshToken(c *fiber.Ctx) error {
 	response, err := h.authService.RefreshTokens(c.Context(), refreshToken)
 	if err != nil {
 		// On any auth error, clear the cookie
-		middleware.ClearRefreshTokenCookie(c, h.isProduction)
+		middleware.ClearRefreshTokenCookie(c, h.cookieConfig)
 		return h.handleAuthError(c, err)
 	}
 
 	// Set new refresh token cookie (rotation)
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return new access token in body
 	return c.JSON(fiber.Map{
@@ -160,7 +160,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	}
 
 	// Always clear the cookie
-	middleware.ClearRefreshTokenCookie(c, h.isProduction)
+	middleware.ClearRefreshTokenCookie(c, h.cookieConfig)
 
 	return c.JSON(fiber.Map{
 		"message": "Logged out successfully",
@@ -248,7 +248,7 @@ func (h *AuthHandler) SwitchOrg(c *fiber.Ctx) error {
 	}
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token in body only
 	return c.JSON(fiber.Map{
@@ -295,7 +295,7 @@ func (h *AuthHandler) Impersonate(c *fiber.Ctx) error {
 	)
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token in body only
 	return c.JSON(fiber.Map{
@@ -334,7 +334,7 @@ func (h *AuthHandler) StopImpersonate(c *fiber.Ctx) error {
 	)
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token in body only
 	return c.JSON(fiber.Map{
@@ -435,7 +435,7 @@ func (h *AuthHandler) AcceptInvitation(c *fiber.Ctx) error {
 	}
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token in body only
 	return c.JSON(fiber.Map{
@@ -489,7 +489,7 @@ func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
 	}
 
 	// SECURITY: Set refresh token as HttpOnly cookie
-	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.isProduction)
+	middleware.SetRefreshTokenCookie(c, response.RefreshToken, h.cookieConfig)
 
 	// Return access token and user info
 	return c.JSON(fiber.Map{

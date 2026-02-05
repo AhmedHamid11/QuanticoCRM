@@ -212,7 +212,11 @@ func main() {
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
 	auditLogger := service.NewAuditLogger(auditRepo)
-	authHandler := handler.NewAuthHandler(authService, auditLogger, cfg.IsProduction())
+	cookieConfig := middleware.CookieConfig{
+		IsProduction: cfg.IsProduction(),
+		Domain:       cfg.CookieDomain, // e.g., ".quanticocrm.com" for subdomain sharing
+	}
+	authHandler := handler.NewAuthHandler(authService, auditLogger, cookieConfig)
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)

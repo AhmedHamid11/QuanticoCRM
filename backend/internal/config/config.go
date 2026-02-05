@@ -22,6 +22,11 @@ type Config struct {
 	// In production, should be explicitly set.
 	AllowedOrigins []string
 
+	// CookieDomain is the domain for cookies (e.g., ".quanticocrm.com").
+	// Leading dot allows cookies to be shared across subdomains.
+	// If empty, cookies are scoped to the exact hostname.
+	CookieDomain string
+
 	// AuthRateLimit is the max login attempts per minute per IP.
 	// Default: 5
 	AuthRateLimit int
@@ -39,6 +44,7 @@ func Load() *Config {
 	cfg := &Config{
 		Environment:   getEnv("ENVIRONMENT", "development"),
 		JWTSecret:     os.Getenv("JWT_SECRET"),
+		CookieDomain:  os.Getenv("COOKIE_DOMAIN"), // e.g., ".quanticocrm.com"
 		TursoURL:      os.Getenv("TURSO_URL"),
 		TursoToken:    os.Getenv("TURSO_AUTH_TOKEN"),
 		AuthRateLimit: getEnvInt("AUTH_RATE_LIMIT", 20),
