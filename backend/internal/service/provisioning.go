@@ -12,12 +12,13 @@ import (
 
 // ProvisioningService handles provisioning default metadata for new organizations
 type ProvisioningService struct {
-	db db.DBConn
+	db             db.DBConn
+	SkipSampleData bool // Set to true to skip sample data creation (useful for tests)
 }
 
 // NewProvisioningService creates a new ProvisioningService
 func NewProvisioningService(dbConn db.DBConn) *ProvisioningService {
-	return &ProvisioningService{db: dbConn}
+	return &ProvisioningService{db: dbConn, SkipSampleData: false}
 }
 
 // SetDB allows changing the database connection (used for tenant provisioning)
@@ -68,8 +69,10 @@ func (s *ProvisioningService) ProvisionDefaultMetadata(ctx context.Context, orgI
 	// Create navigation tabs (in local mode, same DB as metadata)
 	s.ProvisionNavigation(ctx, orgID)
 
-	// Create sample data
-	s.createSampleData(ctx, orgID, now)
+	// Create sample data (unless skipped for tests)
+	if !s.SkipSampleData {
+		s.createSampleData(ctx, orgID, now)
+	}
 
 	log.Printf("[Provisioning] Completed full provisioning for org %s", orgID)
 	return nil
@@ -139,7 +142,7 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Account", "modifiedAt", "Modified At", "datetime", false, 101, now)
 
 	// --- Task fields (all standard columns) ---
-	s.createField(ctx, orgID, "Task", "name", "Subject", "varchar", true, 1, now)
+	s.createField(ctx, orgID, "Task", "subject", "Subject", "varchar", true, 1, now)
 	s.createField(ctx, orgID, "Task", "status", "Status", "enum", false, 2, now)
 	s.createField(ctx, orgID, "Task", "priority", "Priority", "enum", false, 3, now)
 	s.createField(ctx, orgID, "Task", "type", "Type", "enum", false, 4, now)
@@ -207,7 +210,7 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createLayout(ctx, orgID, "Account", "list",
 		`["name","type","industry","phoneNumber","emailAddress","website","billingAddressCity","createdAt"]`, now)
 	s.createLayout(ctx, orgID, "Task", "list",
-		`["name","status","priority","type","dueDate","parentName","createdAt"]`, now)
+		`["subject","status","priority","type","dueDate","parentName","createdAt"]`, now)
 	s.createLayout(ctx, orgID, "Quote", "list",
 		`["name","quoteNumber","status","accountId","contactId","grandTotal","validUntil","createdAt"]`, now)
 
@@ -254,7 +257,7 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 
 	s.createLayout(ctx, orgID, "Task", "detail", `[
 		{"label":"Overview","rows":[
-			[{"field":"name"}],
+			[{"field":"subject"}],
 			[{"field":"status"},{"field":"priority"}],
 			[{"field":"type"},{"field":"dueDate"}],
 			[{"field":"parentName"},{"field":"parentType"}]

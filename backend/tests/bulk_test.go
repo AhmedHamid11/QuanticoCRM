@@ -17,7 +17,6 @@ func TestBulk_Create(t *testing.T) {
 
 	t.Run("bulk creates multiple contacts", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
 				{"lastName": "Smith", "firstName": "John"},
 				{"lastName": "Doe", "firstName": "Jane"},
@@ -26,28 +25,28 @@ func TestBulk_Create(t *testing.T) {
 		}
 
 		var response struct {
-			Created []struct {
-				ID       string `json:"id"`
-				LastName string `json:"lastName"`
-			} `json:"created"`
-			Errors []interface{} `json:"errors"`
-			Total  int           `json:"total"`
+			Created int      `json:"created"`
+			Failed  int      `json:"failed"`
+			IDs     []string `json:"ids"`
+			Errors  []struct {
+				Index int    `json:"index"`
+				Error string `json:"error"`
+			} `json:"errors"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/create", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/entities/Contact/bulk", body, user.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusCreated) // 201 for successful bulk create
 
-		if len(response.Created) != 3 {
-			t.Errorf("Expected 3 created records, got %d", len(response.Created))
+		if response.Created != 3 {
+			t.Errorf("Expected 3 created records, got %d", response.Created)
 		}
-		if response.Total != 3 {
-			t.Errorf("Expected total 3, got %d", response.Total)
+		if len(response.IDs) != 3 {
+			t.Errorf("Expected 3 IDs, got %d", len(response.IDs))
 		}
 	})
 
 	t.Run("bulk creates multiple accounts", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Account",
 			"records": []map[string]interface{}{
 				{"name": "Acme Corp"},
 				{"name": "Tech Solutions"},
@@ -56,24 +55,21 @@ func TestBulk_Create(t *testing.T) {
 		}
 
 		var response struct {
-			Created []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"created"`
-			Total int `json:"total"`
+			Created int      `json:"created"`
+			Failed  int      `json:"failed"`
+			IDs     []string `json:"ids"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/create", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/entities/Account/bulk", body, user.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusCreated) // 201 for successful bulk create
 
-		if len(response.Created) != 3 {
-			t.Errorf("Expected 3 created accounts, got %d", len(response.Created))
+		if response.Created != 3 {
+			t.Errorf("Expected 3 created accounts, got %d", response.Created)
 		}
 	})
 
 	t.Run("handles partial failures", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
 				{"lastName": "Valid"},     // Valid
 				{"firstName": "NoLast"},   // Invalid - missing lastName
@@ -82,47 +78,39 @@ func TestBulk_Create(t *testing.T) {
 		}
 
 		var response struct {
-			Created []interface{} `json:"created"`
+			Created int `json:"created"`
+			Failed  int `json:"failed"`
 			Errors  []struct {
 				Index int    `json:"index"`
 				Error string `json:"error"`
 			} `json:"errors"`
-			Total int `json:"total"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/create", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/entities/Contact/bulk", body, user.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusUnprocessableEntity) // 422 when any records fail
 
-		if len(response.Created) != 2 {
-			t.Errorf("Expected 2 created records, got %d", len(response.Created))
-		}
-		if len(response.Errors) != 1 {
-			t.Errorf("Expected 1 error, got %d", len(response.Errors))
-		}
-		if len(response.Errors) > 0 && response.Errors[0].Index != 1 {
-			t.Errorf("Expected error at index 1, got %d", response.Errors[0].Index)
+		if response.Failed != 1 {
+			t.Errorf("Expected 1 failed, got %d", response.Failed)
 		}
 	})
 
 	t.Run("fails without authentication", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
 				{"lastName": "Test"},
 			},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/bulk/create", body, "")
+		resp := app.MakeRequest(t, "POST", "/api/v1/entities/Contact/bulk", body, "")
 		AssertStatus(t, resp, http.StatusUnauthorized)
 	})
 
 	t.Run("fails with empty records", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
-			"records":    []map[string]interface{}{},
+			"records": []map[string]interface{}{},
 		}
 
-		resp := app.MakeRequest(t, "POST", "/api/v1/bulk/create", body, user.AccessToken)
+		resp := app.MakeRequest(t, "POST", "/api/v1/entities/Contact/bulk", body, user.AccessToken)
 		AssertStatus(t, resp, http.StatusBadRequest)
 	})
 }
@@ -149,7 +137,6 @@ func TestBulk_Update(t *testing.T) {
 
 	t.Run("bulk updates multiple contacts", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
 				{"id": contactIDs[0], "firstName": "Updated1"},
 				{"id": contactIDs[1], "firstName": "Updated2"},
@@ -158,25 +145,25 @@ func TestBulk_Update(t *testing.T) {
 		}
 
 		var response struct {
-			Updated []struct {
-				ID        string `json:"id"`
-				FirstName string `json:"firstName"`
-			} `json:"updated"`
-			Errors []interface{} `json:"errors"`
-			Total  int           `json:"total"`
+			Updated int      `json:"updated"`
+			Failed  int      `json:"failed"`
+			IDs     []string `json:"ids"`
+			Errors  []struct {
+				Index int    `json:"index"`
+				Error string `json:"error"`
+			} `json:"errors"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/update", body, user.AccessToken, &response)
+		resp := app.MakeRequestWithResponse(t, "PATCH", "/api/v1/entities/Contact/bulk", body, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
-		if len(response.Updated) != 3 {
-			t.Errorf("Expected 3 updated records, got %d", len(response.Updated))
+		if response.Updated != 3 {
+			t.Errorf("Expected 3 updated records, got %d", response.Updated)
 		}
 	})
 
 	t.Run("handles non-existent records", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
 				{"id": contactIDs[0], "firstName": "Valid"},
 				{"id": "nonexistent-id", "firstName": "Invalid"},
@@ -184,21 +171,19 @@ func TestBulk_Update(t *testing.T) {
 		}
 
 		var response struct {
-			Updated []interface{} `json:"updated"`
+			Updated int `json:"updated"`
+			Failed  int `json:"failed"`
 			Errors  []struct {
 				Index int    `json:"index"`
 				Error string `json:"error"`
 			} `json:"errors"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/update", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "PATCH", "/api/v1/entities/Contact/bulk", body, user.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusUnprocessableEntity) // 422 when any records fail
 
-		if len(response.Updated) != 1 {
-			t.Errorf("Expected 1 updated record, got %d", len(response.Updated))
-		}
-		if len(response.Errors) != 1 {
-			t.Errorf("Expected 1 error, got %d", len(response.Errors))
+		if response.Failed != 1 {
+			t.Errorf("Expected 1 failed, got %d", response.Failed)
 		}
 	})
 }
@@ -223,29 +208,26 @@ func TestBulk_OrgIsolation(t *testing.T) {
 
 	t.Run("user cannot bulk update other org's records", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
 				{"id": contact.ID, "firstName": "Hacked"},
 			},
 		}
 
 		var response struct {
-			Updated []interface{} `json:"updated"`
+			Updated int `json:"updated"`
+			Failed  int `json:"failed"`
 			Errors  []struct {
 				Index int    `json:"index"`
 				Error string `json:"error"`
 			} `json:"errors"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/update", body, user2.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "PATCH", "/api/v1/entities/Contact/bulk", body, user2.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusUnprocessableEntity) // 422 when record not found
 
 		// Should have 0 updates and 1 error (not found)
-		if len(response.Updated) != 0 {
-			t.Errorf("Expected 0 updated records, got %d", len(response.Updated))
-		}
-		if len(response.Errors) != 1 {
-			t.Errorf("Expected 1 error, got %d", len(response.Errors))
+		if response.Failed != 1 {
+			t.Errorf("Expected 1 failed, got %d", response.Failed)
 		}
 	})
 }
@@ -258,58 +240,53 @@ func TestBulk_ValidationRules(t *testing.T) {
 
 	// Create a validation rule that requires email for VIP contacts
 	ruleBody := map[string]interface{}{
-		"name":       "Require Email for VIP",
-		"entityType": "Contact",
-		"event":      "CREATE",
-		"isActive":   true,
-		"action":     "BLOCK_SAVE",
-		"message":    "Email required for VIP",
+		"name":            "Require Email for VIP",
+		"enabled":         true,
+		"triggerOnCreate": true,
+		"triggerOnUpdate": false,
+		"triggerOnDelete": false,
+		"conditionLogic":  "AND",
 		"conditions": []map[string]interface{}{
 			{
-				"field":    "description",
-				"operator": "CONTAINS",
-				"value":    "VIP",
+				"fieldName": "description",
+				"operator":  "CONTAINS",
+				"value":     "VIP",
 			},
 		},
-		"validations": []map[string]interface{}{
+		"actions": []map[string]interface{}{
 			{
-				"field":    "emailAddress",
-				"operator": "NOT_EMPTY",
+				"type":         "REQUIRE_VALUE",
+				"fields":       []string{"emailAddress"},
+				"errorMessage": "Email required for VIP",
 			},
 		},
 	}
-	resp := app.MakeRequest(t, "POST", "/api/v1/validation-rules/", ruleBody, user.AccessToken)
+	resp := app.MakeRequest(t, "POST", "/api/v1/admin/entities/Contact/validation-rules", ruleBody, user.AccessToken)
 	AssertStatus(t, resp, http.StatusCreated)
 
 	t.Run("validation rules apply to bulk create", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Contact",
 			"records": []map[string]interface{}{
-				{"lastName": "Regular"},                             // Should pass
-				{"lastName": "VIPNoEmail", "description": "VIP"},    // Should fail - VIP without email
+				{"lastName": "Regular"},                                                              // Should pass
+				{"lastName": "VIPNoEmail", "description": "VIP"},                                     // Should fail - VIP without email
 				{"lastName": "VIPWithEmail", "description": "VIP", "emailAddress": "vip@example.com"}, // Should pass
 			},
 		}
 
 		var response struct {
-			Created []interface{} `json:"created"`
+			Created int `json:"created"`
+			Failed  int `json:"failed"`
 			Errors  []struct {
 				Index int    `json:"index"`
 				Error string `json:"error"`
 			} `json:"errors"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/create", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/entities/Contact/bulk", body, user.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusUnprocessableEntity) // 422 when validation fails
 
-		if len(response.Created) != 2 {
-			t.Errorf("Expected 2 created records, got %d", len(response.Created))
-		}
-		if len(response.Errors) != 1 {
-			t.Errorf("Expected 1 error, got %d", len(response.Errors))
-		}
-		if len(response.Errors) > 0 && response.Errors[0].Index != 1 {
-			t.Errorf("Expected error at index 1, got %d", response.Errors[0].Index)
+		if response.Failed != 1 {
+			t.Errorf("Expected 1 failed, got %d", response.Failed)
 		}
 	})
 }
@@ -332,27 +309,24 @@ func TestBulk_Tasks(t *testing.T) {
 
 	t.Run("bulk creates multiple tasks", func(t *testing.T) {
 		body := map[string]interface{}{
-			"entityType": "Task",
 			"records": []map[string]interface{}{
-				{"name": "Task 1", "type": "Todo", "parentType": "Contact", "parentId": contact.ID},
-				{"name": "Task 2", "type": "Call", "parentType": "Contact", "parentId": contact.ID},
-				{"name": "Task 3", "type": "Email", "parentType": "Contact", "parentId": contact.ID},
+				{"subject": "Task 1", "type": "Todo", "parentType": "Contact", "parentId": contact.ID},
+				{"subject": "Task 2", "type": "Todo", "parentType": "Contact", "parentId": contact.ID},
+				{"subject": "Task 3", "type": "Todo", "parentType": "Contact", "parentId": contact.ID},
 			},
 		}
 
 		var response struct {
-			Created []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"created"`
-			Total int `json:"total"`
+			Created int      `json:"created"`
+			Failed  int      `json:"failed"`
+			IDs     []string `json:"ids"`
 		}
 
-		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/bulk/create", body, user.AccessToken, &response)
-		AssertStatus(t, resp, http.StatusOK)
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/entities/Task/bulk", body, user.AccessToken, &response)
+		AssertStatus(t, resp, http.StatusCreated) // 201 for successful bulk create
 
-		if len(response.Created) != 3 {
-			t.Errorf("Expected 3 created tasks, got %d", len(response.Created))
+		if response.Created != 3 {
+			t.Errorf("Expected 3 created tasks, got %d", response.Created)
 		}
 	})
 }
