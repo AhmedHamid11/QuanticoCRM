@@ -10,8 +10,15 @@
 	import type { Contact } from '$lib/types/contact';
 	import type { FieldDef } from '$lib/types/admin';
 	import type { LayoutV2Response, LayoutDataV2 } from '$lib/types/layout';
-	import { parseLayoutData, getAllFieldNames } from '$lib/types/layout';
+	import { parseLayoutData, getVisibleSections } from '$lib/types/layout';
 	import LookupField from '$lib/components/LookupField.svelte';
+	import MultiLookupField from '$lib/components/MultiLookupField.svelte';
+	import EditSectionRenderer from '$lib/components/EditSectionRenderer.svelte';
+
+	interface LookupRecord {
+		id: string;
+		name: string;
+	}
 
 	const formErrors = useFormErrors();
 
@@ -28,10 +35,15 @@
 	let saving = $state(false);
 	let error = $state<string | null>(null);
 	let fields = $state<FieldDef[]>([]);
-	let layoutFields = $state<string[]>([]);
+	let layout = $state<LayoutDataV2 | null>(null);
+	let lookupNames = $state<Record<string, string>>({});
+	let multiLookupValues = $state<Record<string, LookupRecord[]>>({});
 
 	// Dynamic form data - keyed by field name
 	let formData = $state<Record<string, unknown>>({});
+
+	// Get visible sections based on form data
+	let visibleSections = $derived(() => layout ? getVisibleSections(layout, formData) : []);
 
 	function isSystemField(fieldName: string): boolean {
 		const key = fieldNameToKey(fieldName);
@@ -53,12 +65,10 @@
 			// Load layout (may be v1, v2, or legacy section format)
 			try {
 				const layoutResponse = await get<{ layoutData: string }>('/entities/Contact/layouts/detail');
-				const layout = parseLayoutData(layoutResponse.layoutData, fieldsData.map(f => f.name));
-				layoutFields = getAllFieldNames(layout);
+				layout = parseLayoutData(layoutResponse.layoutData, fieldsData.map(f => f.name));
 			} catch {
 				// Default to all fields
-				const layout = parseLayoutData('[]', fieldsData.map(f => f.name));
-				layoutFields = getAllFieldNames(layout);
+				layout = parseLayoutData('[]', fieldsData.map(f => f.name));
 			}
 
 			// Initialize form data from contact
@@ -82,6 +92,39 @@
 					} else {
 						data[nameFieldName] = contactData.customFields?.[nameFieldName] ?? '';
 					}
+					// Store lookup name for EditSectionRenderer
+					lookupNames[field.name] = String(data[nameFieldName] || '');
+				}
+
+				// For linkMultiple fields, load the values
+				if (field.type === 'linkMultiple') {
+					const idsFieldName = `${field.name}Ids`;
+					const namesFieldName = `${field.name}Names`;
+					const idsKey = fieldNameToKey(idsFieldName);
+					const namesKey = fieldNameToKey(namesFieldName);
+
+					const idsVal = isSystemField(idsFieldName)
+						? (contactData as Record<string, unknown>)[idsKey]
+						: contactData.customFields?.[idsFieldName];
+					const namesVal = isSystemField(namesFieldName)
+						? (contactData as Record<string, unknown>)[namesKey]
+						: contactData.customFields?.[namesFieldName];
+
+					if (idsVal && namesVal && idsVal !== '[]') {
+						try {
+							const ids = typeof idsVal === 'string' ? JSON.parse(idsVal) : idsVal;
+							const names = typeof namesVal === 'string' ? JSON.parse(namesVal) : namesVal;
+
+							if (Array.isArray(ids) && Array.isArray(names)) {
+								multiLookupValues[field.name] = ids.map((id: string, i: number) => ({
+									id,
+									name: names[i] || ''
+								}));
+							}
+						} catch {
+							// Not valid JSON, ignore
+						}
+					}
 				}
 			}
 			formData = data;
@@ -95,18 +138,6 @@
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		formErrors.clearAll();
-
-		// Validate required fields
-		for (const fieldName of layoutFields) {
-			const field = fields.find(f => f.name === fieldName);
-			if (field?.isRequired && !formData[fieldName]) {
-				formErrors.setFieldError(fieldName, `${field.label} is required`);
-			}
-		}
-
-		if (formErrors.hasErrors()) {
-			return;
-		}
 
 		saving = true;
 
@@ -140,41 +171,6 @@
 		}
 	}
 
-	function getFieldDef(fieldName: string): FieldDef | undefined {
-		return fields.find(f => f.name === fieldName);
-	}
-
-	function getInputType(field: FieldDef): string {
-		switch (field.type) {
-			case 'email': return 'email';
-			case 'phone': return 'tel';
-			case 'url': return 'url';
-			case 'int':
-			case 'float':
-			case 'currency': return 'number';
-			case 'date': return 'date';
-			case 'datetime': return 'datetime-local';
-			default: return 'text';
-		}
-	}
-
-	function parseOptions(optionsStr: string | null | undefined): string[] {
-		if (!optionsStr) return [];
-		try {
-			const parsed = JSON.parse(optionsStr);
-			return Array.isArray(parsed) ? parsed : [];
-		} catch {
-			return optionsStr.split(',').map(s => s.trim()).filter(Boolean);
-		}
-	}
-
-	function handleLookupChange(field: FieldDef, id: string | null, name: string) {
-		// For lookup fields, store both the ID and Name
-		formData[field.name] = id || '';
-		const nameFieldName = field.name.replace(/Id$/, 'Name');
-		formData[nameFieldName] = name;
-	}
-
 	onMount(() => {
 		loadData();
 	});
@@ -193,112 +189,45 @@
 	{:else if error}
 		<ErrorDisplay message={error} onRetry={loadData} />
 	{:else}
-		<form onsubmit={handleSubmit} class="bg-white shadow rounded-lg p-6 space-y-4">
-			{#each layoutFields as fieldName (fieldName)}
-				{@const field = getFieldDef(fieldName)}
-				{#if field}
-					<div>
-						{#if field.type === 'link' && field.linkEntity}
-							<!-- Lookup field for link type (renders its own label) -->
-							{@const nameFieldName = field.name.replace(/Id$/, 'Name')}
-							<LookupField
-								entity={field.linkEntity}
-								value={formData[field.name] as string | null}
-								valueName={formData[nameFieldName] as string || ''}
-								label={field.label}
-								required={field.isRequired}
-								disabled={field.isReadOnly}
-								onchange={(id, name) => handleLookupChange(field, id, name)}
-							/>
-
-						{:else}
-						<label for={fieldName} class="block text-sm font-medium text-gray-700 mb-1">
-							{field.label}
-							{#if field.isRequired}
-								<span class="text-red-500">*</span>
-							{/if}
-						</label>
-
-						{#if field.type === 'text'}
-							<!-- Textarea for text type -->
-							<textarea
-								id={fieldName}
-								bind:value={formData[fieldName]}
-								rows="3"
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								required={field.isRequired}
-								readonly={field.isReadOnly}
-							></textarea>
-
-						{:else if field.type === 'bool'}
-							<!-- Checkbox for boolean -->
-							<label class="flex items-center">
-								<input
-									type="checkbox"
-									id={fieldName}
-									bind:checked={formData[fieldName]}
-									class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-									disabled={field.isReadOnly}
-								/>
-								<span class="ml-2 text-sm text-gray-700">Yes</span>
-							</label>
-
-						{:else if field.type === 'enum'}
-							<!-- Select for enum -->
-							{@const options = parseOptions(field.options)}
-							<select
-								id={fieldName}
-								bind:value={formData[fieldName]}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								required={field.isRequired}
-								disabled={field.isReadOnly}
-							>
-								<option value="">--</option>
-								{#each options as option}
-									<option value={option}>{option}</option>
-								{/each}
-							</select>
-
-						{:else}
-							<!-- Standard input for other types -->
-							<input
-								id={fieldName}
-								type={getInputType(field)}
-								bind:value={formData[fieldName]}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-								required={field.isRequired}
-								readonly={field.isReadOnly}
-								maxlength={field.maxLength || undefined}
-								min={field.minValue ?? undefined}
-								max={field.maxValue ?? undefined}
-								pattern={field.pattern || undefined}
-							/>
-						{/if}
-						{/if}
-
-						{#if field.tooltip && !formErrors.getFieldError(fieldName)}
-							<p class="mt-1 text-xs text-gray-500">{field.tooltip}</p>
-						{/if}
-						<FieldError message={formErrors.getFieldError(fieldName)} />
-					</div>
-				{/if}
+		<form onsubmit={handleSubmit} class="space-y-6">
+			{#each visibleSections() as section (section.id)}
+				<EditSectionRenderer
+					{section}
+					{fields}
+					bind:formData
+					{lookupNames}
+					{multiLookupValues}
+					getFieldError={(fieldName) => formErrors.getFieldError(fieldName) ? { field: fieldName, message: formErrors.getFieldError(fieldName) || '' } : undefined}
+					onLookupChange={(fieldName, id, name) => {
+						formData[`${fieldName}Id`] = id;
+						formData[`${fieldName}Name`] = name;
+						lookupNames[fieldName] = name;
+					}}
+					onMultiLookupChange={(fieldName, values) => {
+						multiLookupValues[fieldName] = values;
+						formData[`${fieldName}Ids`] = JSON.stringify(values.map(v => v.id));
+						formData[`${fieldName}Names`] = JSON.stringify(values.map(v => v.name));
+					}}
+				/>
 			{/each}
 
 			<!-- Actions -->
-			<div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
-				<a
-					href="/contacts/{contactId}"
-					class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-				>
-					Cancel
-				</a>
-				<button
-					type="submit"
-					disabled={saving}
-					class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50"
-				>
-					{saving ? 'Saving...' : 'Save Changes'}
-				</button>
+			<div class="bg-white shadow rounded-lg p-6">
+				<div class="flex justify-end gap-3">
+					<a
+						href="/contacts/{contactId}"
+						class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+					>
+						Cancel
+					</a>
+					<button
+						type="submit"
+						disabled={saving}
+						class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50"
+					>
+						{saving ? 'Saving...' : 'Save Changes'}
+					</button>
+				</div>
 			</div>
 		</form>
 	{/if}

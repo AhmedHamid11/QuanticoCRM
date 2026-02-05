@@ -6,10 +6,13 @@
 	import { fieldNameToKey, getRecordValue } from '$lib/utils/fieldMapping';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
 	import type { FieldValidationError } from '$lib/types/validation';
+	import type { LayoutDataV2 } from '$lib/types/layout';
+	import { parseLayoutData, getVisibleSections } from '$lib/types/layout';
 	import LookupField from '$lib/components/LookupField.svelte';
 	import MultiLookupField from '$lib/components/MultiLookupField.svelte';
 	import StreamField from '$lib/components/StreamField.svelte';
 	import ValidationErrors from '$lib/components/ValidationErrors.svelte';
+	import EditSectionRenderer from '$lib/components/EditSectionRenderer.svelte';
 
 	interface LookupRecord {
 		id: string;
@@ -30,6 +33,7 @@
 
 	let entityDef = $state<EntityDef | null>(null);
 	let fields = $state<FieldDef[]>([]);
+	let layout = $state<LayoutDataV2 | null>(null);
 	let formData = $state<Record<string, unknown>>({});
 	let lookupNames = $state<Record<string, string>>({});
 	let multiLookupValues = $state<Record<string, LookupRecord[]>>({});
@@ -43,24 +47,9 @@
 		return fieldErrors.find((e) => e.field === fieldName);
 	}
 
-	// Editable fields (exclude id, system fields)
-	let editableFields = $derived(
-		fields.filter(f => f.name !== 'id' && !f.isReadOnly)
-	);
+	// Get visible sections based on form data
+	let visibleSections = $derived(() => layout ? getVisibleSections(layout, formData) : []);
 
-	// Parse enum options (handles both JSON array and comma-separated formats)
-	function getEnumOptions(field: FieldDef): string[] {
-		if (!field.options) return [];
-		const opts = field.options.trim();
-		if (opts.startsWith('[')) {
-			try {
-				return JSON.parse(opts);
-			} catch {
-				return [];
-			}
-		}
-		return opts.split(',').map(o => o.trim());
-	}
 
 	async function loadEntityDef() {
 		try {
@@ -75,8 +64,18 @@
 		try {
 			// Use public endpoint (doesn't require admin role)
 			fields = await get<FieldDef[]>(`/entities/${entityName}/fields`);
+
+			// Load layout (may be v1, v2, or legacy section format)
+			try {
+				const layoutResponse = await get<{ layoutData: string }>(`/entities/${entityName}/layouts/detail`);
+				layout = parseLayoutData(layoutResponse.layoutData, fields.map(f => f.name));
+			} catch {
+				// Default to all fields
+				layout = parseLayoutData('[]', fields.map(f => f.name));
+			}
 		} catch {
 			fields = [];
+			layout = null;
 		}
 	}
 
@@ -155,17 +154,6 @@
 		}
 	}
 
-	function getInputType(field: FieldDef): string {
-		switch (field.type) {
-			case 'email': return 'email';
-			case 'url': return 'url';
-			case 'phone': return 'tel';
-			case 'int': case 'float': case 'currency': return 'number';
-			case 'date': return 'date';
-			case 'datetime': return 'datetime-local';
-			default: return 'text';
-		}
-	}
 
 	// Reload data when entity or record changes (handles navigation between edit pages)
 	$effect(() => {
@@ -176,6 +164,7 @@
 		// Reset state
 		entityDef = null;
 		fields = [];
+		layout = null;
 		formData = {};
 		lookupNames = {};
 		multiLookupValues = {};
@@ -210,7 +199,7 @@
 	{#if loading}
 		<div class="text-center py-12 text-gray-500">Loading...</div>
 	{:else}
-		<div class="bg-white shadow rounded-lg p-6 max-w-2xl">
+		<div class="space-y-6">
 			{#if fieldErrors.length > 0}
 				<ValidationErrors errors={fieldErrors} />
 			{:else if error}
@@ -219,171 +208,44 @@
 				</div>
 			{/if}
 
-			<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-				<div class="space-y-4">
-					{#each editableFields as field}
-						<div>
-							{#if field.type === 'link' && field.linkEntity}
-								<LookupField
-									entity={field.linkEntity}
-									value={formData[`${field.name}Id`] as string | null}
-									valueName={lookupNames[field.name] || ''}
-									label={field.label}
-									required={field.isRequired}
-									onchange={(id, name) => {
-										// Store both ID and Name for lookup fields per standard
-										formData[`${field.name}Id`] = id;
-										formData[`${field.name}Name`] = name;
-										lookupNames[field.name] = name;
-									}}
-								/>
-							{:else if field.type === 'linkMultiple' && field.linkEntity}
-								<MultiLookupField
-									entity={field.linkEntity}
-									values={multiLookupValues[field.name] || []}
-									label={field.label}
-									required={field.isRequired}
-									onchange={(values) => {
-										multiLookupValues[field.name] = values;
-										// Store as JSON arrays for the API
-										formData[`${field.name}Ids`] = JSON.stringify(values.map(v => v.id));
-										formData[`${field.name}Names`] = JSON.stringify(values.map(v => v.name));
-									}}
-								/>
-							{:else if field.type === 'stream'}
-								{@const entryKey = fieldNameToKey(field.name)}
-								{@const logKey = `${entryKey}Log`}
-								<StreamField
-									label={field.label}
-									entry={String(formData[entryKey] || formData[field.name] || '')}
-									log={String(formData[logKey] || '')}
-									required={field.isRequired}
-									onchange={(value) => {
-										formData[field.name] = value;
-									}}
-								/>
-							{:else}
-							{@const fieldError = getFieldError(field.name)}
-							<label for={field.name} class="block text-sm font-medium mb-1" class:text-gray-700={!fieldError} class:text-red-700={fieldError}>
-								{field.label}
-								{#if field.isRequired}
-									<span class="text-red-500">*</span>
-								{/if}
-							</label>
+			<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6">
+				{#each visibleSections() as section (section.id)}
+					<EditSectionRenderer
+						{section}
+						{fields}
+						bind:formData
+						{lookupNames}
+						{multiLookupValues}
+						{getFieldError}
+						onLookupChange={(fieldName, id, name) => {
+							formData[`${fieldName}Id`] = id;
+							formData[`${fieldName}Name`] = name;
+							lookupNames[fieldName] = name;
+						}}
+						onMultiLookupChange={(fieldName, values) => {
+							multiLookupValues[fieldName] = values;
+							formData[`${fieldName}Ids`] = JSON.stringify(values.map(v => v.id));
+							formData[`${fieldName}Names`] = JSON.stringify(values.map(v => v.name));
+						}}
+					/>
+				{/each}
 
-							{#if field.type === 'text'}
-								<textarea
-									id={field.name}
-									name={field.name}
-									data-field={field.name}
-									bind:value={formData[field.name]}
-									required={field.isRequired}
-									rows="3"
-									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-									class:border-gray-300={!fieldError}
-									class:border-red-500={fieldError}
-								></textarea>
-							{:else if field.type === 'bool'}
-								<input
-									type="checkbox"
-									id={field.name}
-									name={field.name}
-									data-field={field.name}
-									bind:checked={formData[field.name]}
-									class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-									class:border-gray-300={!fieldError}
-									class:border-red-500={fieldError}
-								/>
-							{:else if field.type === 'enum' && field.options}
-								<select
-									id={field.name}
-									name={field.name}
-									data-field={field.name}
-									bind:value={formData[field.name]}
-									required={field.isRequired}
-									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-									class:border-gray-300={!fieldError}
-									class:border-red-500={fieldError}
-								>
-									<option value="">Select...</option>
-									{#each getEnumOptions(field) as option}
-										<option value={option}>{option}</option>
-									{/each}
-								</select>
-							{:else if field.type === 'multiEnum' && field.options}
-								{@const options = getEnumOptions(field)}
-								{@const selectedValues = (() => {
-									const val = formData[field.name];
-									if (!val) return [];
-									if (typeof val === 'string' && val.startsWith('[')) {
-										try { return JSON.parse(val); } catch { return []; }
-									}
-									return Array.isArray(val) ? val : [];
-								})()}
-								<div class="space-y-2">
-									{#each options as option}
-										<label class="flex items-center gap-2">
-											<input
-												type="checkbox"
-												checked={selectedValues.includes(option)}
-												onchange={(e) => {
-													const checked = (e.target as HTMLInputElement).checked;
-													let current = [...selectedValues];
-													if (checked && !current.includes(option)) {
-														current.push(option);
-													} else if (!checked) {
-														current = current.filter(v => v !== option);
-													}
-													formData[field.name] = JSON.stringify(current);
-												}}
-												class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-											/>
-											<span class="text-sm text-gray-700">{option}</span>
-										</label>
-									{/each}
-								</div>
-							{:else}
-								<input
-									type={getInputType(field)}
-									id={field.name}
-									name={field.name}
-									data-field={field.name}
-									bind:value={formData[field.name]}
-									required={field.isRequired}
-									maxlength={field.maxLength || undefined}
-									min={field.minValue || undefined}
-									max={field.maxValue || undefined}
-									step={field.type === 'float' || field.type === 'currency' ? '0.01' : undefined}
-									class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-									class:border-gray-300={!fieldError}
-									class:border-red-500={fieldError}
-								/>
-							{/if}
-
-							{#if fieldError}
-								<p class="mt-1 text-xs text-red-600">{fieldError.message}</p>
-							{:else if field.tooltip}
-								<p class="mt-1 text-xs text-gray-500">{field.tooltip}</p>
-							{/if}
-							{/if}
-						</div>
-					{/each}
-				</div>
-
-				<div class="mt-6 flex justify-end gap-3">
-					<a
-						href="/{entitySlug}/{recordId}"
-						class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-					>
-						Cancel
-					</a>
-					<button
-						type="submit"
-						disabled={saving}
-						class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-600/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						{saving ? 'Saving...' : 'Save'}
-					</button>
+				<div class="bg-white shadow rounded-lg p-6">
+					<div class="flex justify-end gap-3">
+						<a
+							href="/{entitySlug}/{recordId}"
+							class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+						>
+							Cancel
+						</a>
+						<button
+							type="submit"
+							disabled={saving}
+							class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-600/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{saving ? 'Saving...' : 'Save'}
+						</button>
+					</div>
 				</div>
 			</form>
 		</div>
