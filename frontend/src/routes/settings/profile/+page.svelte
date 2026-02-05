@@ -2,6 +2,10 @@
 	import { auth, changePassword } from '$lib/stores/auth.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import type { ChangePasswordInput } from '$lib/types/auth';
+	import { PUBLIC_API_URL } from '$env/static/public';
+
+	// Extension download URL
+	const extensionDownloadUrl = `${PUBLIC_API_URL || '/api/v1'}/downloads/extension`;
 
 	// Password change form state
 	let currentPassword = $state('');
@@ -183,7 +187,7 @@
 							Create tasks from emails
 						</li>
 					</ul>
-					<div class="mt-4 flex items-center gap-4">
+					<div class="mt-4 flex items-center gap-3">
 						<a
 							href="https://chrome.google.com/webstore"
 							target="_blank"
@@ -193,11 +197,21 @@
 							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
 							</svg>
-							Install from Chrome Web Store
+							Chrome Web Store
+						</a>
+						<a
+							href={extensionDownloadUrl}
+							download="quantico-capture-extension.zip"
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+							</svg>
+							Download ZIP
 						</a>
 					</div>
 					<p class="mt-3 text-xs text-gray-500">
-						Or install manually: Download the extension files and load as unpacked extension in Chrome's developer mode.
+						<strong>Manual install:</strong> Download the ZIP, extract it, then go to <code class="bg-gray-100 px-1 rounded">chrome://extensions</code>, enable "Developer mode", and click "Load unpacked" to select the extracted folder.
 					</p>
 				</div>
 			</div>

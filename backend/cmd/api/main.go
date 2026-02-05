@@ -444,6 +444,14 @@ func main() {
 	// Screen flows - all users can view and execute flows
 	flowHandler.RegisterRoutes(protected)
 
+	// Static downloads - extension zip files for authenticated users
+	protected.Get("/downloads/extension", func(c *fiber.Ctx) error {
+		// Serve the Chrome extension zip file
+		c.Set("Content-Disposition", "attachment; filename=quantico-capture-extension.zip")
+		c.Set("Content-Type", "application/zip")
+		return c.SendFile("./static/quantico-capture-extension.zip")
+	})
+
 	// ==========================================
 	// Admin routes (requires admin or owner role)
 	// ==========================================
