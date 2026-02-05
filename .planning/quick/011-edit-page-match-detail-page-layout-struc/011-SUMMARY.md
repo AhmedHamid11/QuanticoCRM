@@ -18,6 +18,8 @@ key-files:
     - frontend/src/routes/accounts/[id]/edit/+page.svelte
     - frontend/src/routes/contacts/[id]/edit/+page.svelte
     - frontend/src/routes/[entity=customentity]/[id]/edit/+page.svelte
+    - frontend/src/routes/tasks/[id]/edit/+page.svelte
+    - frontend/src/routes/quotes/[id]/edit/+page.svelte
 
 decisions:
   - decision: Create dedicated EditSectionRenderer component instead of reusing SectionRenderer
@@ -31,12 +33,12 @@ decisions:
     chosen: match-detail-layout
 
 metrics:
-  duration: 5 minutes
-  commits: 2
-  files-changed: 4
-  lines-added: 397
-  lines-removed: 524
-  net-change: -127
+  duration: 8 minutes
+  commits: 3
+  files-changed: 6
+  lines-added: 859
+  lines-removed: 860
+  net-change: -1
 
 completed: 2026-02-05
 ---
@@ -86,6 +88,8 @@ All three edit page types refactored to use section-based rendering:
 - `frontend/src/routes/accounts/[id]/edit/+page.svelte`
 - `frontend/src/routes/contacts/[id]/edit/+page.svelte`
 - `frontend/src/routes/[entity=customentity]/[id]/edit/+page.svelte`
+- `frontend/src/routes/tasks/[id]/edit/+page.svelte` (with special "Related To" section)
+- `frontend/src/routes/quotes/[id]/edit/+page.svelte` (with special Line Items and Pricing sections)
 
 **Refactoring pattern:**
 1. **State changes:**
@@ -199,7 +203,8 @@ To verify the changes:
 | Commit | Task | Description |
 |--------|------|-------------|
 | 44d30e7 | 1 | Create EditSectionRenderer component |
-| edf94a1 | 2 | Update edit pages to use section-based layout |
+| edf94a1 | 2 | Update accounts, contacts, custom entity edit pages |
+| c893d1d | 2b | Update tasks and quotes edit pages |
 
 ---
 
