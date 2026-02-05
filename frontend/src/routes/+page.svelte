@@ -1,12 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { getHomePage, getNavigationTabs, getOrgSettings } from '$lib/stores/navigation.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
+	import LoginForm from '$lib/components/LoginForm.svelte';
 
 	let isRedirecting = $state(false);
 	let hasChecked = $state(false);
 
-	// Watch for org settings to be loaded, then redirect if needed
+	// Watch for org settings to be loaded, then redirect if needed (only when authenticated)
 	$effect(() => {
+		if (!auth.isAuthenticated) return;
+
 		const settings = getOrgSettings();
 		// Only check once when settings are loaded
 		if (settings && !hasChecked) {
@@ -23,7 +27,18 @@
 	let firstTab = $derived(getNavigationTabs()[0]);
 </script>
 
-{#if isRedirecting}
+<svelte:head>
+	{#if !auth.isAuthenticated && !auth.isLoading}
+		<title>Login - Quantico CRM</title>
+	{/if}
+</svelte:head>
+
+{#if auth.isLoading}
+	<!-- Loading state handled by layout -->
+{:else if !auth.isAuthenticated}
+	<!-- Show login form for unauthenticated users -->
+	<LoginForm />
+{:else if isRedirecting}
 	<div class="text-center py-12">
 		<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
 		<p class="mt-4 text-gray-600">Redirecting...</p>

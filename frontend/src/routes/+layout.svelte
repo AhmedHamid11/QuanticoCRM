@@ -38,10 +38,12 @@
 		}
 	});
 
-	// Redirect to login if not authenticated (after loading) - skip for auth pages
+	// Redirect to login if not authenticated (after loading) - skip for auth pages and root
+	// Root page handles its own unauthenticated state (shows login form)
 	$effect(() => {
-		if (!isAuthPage && !auth.isLoading && !auth.isAuthenticated) {
-			goto('/login');
+		const isRoot = $page.url.pathname === '/';
+		if (!isAuthPage && !isRoot && !auth.isLoading && !auth.isAuthenticated) {
+			goto('/');
 		}
 	});
 
