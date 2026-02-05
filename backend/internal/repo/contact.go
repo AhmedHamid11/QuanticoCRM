@@ -108,11 +108,11 @@ func (r *ContactRepo) Create(ctx context.Context, orgID string, input entity.Con
 func (r *ContactRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Contact, error) {
 	// Note: No user join - tenant DBs don't have users table
 	query := `
-		SELECT c.id, c.org_id, c.salutation_name, c.first_name, c.last_name,
-			c.email_address, c.phone_number, c.phone_number_type, c.do_not_call,
-			c.description, c.address_street, c.address_city, c.address_state,
-			c.address_country, c.address_postal_code, c.account_id, COALESCE(c.account_name, ''), c.assigned_user_id,
-			c.created_by_id, c.modified_by_id, c.created_at, c.modified_at, c.deleted,
+		SELECT c.id, c.org_id, COALESCE(c.salutation_name, ''), COALESCE(c.first_name, ''), COALESCE(c.last_name, ''),
+			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), c.do_not_call,
+			COALESCE(c.description, ''), COALESCE(c.address_street, ''), COALESCE(c.address_city, ''), COALESCE(c.address_state, ''),
+			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(c.account_name, ''), COALESCE(c.assigned_user_id, ''),
+			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, c.deleted,
 			COALESCE(c.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
@@ -224,11 +224,11 @@ func (r *ContactRepo) ListByOrg(ctx context.Context, orgID string, params entity
 	// Note: CreatedByName and ModifiedByName are empty - user names should be stored when creating/updating
 	offset := (params.Page - 1) * params.PageSize
 	selectQuery := fmt.Sprintf(`
-		SELECT c.id, c.org_id, c.salutation_name, c.first_name, c.last_name,
-			c.email_address, c.phone_number, c.phone_number_type, c.do_not_call,
-			c.description, c.address_street, c.address_city, c.address_state,
-			c.address_country, c.address_postal_code, c.account_id, COALESCE(c.account_name, ''), c.assigned_user_id,
-			c.created_by_id, c.modified_by_id, c.created_at, c.modified_at, c.deleted,
+		SELECT c.id, c.org_id, COALESCE(c.salutation_name, ''), COALESCE(c.first_name, ''), COALESCE(c.last_name, ''),
+			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), c.do_not_call,
+			COALESCE(c.description, ''), COALESCE(c.address_street, ''), COALESCE(c.address_city, ''), COALESCE(c.address_state, ''),
+			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(c.account_name, ''), COALESCE(c.assigned_user_id, ''),
+			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, c.deleted,
 			COALESCE(c.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
