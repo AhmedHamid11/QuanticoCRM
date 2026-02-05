@@ -139,6 +139,71 @@
 		</div>
 	{/if}
 
+	<!-- Integrations -->
+	<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="px-6 py-4 border-b border-gray-200">
+			<h2 class="text-lg font-medium text-gray-900">Integrations</h2>
+			<p class="mt-1 text-sm text-gray-500">Connect QuanticoCRM with other tools</p>
+		</div>
+		<div class="px-6 py-4">
+			<!-- Gmail Extension Card -->
+			<div class="flex items-start gap-4">
+				<div class="flex-shrink-0">
+					<svg class="w-10 h-10 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+					</svg>
+				</div>
+				<div class="flex-1">
+					<div class="flex items-center gap-2">
+						<h3 class="text-base font-medium text-gray-900">Quantico CRM for Gmail</h3>
+						<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+							v1.0.1
+						</span>
+					</div>
+					<p class="mt-1 text-sm text-gray-600">
+						Access your Quantico CRM data directly in Gmail. Log emails, view contacts, and manage deals without leaving your inbox.
+					</p>
+					<ul class="mt-3 space-y-1">
+						<li class="flex items-center gap-2 text-sm text-gray-600">
+							<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+							</svg>
+							Log emails to CRM
+						</li>
+						<li class="flex items-center gap-2 text-sm text-gray-600">
+							<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+							</svg>
+							View contact info in Gmail
+						</li>
+						<li class="flex items-center gap-2 text-sm text-gray-600">
+							<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+							</svg>
+							Create tasks from emails
+						</li>
+					</ul>
+					<div class="mt-4 flex items-center gap-4">
+						<a
+							href="https://chrome.google.com/webstore"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90 transition-colors"
+						>
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+							</svg>
+							Install from Chrome Web Store
+						</a>
+					</div>
+					<p class="mt-3 text-xs text-gray-500">
+						Or install manually: Download the extension files and load as unpacked extension in Chrome's developer mode.
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Change Password -->
 	<div class="bg-white shadow rounded-lg overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
