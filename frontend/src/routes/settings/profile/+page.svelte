@@ -4,8 +4,43 @@
 	import type { ChangePasswordInput } from '$lib/types/auth';
 	import { PUBLIC_API_URL } from '$env/static/public';
 
-	// Extension download URL
-	const extensionDownloadUrl = `${PUBLIC_API_URL || '/api/v1'}/downloads/extension`;
+	// Extension download
+	let downloadingExtension = $state(false);
+
+	async function downloadExtension() {
+		downloadingExtension = true;
+		try {
+			const API_BASE = PUBLIC_API_URL || '/api/v1';
+			const response = await fetch(`${API_BASE}/downloads/extension`, {
+				method: 'GET',
+				headers: {
+					'Authorization': `Bearer ${auth.accessToken}`
+				},
+				credentials: 'include'
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to download extension');
+			}
+
+			// Get the blob and trigger download
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = 'quantico-capture-extension.zip';
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(url);
+			document.body.removeChild(a);
+
+			addToast('Extension downloaded successfully', 'success');
+		} catch (err) {
+			addToast('Failed to download extension', 'error');
+		} finally {
+			downloadingExtension = false;
+		}
+	}
 
 	// Password change form state
 	let currentPassword = $state('');
@@ -199,16 +234,24 @@
 							</svg>
 							Chrome Web Store
 						</a>
-						<a
-							href={extensionDownloadUrl}
-							download="quantico-capture-extension.zip"
-							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+						<button
+							onclick={downloadExtension}
+							disabled={downloadingExtension}
+							class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 						>
-							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-							</svg>
-							Download ZIP
-						</a>
+							{#if downloadingExtension}
+								<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								Downloading...
+							{:else}
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+								</svg>
+								Download ZIP
+							{/if}
+						</button>
 					</div>
 					<p class="mt-3 text-xs text-gray-500">
 						<strong>Manual install:</strong> Download the ZIP, extract it, then go to <code class="bg-gray-100 px-1 rounded">chrome://extensions</code>, enable "Developer mode", and click "Load unpacked" to select the extracted folder.
