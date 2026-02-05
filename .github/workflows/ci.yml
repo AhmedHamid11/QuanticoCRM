@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Backend tests and security scanning
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: backend/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./backend/coverage.out
+          flags: backend
+        continue-on-error: true
+
+  # Security scanning with gosec
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: backend/go.sum
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec security scan
+        run: |
+          # Run gosec and capture output
+          # Fail on HIGH and CRITICAL severity findings
+          # -severity=medium includes medium,high,critical
+          # -confidence=medium includes medium,high
+          gosec -fmt=json -out=gosec-results.json -severity=high -confidence=medium ./... || true
+
+          # Check results and fail if high-severity issues found
+          if [ -f gosec-results.json ]; then
+            HIGH_COUNT=$(cat gosec-results.json | jq '.Issues | map(select(.severity == "HIGH" or .severity == "CRITICAL")) | length')
+            echo "High/Critical severity findings: $HIGH_COUNT"
+
+            if [ "$HIGH_COUNT" -gt 0 ]; then
+              echo "::error::Found $HIGH_COUNT high/critical severity security issues"
+              cat gosec-results.json | jq '.Issues[] | select(.severity == "HIGH" or .severity == "CRITICAL") | {file: .file, line: .line, rule: .rule_id, details: .details, severity: .severity}'
+              exit 1
+            fi
+          fi
+
+      - name: Upload gosec results
+        uses: actions/upload-artifact@v4
+        with:
+          name: gosec-results
+          path: backend/gosec-results.json
+        if: always()
+
+  # Frontend build and lint
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run type check
+        run: npm run check
+
+      - name: Run lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+        env:
+          PUBLIC_API_URL: https://api.example.com/api/v1
+
+  # Dependency vulnerability scanning
+  dependency-scan:
+    name: Dependency Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: backend/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck on backend
+        working-directory: ./backend
+        run: govulncheck ./...
+        continue-on-error: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Run npm audit on frontend
+        working-directory: ./frontend
+        run: npm audit --audit-level=high
+        continue-on-error: true
