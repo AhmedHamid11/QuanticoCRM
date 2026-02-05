@@ -14,7 +14,7 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 **Plan:** —
 **Status:** Ready for next milestone
 
-**Last activity:** 2026-02-04 — v2.0 milestone archived
+**Last activity:** 2026-02-05 — Completed quick task 010: Add Gmail Extension to Profile Settings
 
 Progress: [██████████] 100% (v2.0 complete)
 
@@ -49,6 +49,12 @@ None.
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 010 | Add Gmail Extension to Profile Settings | 2026-02-05 | 76c3efa | [010-extension-setup-page](./quick/010-extension-setup-page/) |
+
 ## Session Continuity
 
 Last session: 2026-02-04
@@ -57,4 +63,4 @@ Resume file: None
 
 ---
 
-*Updated: 2026-02-04 — v2.0 milestone complete*
+*Updated: 2026-02-05 — Quick task 010 complete*
