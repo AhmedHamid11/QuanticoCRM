@@ -456,8 +456,10 @@ export const auth = {
 		return role === 'admin' || role === 'owner';
 	},
 	get canAccessSetup() {
-		// Platform admins and org admins/owners can access setup
-		return state.user?.isPlatformAdmin || this.isAdmin;
+		// Platform admins can always access setup
+		// During impersonation, the impersonating user (platform admin) should retain access
+		// Org admins/owners can access setup for their org
+		return state.user?.isPlatformAdmin || state.isImpersonation || this.isAdmin;
 	},
 	get mustChangePassword() {
 		return state.mustChangePassword;
