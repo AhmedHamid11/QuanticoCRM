@@ -252,7 +252,7 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 	}
 
 	// Ensure table exists
-	if err := h.ensureTableExists(c.Context(), orgID, entityName, fields); err != nil {
+	if err := h.ensureTableExists(c.Context(), h.getDB(c), orgID, entityName, fields); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -348,7 +348,7 @@ func (h *ImportHandler) processCreateMode(
 		}
 
 		batch := records[batchStart:batchEnd]
-		batchIDs, batchErrors := h.processBatch(c.Context(), orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
+		batchIDs, batchErrors := h.processBatch(c.Context(), h.getDB(c), orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
 
 		createdIDs = append(createdIDs, batchIDs...)
 		errors = append(errors, batchErrors...)
@@ -400,7 +400,7 @@ func (h *ImportHandler) processUpdateMode(
 		}
 
 		// Find existing record
-		existingID, oldRecord, err := h.findExistingRecord(c.Context(), orgID, tableName, options.MatchField, record, fields)
+		existingID, oldRecord, err := h.findExistingRecord(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, record, fields)
 		if err != nil {
 			if options.SkipErrors {
 				errors = append(errors, BulkError{Index: i, Error: err.Error()})
@@ -418,7 +418,7 @@ func (h *ImportHandler) processUpdateMode(
 		}
 
 		// Update the record
-		if err := h.updateRecord(c.Context(), orgID, userID, tableName, existingID, fields, record, now); err != nil {
+		if err := h.updateRecord(c.Context(), h.getDB(c), orgID, userID, tableName, existingID, fields, record, now); err != nil {
 			if options.SkipErrors {
 				errors = append(errors, BulkError{Index: i, Error: err.Error()})
 				continue
@@ -468,7 +468,7 @@ func (h *ImportHandler) processUpsertMode(
 		}
 
 		// Find existing record
-		existingID, oldRecord, err := h.findExistingRecord(c.Context(), orgID, tableName, options.MatchField, record, fields)
+		existingID, oldRecord, err := h.findExistingRecord(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, record, fields)
 		if err != nil {
 			if options.SkipErrors {
 				errors = append(errors, BulkError{Index: i, Error: err.Error()})
@@ -481,7 +481,7 @@ func (h *ImportHandler) processUpsertMode(
 
 		if existingID != "" {
 			// Update existing record
-			if err := h.updateRecord(c.Context(), orgID, userID, tableName, existingID, fields, record, now); err != nil {
+			if err := h.updateRecord(c.Context(), h.getDB(c), orgID, userID, tableName, existingID, fields, record, now); err != nil {
 				if options.SkipErrors {
 					errors = append(errors, BulkError{Index: i, Error: err.Error()})
 					continue
@@ -498,7 +498,7 @@ func (h *ImportHandler) processUpsertMode(
 			}
 		} else {
 			// Create new record
-			tx, err := h.db.BeginTx(c.Context(), nil)
+			tx, err := h.getDB(c).BeginTx(c.Context(), nil)
 			if err != nil {
 				if options.SkipErrors {
 					errors = append(errors, BulkError{Index: i, Error: err.Error()})
@@ -571,7 +571,7 @@ func (h *ImportHandler) processDeleteMode(
 
 	for i, record := range records {
 		// Find existing record
-		existingID, _, err := h.findExistingRecord(c.Context(), orgID, tableName, options.MatchField, record, fields)
+		existingID, _, err := h.findExistingRecord(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, record, fields)
 		if err != nil {
 			if options.SkipErrors {
 				errors = append(errors, BulkError{Index: i, Error: err.Error()})
@@ -590,7 +590,7 @@ func (h *ImportHandler) processDeleteMode(
 
 		// Delete the record
 		query := fmt.Sprintf("DELETE FROM %s WHERE id = ? AND org_id = ?", tableName)
-		_, err = h.db.ExecContext(c.Context(), query, existingID, orgID)
+		_, err = h.getDB(c).ExecContext(c.Context(), query, existingID, orgID)
 		if err != nil {
 			if options.SkipErrors {
 				errors = append(errors, BulkError{Index: i, Error: err.Error()})
@@ -623,6 +623,7 @@ func (h *ImportHandler) processDeleteMode(
 // findExistingRecord finds an existing record by match field
 func (h *ImportHandler) findExistingRecord(
 	ctx context.Context,
+	db *sql.DB,
 	orgID, tableName, matchField string,
 	record map[string]interface{},
 	fields []entity.FieldDef,
@@ -643,7 +644,7 @@ func (h *ImportHandler) findExistingRecord(
 	query := fmt.Sprintf("SELECT * FROM %s WHERE %s = ? AND org_id = ? LIMIT 1",
 		tableName, quoteIdentifier(colName))
 
-	rows, err := h.db.QueryContext(ctx, query, matchValue, orgID)
+	rows, err := db.QueryContext(ctx, query, matchValue, orgID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -686,6 +687,7 @@ func (h *ImportHandler) findExistingRecord(
 // updateRecord updates an existing record
 func (h *ImportHandler) updateRecord(
 	ctx context.Context,
+	db *sql.DB,
 	orgID, userID, tableName, id string,
 	fields []entity.FieldDef,
 	record map[string]interface{},
@@ -754,7 +756,7 @@ func (h *ImportHandler) updateRecord(
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE id = ? AND org_id = ?",
 		tableName, strings.Join(setClauses, ", "))
 
-	_, err := h.db.ExecContext(ctx, query, values...)
+	_, err := db.ExecContext(ctx, query, values...)
 	return err
 }
 
@@ -962,6 +964,7 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 // processBatch processes a batch of records (reused from bulk handler pattern)
 func (h *ImportHandler) processBatch(
 	ctx context.Context,
+	db *sql.DB,
 	orgID, userID, tableName string,
 	fields []entity.FieldDef,
 	records []map[string]interface{},
@@ -973,7 +976,7 @@ func (h *ImportHandler) processBatch(
 	var createdIDs []string
 	var errors []BulkError
 
-	tx, err := h.db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		for i := range records {
 			errors = append(errors, BulkError{
@@ -1118,11 +1121,11 @@ func (h *ImportHandler) insertRecord(
 }
 
 // ensureTableExists creates the table if it doesn't exist
-func (h *ImportHandler) ensureTableExists(ctx context.Context, orgID, entityName string, fields []entity.FieldDef) error {
+func (h *ImportHandler) ensureTableExists(ctx context.Context, db *sql.DB, orgID, entityName string, fields []entity.FieldDef) error {
 	tableName := h.getTableName(entityName)
 
 	var count int
-	err := h.db.QueryRowContext(ctx,
+	err := db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&count)
 	if err != nil {
 		return err
@@ -1178,12 +1181,12 @@ func (h *ImportHandler) ensureTableExists(ctx context.Context, orgID, entityName
 	columns = append(columns, "modified_by_id TEXT")
 
 	createSQL := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", tableName, strings.Join(columns, ", "))
-	if _, err := h.db.ExecContext(ctx, createSQL); err != nil {
+	if _, err := db.ExecContext(ctx, createSQL); err != nil {
 		return err
 	}
 
 	indexSQL := fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_org_id ON %s(org_id)", tableName, tableName)
-	_, err = h.db.ExecContext(ctx, indexSQL)
+	_, err = db.ExecContext(ctx, indexSQL)
 	return err
 }
 
