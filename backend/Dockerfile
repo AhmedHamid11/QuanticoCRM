@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/api /app/api
 COPY --from=builder /app/migrate /app/migrate
+COPY --from=builder /app/static /app/static
+WORKDIR /app
 EXPOSE 8080
 # Run migrations (embedded in binary) then start API
 CMD /app/migrate && /app/api
