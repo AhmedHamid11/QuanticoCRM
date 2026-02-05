@@ -4,7 +4,7 @@
 **Started:** 2026-02-03
 **Current phase:** Phase 1 (complete)
 
-Last activity: 2026-02-03 - Phase 1 implemented
+Last activity: 2026-02-05 - Completed quick-012 (CSV Import with validation)
 
 ## Project Reference
 
@@ -30,6 +30,7 @@ See: .planning/PROJECT.md (updated 2026-02-03)
 
 | Date | Action | Details |
 |------|--------|---------|
+| 2026-02-05 | Quick Task 012 Complete | CSV import with field mapping and validation |
 | 2026-02-03 | Phase 1 Complete | Stream field type implemented (backend + frontend) |
 | 2026-02-03 | Initialized | Project, requirements, roadmap created |
 
