@@ -78,9 +78,133 @@ func (s *ProvisioningService) ProvisionDefaultMetadata(ctx context.Context, orgI
 	return nil
 }
 
+// ensureMetadataTables checks if metadata tables (entity_defs, field_defs, layout_defs) exist
+// and creates them if they don't. This handles migration gaps like when migration 002 was added
+// after an organization was provisioned.
+func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
+	// Check if entity_defs table exists
+	var entityDefsExists bool
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entity_defs' LIMIT 1").Scan(&entityDefsExists)
+	if err != nil && err.Error() != "sql: no rows" {
+		return fmt.Errorf("failed to check entity_defs table: %w", err)
+	}
+
+	// If entity_defs doesn't exist, create all metadata tables with full schema
+	// This includes all columns from migrations 002, 019, and 039
+	if !entityDefsExists {
+		log.Printf("[Provisioning] entity_defs table missing, creating metadata tables with full schema")
+
+		// Create entity_defs table with all columns (migration 002 + 019 + 039)
+		_, err := s.db.ExecContext(ctx, `
+			CREATE TABLE IF NOT EXISTS entity_defs (
+				id TEXT PRIMARY KEY,
+				org_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				label TEXT NOT NULL,
+				label_plural TEXT NOT NULL,
+				icon TEXT DEFAULT 'folder',
+				color TEXT DEFAULT '#6366f1',
+				is_custom INTEGER DEFAULT 0,
+				is_customizable INTEGER DEFAULT 1,
+				has_stream INTEGER DEFAULT 0,
+				has_activities INTEGER DEFAULT 0,
+				display_field TEXT DEFAULT 'name',
+				search_fields TEXT DEFAULT '["name"]',
+				created_at TEXT NOT NULL DEFAULT (datetime('now')),
+				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+				UNIQUE(org_id, name)
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create entity_defs table: %w", err)
+		}
+		log.Printf("[Provisioning] Created entity_defs table")
+
+		// Create field_defs table with all columns (migration 002 + 019)
+		_, err = s.db.ExecContext(ctx, `
+			CREATE TABLE IF NOT EXISTS field_defs (
+				id TEXT PRIMARY KEY,
+				org_id TEXT NOT NULL,
+				entity_name TEXT NOT NULL,
+				name TEXT NOT NULL,
+				label TEXT NOT NULL,
+				type TEXT NOT NULL,
+				is_required INTEGER DEFAULT 0,
+				is_read_only INTEGER DEFAULT 0,
+				is_audited INTEGER DEFAULT 0,
+				is_custom INTEGER DEFAULT 0,
+				default_value TEXT,
+				options TEXT,
+				max_length INTEGER,
+				min_value REAL,
+				max_value REAL,
+				pattern TEXT,
+				tooltip TEXT,
+				link_entity TEXT,
+				link_type TEXT,
+				link_foreign_key TEXT,
+				link_display_field TEXT,
+				sort_order INTEGER DEFAULT 0,
+				rollup_query TEXT,
+				rollup_result_type TEXT,
+				rollup_decimal_places INTEGER DEFAULT 2,
+				created_at TEXT NOT NULL DEFAULT (datetime('now')),
+				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+				UNIQUE(org_id, entity_name, name),
+				FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create field_defs table: %w", err)
+		}
+		log.Printf("[Provisioning] Created field_defs table")
+
+		// Create layout_defs table with all columns (migration 002 + 019)
+		_, err = s.db.ExecContext(ctx, `
+			CREATE TABLE IF NOT EXISTS layout_defs (
+				id TEXT PRIMARY KEY,
+				org_id TEXT NOT NULL,
+				entity_name TEXT NOT NULL,
+				layout_type TEXT NOT NULL,
+				layout_data TEXT NOT NULL,
+				created_at TEXT NOT NULL DEFAULT (datetime('now')),
+				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+				UNIQUE(org_id, entity_name, layout_type),
+				FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create layout_defs table: %w", err)
+		}
+		log.Printf("[Provisioning] Created layout_defs table")
+
+		// Create indexes
+		_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_entity_defs_org ON entity_defs(org_id)`)
+		if err != nil {
+			return fmt.Errorf("failed to create entity_defs org index: %w", err)
+		}
+		_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_field_defs_org_entity ON field_defs(org_id, entity_name)`)
+		if err != nil {
+			return fmt.Errorf("failed to create field_defs org index: %w", err)
+		}
+		_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_layout_defs_org_entity ON layout_defs(org_id, entity_name)`)
+		if err != nil {
+			return fmt.Errorf("failed to create layout_defs org index: %w", err)
+		}
+		log.Printf("[Provisioning] Created metadata table indexes")
+	}
+
+	return nil
+}
+
 // provisionMetadata creates entities, fields, layouts, navigation for a new org
 func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now string) error {
 	log.Printf("[Provisioning] Creating metadata for org %s", orgID)
+
+	// Ensure metadata tables exist (fixes migration gaps like Guardare)
+	if err := s.ensureMetadataTables(ctx); err != nil {
+		return fmt.Errorf("failed to ensure metadata tables: %w", err)
+	}
 
 	// Create default entities
 	entities := []struct{ name, plural string }{
