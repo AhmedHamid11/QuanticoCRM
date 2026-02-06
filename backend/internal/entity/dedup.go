@@ -2,8 +2,8 @@ package entity
 
 import "time"
 
-// FieldConfig defines how a single field is compared in duplicate detection
-type FieldConfig struct {
+// DedupFieldConfig defines how a single field is compared in duplicate detection
+type DedupFieldConfig struct {
 	FieldName       string  `json:"fieldName"`                 // Field on source entity
 	TargetFieldName string  `json:"targetFieldName,omitempty"` // Field on target entity (cross-entity)
 	Weight          float64 `json:"weight"`                    // 0-100, contribution to total score
@@ -26,7 +26,7 @@ type MatchingRule struct {
 	HighConfidenceThreshold   float64       `json:"highConfidenceThreshold" db:"high_confidence_threshold"`
 	MediumConfidenceThreshold float64       `json:"mediumConfidenceThreshold" db:"medium_confidence_threshold"`
 	BlockingStrategy          string        `json:"blockingStrategy" db:"blocking_strategy"`
-	FieldConfigs              []FieldConfig `json:"fieldConfigs" db:"-"`            // Loaded from JSON
+	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs" db:"-"`            // Loaded from JSON
 	FieldConfigsJSON          string        `json:"-" db:"field_configs"`           // Stored as JSON
 	CreatedAt                 time.Time     `json:"createdAt" db:"created_at"`
 	ModifiedAt                time.Time     `json:"modifiedAt" db:"modified_at"`
@@ -69,7 +69,7 @@ type MatchingRuleCreateInput struct {
 	HighConfidenceThreshold   float64       `json:"highConfidenceThreshold"`
 	MediumConfidenceThreshold float64       `json:"mediumConfidenceThreshold"`
 	BlockingStrategy          string        `json:"blockingStrategy" validate:"required"`
-	FieldConfigs              []FieldConfig `json:"fieldConfigs" validate:"required,min=1"`
+	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs" validate:"required,min=1"`
 }
 
 // MatchingRuleUpdateInput for updating existing rules
@@ -82,7 +82,7 @@ type MatchingRuleUpdateInput struct {
 	HighConfidenceThreshold   *float64       `json:"highConfidenceThreshold,omitempty"`
 	MediumConfidenceThreshold *float64       `json:"mediumConfidenceThreshold,omitempty"`
 	BlockingStrategy          *string        `json:"blockingStrategy,omitempty"`
-	FieldConfigs              []FieldConfig  `json:"fieldConfigs,omitempty"`
+	FieldConfigs              []DedupFieldConfig  `json:"fieldConfigs,omitempty"`
 }
 
 // BlockingStrategy constants
