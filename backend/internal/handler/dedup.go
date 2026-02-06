@@ -180,6 +180,7 @@ func (h *DedupHandler) CheckDuplicates(c *fiber.Ctx) error {
 // --- Pending Alert Management ---
 
 // GetPendingAlert returns the pending alert for a specific record
+// It re-runs duplicate detection to verify duplicates still exist and auto-dismisses if none remain
 func (h *DedupHandler) GetPendingAlert(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 	entityType := c.Params("entity")
@@ -192,6 +193,56 @@ func (h *DedupHandler) GetPendingAlert(c *fiber.Ctx) error {
 	if alert == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No pending alert"})
 	}
+
+	// Re-run duplicate detection to verify duplicates still exist
+	// This handles: deleted records, merged records, changed data
+	conn := h.getDB(c)
+
+	// Fetch current record data
+	record, err := util.FetchRecordAsMap(c.Context(), db.GetRawDB(conn), util.GetTableName(entityType), recordID, orgID)
+	if err != nil {
+		// Record itself was deleted
+		log.Printf("[DEDUP] Auto-dismissing alert for deleted record %s/%s", entityType, recordID)
+		_ = h.getAlertRepo(c).Resolve(c.Context(), orgID, entityType, recordID, entity.AlertStatusDismissed, "system", "auto-dismissed: record deleted")
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No pending alert"})
+	}
+
+	// Re-check for duplicates
+	matches, err := h.detector.CheckForDuplicates(c.Context(), conn, orgID, entityType, record, recordID)
+	if err != nil {
+		log.Printf("[DEDUP] Error re-checking duplicates for %s/%s: %v", entityType, recordID, err)
+		// Fall back to returning cached alert on error
+		return c.JSON(alert)
+	}
+
+	// If no duplicates found anymore, auto-dismiss
+	if len(matches) == 0 {
+		log.Printf("[DEDUP] Auto-dismissing stale alert for %s/%s (no duplicates found on re-check)", entityType, recordID)
+		_ = h.getAlertRepo(c).Resolve(c.Context(), orgID, entityType, recordID, entity.AlertStatusDismissed, "system", "auto-dismissed: no duplicates found")
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No pending alert"})
+	}
+
+	// Update alert with fresh match data
+	freshMatches := make([]entity.DuplicateAlertMatch, 0, len(matches))
+	highestConfidence := entity.ConfidenceLow
+	for _, match := range matches {
+		freshMatches = append(freshMatches, entity.DuplicateAlertMatch{
+			RecordID:    match.RecordID,
+			MatchResult: match.MatchResult,
+		})
+		if match.MatchResult != nil {
+			tier := match.MatchResult.ConfidenceTier
+			if tier == entity.ConfidenceHigh {
+				highestConfidence = entity.ConfidenceHigh
+			} else if tier == entity.ConfidenceMedium && highestConfidence != entity.ConfidenceHigh {
+				highestConfidence = entity.ConfidenceMedium
+			}
+		}
+	}
+
+	alert.Matches = freshMatches
+	alert.TotalMatchCount = len(freshMatches)
+	alert.HighestConfidence = highestConfidence
 
 	return c.JSON(alert)
 }
