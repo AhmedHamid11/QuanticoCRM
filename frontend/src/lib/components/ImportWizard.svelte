@@ -18,6 +18,7 @@
 		label: string;
 		type: string;
 		relatedEntity?: string; // For link fields
+		relatedEntityFields?: AvailableField[]; // Fields of related entity for lookup matching
 	}
 
 	interface LookupResolution {
@@ -25,6 +26,8 @@
 		createIfNotFound?: boolean;
 		newRecordData?: Record<string, Record<string, any>>; // matchValue -> field values
 	}
+
+	type ImportMode = 'create' | 'update' | 'upsert' | 'delete';
 
 	interface MissingLookup {
 		fieldName: string;
@@ -98,6 +101,10 @@
 	let loading = $state(false);
 	let error = $state('');
 	let availableFields: AvailableField[] = $state([]);
+
+	// Import mode settings
+	let importMode: ImportMode = $state('create');
+	let matchField: string = $state(''); // For update/upsert/delete - which field identifies records
 
 	// Handle file selection
 	async function handleFileSelect(event: Event) {
@@ -247,7 +254,8 @@
 			formData.append('options', JSON.stringify({
 				columnMapping,
 				lookupResolution: Object.keys(finalLookupResolution).length > 0 ? finalLookupResolution : undefined,
-				mode: 'create',
+				mode: importMode,
+				matchField: (importMode !== 'create' && matchField) ? matchField : undefined,
 				skipErrors: false
 			}));
 
@@ -268,7 +276,12 @@
 
 			importResult = await response.json();
 			step = 3;
-			addToast('success', `Successfully imported ${importResult.created} records`);
+			// Build success message based on mode
+			const messages: string[] = [];
+			if (importResult.created > 0) messages.push(`${importResult.created} created`);
+			if (importResult.updated > 0) messages.push(`${importResult.updated} updated`);
+			if ((importResult as any).deleted > 0) messages.push(`${(importResult as any).deleted} deleted`);
+			addToast('success', `Import complete: ${messages.join(', ') || 'No changes'}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Import failed';
 			addToast('error', 'Import failed');
@@ -347,21 +360,23 @@
 		return availableFields.find(f => f.name === baseFieldName || f.name === mappedFieldName);
 	}
 
-	function toggleLookupByName(fieldName: string, enabled: boolean) {
-		if (enabled) {
-			lookupResolution[fieldName] = { matchField: 'name', createIfNotFound: false };
+	function enableLookup(fieldName: string, lookupField: string) {
+		if (lookupField) {
+			lookupResolution[fieldName] = {
+				matchField: lookupField,
+				createIfNotFound: lookupResolution[fieldName]?.createIfNotFound || false
+			};
 		} else {
 			delete lookupResolution[fieldName];
 		}
-		// Trigger reactivity
 		lookupResolution = { ...lookupResolution };
 	}
 
-	function toggleCreateIfNotFound(fieldName: string, enabled: boolean) {
+	function setLookupNotFoundAction(fieldName: string, action: 'fail' | 'create') {
 		if (lookupResolution[fieldName]) {
 			lookupResolution[fieldName] = {
 				...lookupResolution[fieldName],
-				createIfNotFound: enabled
+				createIfNotFound: action === 'create'
 			};
 			lookupResolution = { ...lookupResolution };
 		}
@@ -452,6 +467,51 @@
 						File: <span class="font-medium">{file?.name}</span> ({previewData.totalRows} rows)
 					</p>
 
+					<!-- Import Mode Selector -->
+					<div class="bg-gray-50 rounded-lg p-4 mb-4">
+						<div class="grid grid-cols-2 gap-4">
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">Import Mode</label>
+								<select
+									bind:value={importMode}
+									class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+								>
+									<option value="create">Insert (create new records)</option>
+									<option value="update">Update (modify existing records)</option>
+									<option value="upsert">Upsert (create or update)</option>
+									<option value="delete">Delete (remove records)</option>
+								</select>
+							</div>
+							{#if importMode !== 'create'}
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Match Records By
+										<span class="text-red-500">*</span>
+									</label>
+									<select
+										bind:value={matchField}
+										class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									>
+										<option value="">-- Select field --</option>
+										<option value="id">ID</option>
+										{#each availableFields.filter(f => f.type === 'varchar' || f.type === 'email') as field}
+											<option value={field.name}>{field.label || field.name}</option>
+										{/each}
+									</select>
+									<p class="text-xs text-gray-500 mt-1">
+										{#if importMode === 'update'}
+											Records will be matched and updated by this field
+										{:else if importMode === 'upsert'}
+											Records will be matched by this field; new records created if no match
+										{:else if importMode === 'delete'}
+											Records matching this field value will be deleted
+										{/if}
+									</p>
+								</div>
+							{/if}
+						</div>
+					</div>
+
 					<!-- Column Mapping Table -->
 					<div class="overflow-x-auto">
 						<table class="min-w-full divide-y divide-gray-200">
@@ -486,31 +546,38 @@
 										</td>
 										<td class="px-4 py-3">
 											{#if isLink && mappedField}
-												<div class="space-y-2">
-													<label class="flex items-center text-sm text-gray-600 cursor-pointer">
-														<input
-															type="checkbox"
-															checked={!!lookupResolution[mappedField.name]}
-															onchange={(e) => toggleLookupByName(mappedField.name, e.currentTarget.checked)}
-															class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-														/>
-														<span>Look up by name</span>
-													</label>
+												<div class="flex gap-2 items-start">
+													<!-- Look up by field dropdown -->
+													<div class="flex-1">
+														<label class="block text-xs text-gray-500 mb-1">Look up by</label>
+														<select
+															value={lookupResolution[mappedField.name]?.matchField || ''}
+															onchange={(e) => enableLookup(mappedField.name, e.currentTarget.value)}
+															class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+														>
+															<option value="">Use ID directly</option>
+															{#if mappedField.relatedEntityFields && mappedField.relatedEntityFields.length > 0}
+																{#each mappedField.relatedEntityFields as relField}
+																	<option value={relField.name}>{relField.label || relField.name}</option>
+																{/each}
+															{:else}
+																<option value="name">Name</option>
+															{/if}
+														</select>
+													</div>
+													<!-- If not found action dropdown -->
 													{#if lookupResolution[mappedField.name]}
-														<label class="flex items-center text-sm text-gray-600 cursor-pointer ml-6">
-															<input
-																type="checkbox"
-																checked={!!lookupResolution[mappedField.name]?.createIfNotFound}
-																onchange={(e) => toggleCreateIfNotFound(mappedField.name, e.currentTarget.checked)}
-																class="mr-2 h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-															/>
-															<span>Create if not found</span>
-														</label>
-														<p class="text-xs text-gray-500 ml-6">
-															{lookupResolution[mappedField.name]?.createIfNotFound
-																? `Will create new ${mappedField.relatedEntity || 'record'} if not found`
-																: `Will match ${mappedField.relatedEntity || 'record'} by name`}
-														</p>
+														<div class="flex-1">
+															<label class="block text-xs text-gray-500 mb-1">If not found</label>
+															<select
+																value={lookupResolution[mappedField.name]?.createIfNotFound ? 'create' : 'fail'}
+																onchange={(e) => setLookupNotFoundAction(mappedField.name, e.currentTarget.value as 'fail' | 'create')}
+																class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+															>
+																<option value="fail">Fail import</option>
+																<option value="create">Create new {mappedField.relatedEntity || 'record'}</option>
+															</select>
+														</div>
 													{/if}
 												</div>
 											{:else}
@@ -533,8 +600,9 @@
 					</button>
 					<button
 						onclick={analyzeData}
-						disabled={loading}
+						disabled={loading || (importMode !== 'create' && !matchField)}
 						class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+						title={importMode !== 'create' && !matchField ? 'Please select a field to match records by' : ''}
 					>
 						{loading ? 'Analyzing...' : 'Analyze Data'}
 					</button>
@@ -693,9 +761,21 @@
 
 			<div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
 				<h3 class="font-semibold text-green-800 mb-2">Import Successful</h3>
-				<p class="text-green-700">
-					Created {importResult.created} records out of {importResult.totalRows} rows
-				</p>
+				<div class="text-green-700 space-y-1">
+					{#if importResult.created > 0}
+						<p>Created: {importResult.created} records</p>
+					{/if}
+					{#if importResult.updated > 0}
+						<p>Updated: {importResult.updated} records</p>
+					{/if}
+					{#if (importResult as any).deleted > 0}
+						<p>Deleted: {(importResult as any).deleted} records</p>
+					{/if}
+					{#if (importResult as any).skipped > 0}
+						<p>Skipped: {(importResult as any).skipped} records (not found)</p>
+					{/if}
+					<p class="text-gray-600 text-sm mt-2">Total rows processed: {importResult.totalRows}</p>
+				</div>
 			</div>
 
 			{#if importResult.failed > 0}

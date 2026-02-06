@@ -119,10 +119,11 @@ type PreviewCSVResponse struct {
 
 // AvailableField represents an entity field available for mapping
 type AvailableField struct {
-	Name          string `json:"name"`
-	Label         string `json:"label"`
-	Type          string `json:"type"`
-	RelatedEntity string `json:"relatedEntity,omitempty"` // For link fields, the related entity name
+	Name                string           `json:"name"`
+	Label               string           `json:"label"`
+	Type                string           `json:"type"`
+	RelatedEntity       string           `json:"relatedEntity,omitempty"`       // For link fields, the related entity name
+	RelatedEntityFields []AvailableField `json:"relatedEntityFields,omitempty"` // Fields of the related entity (for lookup matching)
 }
 
 // FieldMapping shows how a CSV column maps to an entity field
@@ -1185,9 +1186,25 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 			Label: field.Label,
 			Type:  string(field.Type),
 		}
-		// For link fields, include the related entity name
+		// For link fields, include the related entity name and its fields
 		if field.Type == entity.FieldTypeLink && field.LinkEntity != nil {
 			af.RelatedEntity = *field.LinkEntity
+			// Fetch fields from related entity for lookup matching dropdown
+			relatedFields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, *field.LinkEntity)
+			if err == nil {
+				for _, rf := range relatedFields {
+					// Include text-like fields that can be used for matching
+					if rf.Type == entity.FieldTypeVarchar || rf.Type == entity.FieldTypeText ||
+						rf.Type == entity.FieldTypeEmail || rf.Type == entity.FieldTypeUrl ||
+						rf.Type == entity.FieldTypePhone || rf.Name == "name" {
+						af.RelatedEntityFields = append(af.RelatedEntityFields, AvailableField{
+							Name:  rf.Name,
+							Label: rf.Label,
+							Type:  string(rf.Type),
+						})
+					}
+				}
+			}
 		}
 		availableFields = append(availableFields, af)
 	}
