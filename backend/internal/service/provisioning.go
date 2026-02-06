@@ -309,8 +309,60 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 		log.Printf("[Provisioning] Verified %d layouts created for org %s", layoutCount, orgID)
 	}
 
+	// Create default matching rules for duplicate detection
+	s.createDefaultMatchingRules(ctx, orgID, now)
+
 	log.Printf("[Provisioning] Completed metadata provisioning for org %s", orgID)
 	return nil
+}
+
+// createDefaultMatchingRules creates example matching rules so users can see how they work
+func (s *ProvisioningService) createDefaultMatchingRules(ctx context.Context, orgID, now string) {
+	// Contact matching rule: Email + Name
+	contactRuleID := sfid.New("0Mr")
+	contactFieldConfigs := `[
+		{"fieldName":"emailAddress","weight":60,"algorithm":"email","threshold":0.95,"exactMatchBoost":true},
+		{"fieldName":"lastName","weight":25,"algorithm":"jaro_winkler","threshold":0.88},
+		{"fieldName":"firstName","weight":15,"algorithm":"jaro_winkler","threshold":0.85}
+	]`
+	contactMergeFields := `["firstName","lastName","emailAddress","phoneNumber","accountId","description"]`
+
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO matching_rules (id, org_id, name, description, entity_type, is_enabled, priority,
+			threshold, high_confidence_threshold, medium_confidence_threshold, blocking_strategy,
+			field_configs, merge_display_fields, created_at, modified_at)
+		VALUES (?, ?, ?, ?, ?, 1, 1, 0.70, 0.95, 0.85, 'multi', ?, ?, ?, ?)
+	`, contactRuleID, orgID, "Contact Email Match",
+		"Finds duplicate contacts by matching email address (60%) and name similarity (40%). High confidence when email matches exactly.",
+		"Contact", contactFieldConfigs, contactMergeFields, now, now)
+	if err != nil {
+		log.Printf("[Provisioning] Warning: failed to create Contact matching rule: %v", err)
+	} else {
+		log.Printf("[Provisioning] Created Contact matching rule for org %s", orgID)
+	}
+
+	// Account matching rule: Name + Website
+	accountRuleID := sfid.New("0Mr")
+	accountFieldConfigs := `[
+		{"fieldName":"name","weight":50,"algorithm":"jaro_winkler","threshold":0.90},
+		{"fieldName":"website","weight":30,"algorithm":"exact","threshold":1.0,"exactMatchBoost":true},
+		{"fieldName":"emailAddress","weight":20,"algorithm":"email","threshold":0.95}
+	]`
+	accountMergeFields := `["name","website","emailAddress","phoneNumber","industry","description"]`
+
+	_, err = s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO matching_rules (id, org_id, name, description, entity_type, is_enabled, priority,
+			threshold, high_confidence_threshold, medium_confidence_threshold, blocking_strategy,
+			field_configs, merge_display_fields, created_at, modified_at)
+		VALUES (?, ?, ?, ?, ?, 1, 1, 0.75, 0.95, 0.85, 'prefix', ?, ?, ?, ?)
+	`, accountRuleID, orgID, "Account Name Match",
+		"Finds duplicate accounts by matching company name (50%), website (30%), and email domain (20%). Uses name prefix blocking for performance.",
+		"Account", accountFieldConfigs, accountMergeFields, now, now)
+	if err != nil {
+		log.Printf("[Provisioning] Warning: failed to create Account matching rule: %v", err)
+	} else {
+		log.Printf("[Provisioning] Created Account matching rule for org %s", orgID)
+	}
 }
 
 // createSampleData inserts sample records so new orgs aren't empty
