@@ -279,6 +279,13 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 			if stmt == "" || strings.HasPrefix(stmt, "--") {
 				continue
 			}
+
+			// Skip master-only tables on tenant databases
+			if isMasterOnlyStatement(stmt) {
+				log.Printf("[MIGRATION] Org=%s Skipping master-only statement in %s", org.ID, file)
+				continue
+			}
+
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				// Handle idempotent errors (safe to skip)
 				if isAddColumnError(err) || isTableNotExistsError(err) {
@@ -390,4 +397,28 @@ func isTableNotExistsError(err error) bool {
 	return strings.Contains(errStr, "no such table") ||
 		strings.Contains(errStr, "table does not exist") ||
 		strings.Contains(errStr, "table not found")
+}
+
+// isMasterOnlyStatement checks if a statement operates on master-only tables
+// These should not be applied to tenant databases
+func isMasterOnlyStatement(stmt string) bool {
+	masterOnlyTables := []string{
+		"organizations",
+		"users",
+		"user_org_memberships",
+		"sessions",
+		"org_invitations",
+		"custom_pages",
+		"api_tokens",
+		"audit_log",
+		"_migrations",
+	}
+
+	upper := strings.ToUpper(stmt)
+	for _, table := range masterOnlyTables {
+		if strings.Contains(upper, strings.ToUpper(table)) {
+			return true
+		}
+	}
+	return false
 }
