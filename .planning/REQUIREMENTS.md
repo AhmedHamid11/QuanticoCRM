@@ -203,14 +203,14 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DETECT-01 | Phase 11 | Pending |
+| DETECT-01 | Phase 11 | Complete |
 | DETECT-02 | Phase 12 | Pending |
-| DETECT-03 | Phase 11 | Pending |
-| DETECT-04 | Phase 11 | Pending |
-| DETECT-05 | Phase 11 | Pending |
-| DETECT-06 | Phase 11 | Pending |
-| DETECT-07 | Phase 11 | Pending |
-| DETECT-08 | Phase 11 | Pending |
+| DETECT-03 | Phase 11 | Complete |
+| DETECT-04 | Phase 11 | Complete |
+| DETECT-05 | Phase 11 | Complete |
+| DETECT-06 | Phase 11 | Complete |
+| DETECT-07 | Phase 11 | Partial |
+| DETECT-08 | Phase 11 | Complete |
 | DETECT-09 | Phase 12 | Pending |
 | IMPORT-01 | Phase 14 | Pending |
 | IMPORT-02 | Phase 14 | Pending |
@@ -244,4 +244,4 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 ---
 
 *37 requirements across 5 categories*
-*Last updated: 2026-02-06*
+*Last updated: 2026-02-06 - Phase 11 requirements complete*

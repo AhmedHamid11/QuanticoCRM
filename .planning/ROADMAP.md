@@ -25,9 +25,9 @@
 **Plans**: 3 plans
 
 Plans:
-- [ ] 11-01-PLAN.md - Database schema and entity types (matching_rules table, Go types, repository)
-- [ ] 11-02-PLAN.md - Similarity service (Jaro-Winkler, email/phone normalization, weighted scorer)
-- [ ] 11-03-PLAN.md - Blocking strategies and rule management API
+- [x] 11-01-PLAN.md - Database schema and entity types (matching_rules table, Go types, repository) ✓
+- [x] 11-02-PLAN.md - Similarity service (Jaro-Winkler, email/phone normalization, weighted scorer) ✓
+- [x] 11-03-PLAN.md - Blocking strategies and rule management API ✓
 
 ### Phase 12: Real-Time Detection
 **Goal**: Prevent new duplicates by detecting matches during record creation
@@ -123,15 +123,15 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 01-05 | v1.0 | 9/9 | Complete | 2026-02-01 |
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
-| 11. Detection Foundation | v3.0 | 0/3 | Planned | - |
+| 11. Detection Foundation | v3.0 | 3/3 | Complete | 2026-02-06 |
 | 12. Real-Time Detection | v3.0 | 0/2 | Not started | - |
 | 13. Merge Engine | v3.0 | 0/5 | Not started | - |
 | 14. Import Integration | v3.0 | 0/3 | Not started | - |
 | 15. Background Scanning | v3.0 | 0/3 | Not started | - |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
-**v3.0 Total:** 0/21 plans
+**v3.0 Total:** 3/21 plans
 
 ---
 
-*Last updated: 2026-02-06 - Phase 11 planned (3 plans)*
+*Last updated: 2026-02-06 - Phase 11 complete (3/3 plans)*
