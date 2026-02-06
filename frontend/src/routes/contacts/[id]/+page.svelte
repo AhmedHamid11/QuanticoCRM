@@ -211,6 +211,13 @@
 	onMount(() => {
 		loadData();
 	});
+
+	// Reload data when contactId changes (e.g., navigating between contacts)
+	$effect(() => {
+		if (contactId) {
+			loadData();
+		}
+	});
 </script>
 
 <div class="space-y-6">

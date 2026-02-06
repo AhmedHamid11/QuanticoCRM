@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { getConfidenceBadgeClass, formatConfidence, type PendingAlert, type DuplicateMatch } from '$lib/api/dedup';
 	import { goto } from '$app/navigation';
+	import { get } from '$lib/utils/api';
 
 	interface Props {
 		alert: PendingAlert;
@@ -26,6 +28,87 @@
 
 	let overrideText = $state('');
 	let showAllMatches = $state(false);
+
+	// Store fetched record details for each match
+	let matchDetails = $state<Record<string, Record<string, unknown>>>({});
+	let loadingDetails = $state(true);
+
+	// Fetch details for all matches when modal opens
+	onMount(async () => {
+		loadingDetails = true;
+		const entityPlural = entityType.toLowerCase() + 's';
+
+		// Fetch all match records in parallel
+		const fetchPromises = alert.matches.map(async (match) => {
+			try {
+				const record = await get<Record<string, unknown>>(`/${entityPlural}/${match.recordId}`);
+				return { id: match.recordId, record };
+			} catch (error) {
+				console.error(`Failed to fetch record ${match.recordId}:`, error);
+				return { id: match.recordId, record: null };
+			}
+		});
+
+		const results = await Promise.all(fetchPromises);
+		const details: Record<string, Record<string, unknown>> = {};
+		for (const result of results) {
+			if (result.record) {
+				details[result.id] = result.record;
+			}
+		}
+		matchDetails = details;
+		loadingDetails = false;
+	});
+
+	// Helper to get display name for a record
+	function getRecordDisplayName(match: DuplicateMatch): string {
+		const details = matchDetails[match.recordId];
+		if (details) {
+			// Try common name patterns
+			if (details.firstName || details.lastName) {
+				return [details.firstName, details.lastName].filter(Boolean).join(' ');
+			}
+			if (details.name) {
+				return String(details.name);
+			}
+		}
+		return match.recordName || `Record: ${match.recordId.slice(0, 12)}...`;
+	}
+
+	// Helper to get key field values for display
+	function getKeyFieldValues(match: DuplicateMatch): Array<{label: string, value: string}> {
+		const details = matchDetails[match.recordId];
+		if (!details) return [];
+
+		const keyFields: Array<{label: string, value: string}> = [];
+
+		// Show matching fields with their actual values
+		for (const field of match.matchResult.matchingFields) {
+			const value = details[field];
+			if (value !== null && value !== undefined && value !== '') {
+				keyFields.push({
+					label: field.replace(/([A-Z])/g, ' $1').trim(),
+					value: String(value)
+				});
+			}
+		}
+
+		// Also show some standard fields if not already included
+		const standardFields = ['firstName', 'lastName', 'emailAddress', 'phoneNumber', 'accountName'];
+		for (const field of standardFields) {
+			if (!match.matchResult.matchingFields.includes(field)) {
+				const value = details[field];
+				if (value !== null && value !== undefined && value !== '') {
+					keyFields.push({
+						label: field.replace(/([A-Z])/g, ' $1').trim(),
+						value: String(value)
+					});
+				}
+			}
+		}
+
+		return keyFields.slice(0, 6); // Limit to 6 fields
+	}
 
 	// Matches to display (top 3 or all)
 	let displayedMatches = $derived(
@@ -91,53 +174,66 @@
 
 		<!-- Body -->
 		<div class="px-6 py-4 space-y-4 overflow-y-auto flex-1">
-			{#each displayedMatches as match (match.recordId)}
-				<div class="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-					<!-- Match header with confidence badge -->
-					<div class="flex items-center justify-between mb-3">
-						<span class="text-sm font-medium text-gray-700">
-							{#if match.recordName}
-								{match.recordName}
-							{:else}
-								Record: {match.recordId.slice(0, 12)}...
-							{/if}
-						</span>
-						<span class="px-2 py-1 text-xs font-medium rounded border {getConfidenceBadgeClass(match.matchResult.confidenceTier)}">
-							{match.matchResult.confidenceTier.toUpperCase()} - {formatConfidence(match.matchResult.score)}
-						</span>
-					</div>
+			{#if loadingDetails}
+				<div class="text-center py-4 text-gray-500">Loading match details...</div>
+			{:else}
+				{#each displayedMatches as match (match.recordId)}
+					<div class="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+						<!-- Match header with confidence badge -->
+						<div class="flex items-center justify-between mb-3">
+							<span class="text-base font-medium text-gray-900">
+								{getRecordDisplayName(match)}
+							</span>
+							<span class="px-2 py-1 text-xs font-medium rounded border {getConfidenceBadgeClass(match.matchResult.confidenceTier)}">
+								{match.matchResult.confidenceTier.toUpperCase()} - {formatConfidence(match.matchResult.score)}
+							</span>
+						</div>
 
-					<!-- Matching fields with scores -->
-					<div class="grid grid-cols-2 gap-2 text-sm mb-3">
-						{#each Object.entries(match.matchResult.fieldScores) as [field, score]}
-							<div class="flex justify-between px-2 py-1 rounded {score >= 0.85 ? 'bg-yellow-50' : ''}">
-								<span class="text-gray-600 capitalize">{field.replace(/([A-Z])/g, ' $1').trim()}:</span>
-								<span class="font-medium {score >= 0.95 ? 'text-red-600' : score >= 0.85 ? 'text-yellow-600' : 'text-gray-600'}">
-									{formatConfidence(score)}
-								</span>
+						<!-- Record details -->
+						{#if getKeyFieldValues(match).length > 0}
+							<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3 bg-gray-50 rounded p-3">
+								{#each getKeyFieldValues(match) as field}
+									<div class="flex flex-col">
+										<span class="text-xs text-gray-500 capitalize">{field.label}</span>
+										<span class="text-gray-900 truncate" title={field.value}>{field.value}</span>
+									</div>
+								{/each}
 							</div>
-						{/each}
-					</div>
-
-					<!-- Match actions -->
-					<div class="flex gap-3 pt-2 border-t border-gray-100">
-						<button
-							onclick={() => handleViewRecord(match.recordId)}
-							class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-						>
-							View Record
-						</button>
-						{#if userCanMerge}
-							<button
-								onclick={() => handleMerge(match.recordId)}
-								class="text-sm text-green-600 hover:text-green-800 hover:underline"
-							>
-								Merge with this
-							</button>
 						{/if}
+
+						<!-- Matching fields with scores -->
+						<div class="text-xs text-gray-500 mb-2">Match scores:</div>
+						<div class="grid grid-cols-2 gap-2 text-sm mb-3">
+							{#each Object.entries(match.matchResult.fieldScores) as [field, score]}
+								<div class="flex justify-between px-2 py-1 rounded {score >= 0.85 ? 'bg-yellow-50' : ''}">
+									<span class="text-gray-600 capitalize">{field.replace(/([A-Z])/g, ' $1').trim()}:</span>
+									<span class="font-medium {score >= 0.95 ? 'text-red-600' : score >= 0.85 ? 'text-yellow-600' : 'text-gray-600'}">
+										{formatConfidence(score)}
+									</span>
+								</div>
+							{/each}
+						</div>
+
+						<!-- Match actions -->
+						<div class="flex gap-3 pt-2 border-t border-gray-100">
+							<button
+								onclick={() => handleViewRecord(match.recordId)}
+								class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+							>
+								View Record
+							</button>
+							{#if userCanMerge}
+								<button
+									onclick={() => handleMerge(match.recordId)}
+									class="text-sm text-green-600 hover:text-green-800 hover:underline"
+								>
+									Merge with this
+								</button>
+							{/if}
+						</div>
 					</div>
-				</div>
-			{/each}
+				{/each}
+			{/if}
 
 			<!-- Show more indicator -->
 			{#if alert.totalMatchCount > 3 && !showAllMatches}
