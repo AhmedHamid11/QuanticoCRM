@@ -1,5 +1,6 @@
 import { W as store_get, $ as head, _ as unsubscribe_stores } from "../../../../chunks/index.js";
 import { p as page } from "../../../../chunks/stores.js";
+import "../../../../chunks/auth.svelte.js";
 import "marked";
 import { e as escape_html } from "../../../../chunks/attributes.js";
 function _page($$renderer, $$props) {

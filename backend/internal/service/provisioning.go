@@ -97,7 +97,7 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 	// If error is not "no rows", there's a real problem
 	errStr := err.Error()
 	log.Printf("[Provisioning] Table check error: %s", errStr)
-	if errStr != "sql: no rows" {
+	if errStr != "sql: no rows in result set" {
 		log.Printf("[Provisioning] ERROR: failed to check entity_defs table: %v", err)
 		return fmt.Errorf("failed to check entity_defs table: %w", err)
 	}

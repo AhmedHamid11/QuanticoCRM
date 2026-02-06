@@ -6,6 +6,7 @@ import "../../../../../../../chunks/utils.js";
 import { a as attr, e as escape_html } from "../../../../../../../chunks/attributes.js";
 import "@sveltejs/kit/internal/server";
 import "../../../../../../../chunks/state.svelte.js";
+import "../../../../../../../chunks/auth.svelte.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     var $$store_subs;

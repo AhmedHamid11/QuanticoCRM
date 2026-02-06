@@ -6,6 +6,7 @@ import "../../../../../chunks/utils.js";
 import { a as attr, e as escape_html } from "../../../../../chunks/attributes.js";
 import "@sveltejs/kit/internal/server";
 import "../../../../../chunks/state.svelte.js";
+import "../../../../../chunks/auth.svelte.js";
 import { a as getEntityNameFromPath } from "../../../../../chunks/navigation.svelte.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
@@ -20,21 +21,23 @@ function _page($$renderer, $$props) {
       }
       return singular.charAt(0).toUpperCase() + singular.slice(1);
     }
-    let fields = [];
     let formData = {};
-    fields.filter((f) => f.name !== "id" && !f.isReadOnly);
-    $$renderer2.push(`<div class="space-y-6"><div><nav class="text-sm text-gray-500 mb-2"><a${attr("href", `/${stringify(
-      // Reload data when entity or record changes (handles navigation between edit pages)
-      // Track these reactive values to trigger reload on navigation
-      // Reset state
-      // Load data
-      entitySlug
-    )}`)} class="hover:text-gray-700">${escape_html(entityName + "s")}</a> <span class="mx-2">/</span> <a${attr("href", `/${stringify(entitySlug)}/${stringify(recordId)}`)} class="hover:text-gray-700">${escape_html(formData.name || recordId)}</a> <span class="mx-2">/</span> <span class="text-gray-900">Edit</span></nav> <h1 class="text-2xl font-bold text-gray-900">Edit ${escape_html(entityName)}</h1></div> `);
-    {
-      $$renderer2.push("<!--[-->");
-      $$renderer2.push(`<div class="text-center py-12 text-gray-500">Loading...</div>`);
+    let $$settled = true;
+    let $$inner_renderer;
+    function $$render_inner($$renderer3) {
+      $$renderer3.push(`<div class="space-y-6"><div><nav class="text-sm text-gray-500 mb-2"><a${attr("href", `/${stringify(entitySlug)}`)} class="hover:text-gray-700">${escape_html(entityName + "s")}</a> <span class="mx-2">/</span> <a${attr("href", `/${stringify(entitySlug)}/${stringify(recordId)}`)} class="hover:text-gray-700">${escape_html(formData.name || recordId)}</a> <span class="mx-2">/</span> <span class="text-gray-900">Edit</span></nav> <h1 class="text-2xl font-bold text-gray-900">Edit ${escape_html(entityName)}</h1></div> `);
+      {
+        $$renderer3.push("<!--[-->");
+        $$renderer3.push(`<div class="text-center py-12 text-gray-500">Loading...</div>`);
+      }
+      $$renderer3.push(`<!--]--></div>`);
     }
-    $$renderer2.push(`<!--]--></div>`);
+    do {
+      $$settled = true;
+      $$inner_renderer = $$renderer2.copy();
+      $$render_inner($$inner_renderer);
+    } while (!$$settled);
+    $$renderer2.subsume($$inner_renderer);
     if ($$store_subs) unsubscribe_stores($$store_subs);
   });
 }

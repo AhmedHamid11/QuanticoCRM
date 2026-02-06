@@ -1,4 +1,5 @@
 import "clsx";
+import "../../../../chunks/auth.svelte.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     $$renderer2.push(`<div class="space-y-6"><div class="flex items-center justify-between"><h1 class="text-2xl font-bold text-gray-900">Organization Settings</h1> <a href="/admin" class="text-sm text-blue-600 hover:text-blue-800">← Back to Admin</a></div> `);

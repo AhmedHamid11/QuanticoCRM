@@ -13,7 +13,7 @@ function Toast($$renderer, $$props) {
         $$renderer2.push(`<div${attr_class("rounded-lg px-4 py-3 shadow-lg transition-all duration-300", void 0, {
           "bg-green-500": toast.type === "success",
           "bg-red-500": toast.type === "error",
-          "bg-blue-500": toast.type === "info"
+          "bg-blue-600": toast.type === "info"
         })}><p class="text-white text-sm font-medium">${escape_html(toast.message)}</p></div>`);
       }
       $$renderer2.push(`<!--]--></div>`);

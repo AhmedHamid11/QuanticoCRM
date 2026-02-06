@@ -5,6 +5,7 @@ import "../../../../chunks/utils.js";
 import { e as escape_html, a as attr } from "../../../../chunks/attributes.js";
 import "@sveltejs/kit/internal/server";
 import "../../../../chunks/state.svelte.js";
+import "../../../../chunks/auth.svelte.js";
 import { L as LookupField } from "../../../../chunks/LookupField.js";
 const QUOTE_STATUSES = [
   "Draft",
@@ -336,7 +337,7 @@ function _page($$renderer, $$props) {
       if ($$body_2) {
         $$renderer3.push(`${$$body_2}`);
       }
-      $$renderer3.push(`</textarea></div></div> <div class="flex justify-end gap-3"><a href="/quotes" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancel</a> <button type="submit"${attr("disabled", saving, true)} class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">${escape_html("Create Quote")}</button></div></form></div>`);
+      $$renderer3.push(`</textarea></div></div> <div class="flex justify-end gap-3"><a href="/quotes" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancel</a> <button type="submit"${attr("disabled", saving, true)} class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-600/90 disabled:opacity-50">${escape_html("Create Quote")}</button></div></form></div>`);
     }
     do {
       $$settled = true;

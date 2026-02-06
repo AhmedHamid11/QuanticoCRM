@@ -1,4 +1,5 @@
 import "clsx";
+import "./auth.svelte.js";
 let tabs = [];
 function getNavigationTabs() {
   return tabs;

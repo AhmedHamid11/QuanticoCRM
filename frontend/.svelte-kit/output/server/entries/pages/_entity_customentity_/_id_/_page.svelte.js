@@ -6,6 +6,7 @@ import "../../../../chunks/utils.js";
 import { e as escape_html, a as attr } from "../../../../chunks/attributes.js";
 import "@sveltejs/kit/internal/server";
 import "../../../../chunks/state.svelte.js";
+import "../../../../chunks/auth.svelte.js";
 import { a as getEntityNameFromPath } from "../../../../chunks/navigation.svelte.js";
 /* empty css                                                       */
 import "clsx";
@@ -21,7 +22,7 @@ function FlowButton($$renderer, $$props) {
     lg: "px-4 py-2 text-base"
   };
   const variantClasses = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 border-transparent",
+    primary: "bg-blue-600 text-white hover:bg-blue-600/90 focus:ring-blue-500 border-transparent",
     secondary: "bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500 border-gray-300",
     ghost: "bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-500 border-transparent"
   };

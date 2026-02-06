@@ -7,6 +7,7 @@ import { e as escape_html } from "../../../../chunks/attributes.js";
 import "clsx";
 import "@sveltejs/kit/internal/server";
 import "../../../../chunks/state.svelte.js";
+import "../../../../chunks/auth.svelte.js";
 import { D as DetailSkeleton } from "../../../../chunks/DetailSkeleton.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
@@ -14,7 +15,14 @@ function _page($$renderer, $$props) {
     store_get($$store_subs ??= {}, "$page", page).params.id;
     let relatedListConfigs = [];
     relatedListConfigs.filter((c) => c.enabled).sort((a, b) => a.sortOrder - b.sortOrder);
-    $$renderer2.push(`<div class="space-y-6"><nav class="text-sm text-gray-500"><a href="/contacts" class="hover:text-gray-700">Contacts</a> <span class="mx-2">/</span> <span class="text-gray-900">${escape_html("Loading...")}</span></nav> `);
+    $$renderer2.push(`<div class="space-y-6"><nav class="text-sm text-gray-500"><a href="/contacts" class="hover:text-gray-700">Contacts</a> <span class="mx-2">/</span> <span class="text-gray-900">${escape_html(
+      // Reload data when contactId changes (e.g., navigating between contacts)
+      "Loading..."
+    )}</span></nav> `);
+    {
+      $$renderer2.push("<!--[!-->");
+    }
+    $$renderer2.push(`<!--]--> `);
     {
       $$renderer2.push("<!--[-->");
       DetailSkeleton($$renderer2, { sections: 2, fieldsPerSection: 4 });

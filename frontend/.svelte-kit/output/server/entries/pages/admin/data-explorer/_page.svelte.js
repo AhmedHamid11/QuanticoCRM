@@ -1,4 +1,5 @@
 import { e as escape_html, a as attr } from "../../../../chunks/attributes.js";
+import "../../../../chunks/auth.svelte.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     let sqlQuery = "SELECT * FROM contacts LIMIT 10";

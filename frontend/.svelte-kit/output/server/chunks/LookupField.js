@@ -1,4 +1,5 @@
 import { Z as stringify } from "./index.js";
+import "./auth.svelte.js";
 import { e as escape_html, a as attr } from "./attributes.js";
 function LookupField($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {

@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/entity-manager/[entity]/layouts/+page.svelte";

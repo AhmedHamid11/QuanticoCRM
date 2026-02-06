@@ -1,1 +1,0 @@
-import{e as u,i as d,d as a,g as o}from"./BAwiZoAf.js";let s=u(d([])),f=0;function l(){return o(s)}function e(t,i,n=3e3){const r=f++;a(s,[...o(s),{id:r,message:t,type:i}],!0),setTimeout(()=>{a(s,o(s).filter(c=>c.id!==r),!0)},n)}const m={success:t=>e(t,"success"),error:t=>e(t,"error",5e3),info:t=>e(t,"info")};export{e as a,l as g,m as t};

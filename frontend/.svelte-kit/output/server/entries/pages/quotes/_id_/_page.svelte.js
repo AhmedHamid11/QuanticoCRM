@@ -6,6 +6,7 @@ import "../../../../chunks/utils.js";
 import "clsx";
 import "@sveltejs/kit/internal/server";
 import "../../../../chunks/state.svelte.js";
+import "../../../../chunks/auth.svelte.js";
 import { D as DetailSkeleton } from "../../../../chunks/DetailSkeleton.js";
 /* empty css                                                       */
 function _page($$renderer, $$props) {

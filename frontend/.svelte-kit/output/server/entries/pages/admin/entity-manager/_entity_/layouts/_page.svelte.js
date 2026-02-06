@@ -1,5 +1,6 @@
 import { W as store_get, _ as unsubscribe_stores, Z as stringify } from "../../../../../../chunks/index.js";
 import { p as page } from "../../../../../../chunks/stores.js";
+import "../../../../../../chunks/auth.svelte.js";
 import { a as attr, e as escape_html } from "../../../../../../chunks/attributes.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {

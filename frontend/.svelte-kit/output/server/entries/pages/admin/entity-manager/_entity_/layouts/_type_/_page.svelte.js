@@ -1,5 +1,6 @@
 import { W as store_get, _ as unsubscribe_stores, Z as stringify } from "../../../../../../../chunks/index.js";
 import { p as page } from "../../../../../../../chunks/stores.js";
+import "../../../../../../../chunks/auth.svelte.js";
 import { a as attr, e as escape_html } from "../../../../../../../chunks/attributes.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
@@ -43,7 +44,7 @@ function _page($$renderer, $$props) {
     } else {
       $$renderer2.push("<!--[!-->");
     }
-    $$renderer2.push(`<!--]--> <button type="button"${attr("disabled", isListLayout ? false : true, true)} class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">${escape_html("Save Layout")}</button></div></div></div> `);
+    $$renderer2.push(`<!--]--> <button type="button"${attr("disabled", isListLayout ? false : true, true)} class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50">${escape_html("Save Layout")}</button></div></div></div> `);
     {
       $$renderer2.push("<!--[-->");
       $$renderer2.push(`<div class="text-center py-12 text-gray-500">Loading...</div>`);

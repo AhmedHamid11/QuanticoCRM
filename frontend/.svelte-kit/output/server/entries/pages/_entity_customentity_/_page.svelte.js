@@ -1,5 +1,6 @@
 import { W as store_get, X as ensure_array_like, Y as attr_class, _ as unsubscribe_stores, Z as stringify } from "../../../chunks/index.js";
 import { p as page } from "../../../chunks/stores.js";
+import "../../../chunks/auth.svelte.js";
 import { a as getEntityNameFromPath } from "../../../chunks/navigation.svelte.js";
 import { T as TableSkeleton } from "../../../chunks/TableSkeleton.js";
 import { e as escape_html, a as attr } from "../../../chunks/attributes.js";
@@ -27,7 +28,7 @@ function _page($$renderer, $$props) {
     {
       $$renderer2.push("<!--[!-->");
     }
-    $$renderer2.push(`<!--]--> <h1 class="text-2xl font-bold text-gray-900">${escape_html(entityName + "s")}</h1></div> <a${attr("href", `/${stringify(entitySlug)}/new`)} class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">+ New ${escape_html(entityName)}</a></div> <div class="flex flex-wrap gap-3 items-start"><div class="flex-1 min-w-[200px] relative"><input type="text"${attr("value", search)} placeholder="Search..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/> <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path></svg> `);
+    $$renderer2.push(`<!--]--> <h1 class="text-2xl font-bold text-gray-900">${escape_html(entityName + "s")}</h1></div> <a${attr("href", `/${stringify(entitySlug)}/new`)} class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90">+ New ${escape_html(entityName)}</a></div> <div class="flex flex-wrap gap-3 items-start"><div class="flex-1 min-w-[200px] relative"><input type="text"${attr("value", search)} placeholder="Search..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/> <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path></svg> `);
     {
       $$renderer2.push("<!--[!-->");
     }

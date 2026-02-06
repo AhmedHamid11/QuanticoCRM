@@ -1,4 +1,5 @@
 import { X as ensure_array_like, Y as attr_class, Z as stringify } from "../../../chunks/index.js";
+import "../../../chunks/auth.svelte.js";
 import { T as TableSkeleton } from "../../../chunks/TableSkeleton.js";
 import "@sveltejs/kit/internal";
 import "../../../chunks/exports.js";
@@ -12,7 +13,7 @@ function _page($$renderer, $$props) {
     let pageSize = 20;
     let listViews = [];
     let selectedListView = null;
-    $$renderer2.push(`<div class="space-y-4"><div class="flex justify-between items-center"><h1 class="text-2xl font-bold text-gray-900">Contacts</h1> <a href="/contacts/new" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">+ New Contact</a></div> <div class="flex flex-wrap gap-3 items-start"><div class="flex-1 min-w-[200px] relative"><input type="text"${attr("value", search)} placeholder="Search contacts..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/> <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path></svg> `);
+    $$renderer2.push(`<div class="space-y-4"><div class="flex justify-between items-center"><h1 class="text-2xl font-bold text-gray-900">Contacts</h1> <a href="/contacts/new" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-600/90">+ New Contact</a></div> <div class="flex flex-wrap gap-3 items-start"><div class="flex-1 min-w-[200px] relative"><input type="text"${attr("value", search)} placeholder="Search contacts..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/> <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"></path></svg> `);
     {
       $$renderer2.push("<!--[!-->");
     }

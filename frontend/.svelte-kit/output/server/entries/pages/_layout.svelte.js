@@ -86,7 +86,7 @@ function _layout($$renderer, $$props) {
       $$renderer2.push("<!--[!-->");
       if (auth.isLoading) {
         $$renderer2.push("<!--[-->");
-        $$renderer2.push(`<div class="min-h-screen flex items-center justify-center bg-gray-50"><div class="text-center"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div> <p class="mt-4 text-gray-600">Loading...</p></div></div>`);
+        $$renderer2.push(`<div class="min-h-screen flex items-center justify-center bg-gray-50"><div class="text-center"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div> <p class="mt-4 text-gray-600">Loading...</p></div></div>`);
       } else {
         $$renderer2.push("<!--[!-->");
         if (auth.isAuthenticated) {
@@ -144,6 +144,8 @@ function _layout($$renderer, $$props) {
           $$renderer2.push(`<!----></main></div>`);
         } else {
           $$renderer2.push("<!--[!-->");
+          children($$renderer2);
+          $$renderer2.push(`<!---->`);
         }
         $$renderer2.push(`<!--]-->`);
       }

@@ -6,6 +6,7 @@ import "../../../../chunks/utils.js";
 import { a as attr, e as escape_html } from "../../../../chunks/attributes.js";
 import "@sveltejs/kit/internal/server";
 import "../../../../chunks/state.svelte.js";
+import "../../../../chunks/auth.svelte.js";
 import { L as LookupField } from "../../../../chunks/LookupField.js";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
@@ -133,7 +134,7 @@ function _page($$renderer, $$props) {
     if ($$body) {
       $$renderer2.push(`${$$body}`);
     }
-    $$renderer2.push(`</textarea></div> <div class="flex justify-end gap-3 pt-4 border-t"><a${attr("href", returnUrl || "/tasks")} class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</a> <button type="submit"${attr("disabled", saving, true)} class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">${escape_html("Create Task")}</button></div></form></div>`);
+    $$renderer2.push(`</textarea></div> <div class="flex justify-end gap-3 pt-4 border-t"><a${attr("href", returnUrl || "/tasks")} class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</a> <button type="submit"${attr("disabled", saving, true)} class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-600/90 disabled:opacity-50">${escape_html("Create Task")}</button></div></form></div>`);
     if ($$store_subs) unsubscribe_stores($$store_subs);
   });
 }

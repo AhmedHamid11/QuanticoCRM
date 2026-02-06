@@ -6,12 +6,14 @@ function getInitialState() {
       user: null,
       currentOrg: null,
       accessToken: null,
-      refreshToken: null,
+      // Memory only - NOT restored from storage
       expiresAt: null,
       isAuthenticated: false,
       isLoading: true,
+      // Start true - we'll try silent refresh
       isImpersonation: false,
-      impersonatedBy: null
+      impersonatedBy: null,
+      mustChangePassword: false
     };
   }
   try {
@@ -19,10 +21,20 @@ function getInitialState() {
     if (stored) {
       const data = JSON.parse(stored);
       return {
-        ...data,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-        isLoading: false,
-        isAuthenticated: !!data.accessToken
+        user: data.user,
+        currentOrg: data.currentOrg,
+        accessToken: null,
+        // DO NOT restore - memory only
+        expiresAt: null,
+        // Must re-validate via refresh
+        isAuthenticated: false,
+        // Not authenticated until refresh succeeds
+        isLoading: true,
+        // Will attempt silent refresh
+        isImpersonation: data.isImpersonation || false,
+        impersonatedBy: data.impersonatedBy || null,
+        mustChangePassword: false
+        // Will be set on login/refresh
       };
     }
   } catch (e) {
@@ -32,12 +44,12 @@ function getInitialState() {
     user: null,
     currentOrg: null,
     accessToken: null,
-    refreshToken: null,
     expiresAt: null,
     isAuthenticated: false,
     isLoading: false,
     isImpersonation: false,
-    impersonatedBy: null
+    impersonatedBy: null,
+    mustChangePassword: false
   };
 }
 let state = getInitialState();
@@ -47,6 +59,9 @@ const auth = {
   },
   get currentOrg() {
     return state.currentOrg;
+  },
+  get accessToken() {
+    return state.accessToken;
   },
   get isAuthenticated() {
     return state.isAuthenticated;
@@ -68,7 +83,7 @@ const auth = {
     return role === "admin" || role === "owner";
   },
   get canAccessSetup() {
-    return state.user?.isPlatformAdmin || this.isAdmin;
+    return state.user?.isPlatformAdmin || state.isImpersonation || this.isAdmin;
   }
 };
 export {

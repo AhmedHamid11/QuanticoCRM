@@ -1,6 +1,6 @@
+import { a as auth } from "./auth.svelte.js";
 const PUBLIC_API_URL = "/api/v1";
 const API_BASE = PUBLIC_API_URL;
-const STORAGE_KEY = "quantico_auth";
 class ApiError extends Error {
   fieldErrors;
   status;
@@ -12,20 +12,15 @@ class ApiError extends Error {
   }
 }
 function getAuthToken() {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      return data.accessToken || null;
-    }
-  } catch {
-  }
-  return null;
+  return auth.accessToken;
+}
+function getCSRFToken() {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 function handleSessionExpired() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(STORAGE_KEY);
   window.location.href = "/login?session_expired=true";
 }
 function isRetryableError(error) {
@@ -47,6 +42,12 @@ async function api(endpoint, options = {}) {
   if (authToken) {
     authHeaders["Authorization"] = `Bearer ${authToken}`;
   }
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    const csrfToken = getCSRFToken();
+    if (csrfToken) {
+      authHeaders["X-CSRF-Token"] = csrfToken;
+    }
+  }
   const config = {
     method,
     headers: {
@@ -54,7 +55,9 @@ async function api(endpoint, options = {}) {
       ...authHeaders,
       ...headers
     },
-    signal
+    signal,
+    credentials: "include"
+    // Send cookies for CSRF
   };
   if (body) {
     config.body = JSON.stringify(body);
