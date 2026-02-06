@@ -29,8 +29,10 @@
 
 	// Current record details
 	let currentRecord = $state<Record<string, unknown> | null>(null);
-	// Selected duplicate for comparison (first match by default)
-	let selectedMatchId = $state<string>(alert.matches[0]?.recordId || '');
+	// Available matches (filtered to only those that still exist)
+	let availableMatches = $state<DuplicateMatch[]>([]);
+	// Selected duplicate for comparison (set after loading)
+	let selectedMatchId = $state<string>('');
 	// Duplicate record details
 	let matchDetails = $state<Record<string, Record<string, unknown>>>({});
 	let loadingDetails = $state(true);
@@ -73,21 +75,30 @@
 			const fetchPromises = alert.matches.map(async (match) => {
 				try {
 					const record = await get<Record<string, unknown>>(`/${entityPlural}/${match.recordId}`);
-					return { id: match.recordId, record };
+					return { id: match.recordId, record, match };
 				} catch (error) {
 					console.error(`Failed to fetch record ${match.recordId}:`, error);
-					return { id: match.recordId, record: null };
+					return { id: match.recordId, record: null, match };
 				}
 			});
 
 			const results = await Promise.all(fetchPromises);
 			const details: Record<string, Record<string, unknown>> = {};
+			const validMatches: DuplicateMatch[] = [];
+
 			for (const result of results) {
 				if (result.record) {
 					details[result.id] = result.record;
+					validMatches.push(result.match);
 				}
 			}
 			matchDetails = details;
+			availableMatches = validMatches;
+
+			// Set selected match to first available one
+			if (validMatches.length > 0) {
+				selectedMatchId = validMatches[0].recordId;
+			}
 
 			// Initialize field selections - prefer non-empty values
 			initializeFieldSelections();
@@ -100,6 +111,16 @@
 
 	function initializeFieldSelections() {
 		const selections: Record<string, string> = {};
+
+		// If no match selected, default all fields to current record
+		if (!selectedMatchId || !matchDetails[selectedMatchId]) {
+			for (const field of compareFields) {
+				selections[field] = currentRecordId;
+			}
+			fieldSelections = selections;
+			return;
+		}
+
 		const otherRecord = matchDetails[selectedMatchId];
 
 		for (const field of compareFields) {
@@ -205,8 +226,9 @@
 	}
 
 	let canProceed = $derived(!isBlockMode || overrideText.toUpperCase() === 'DUPLICATE');
-	let selectedMatch = $derived(alert.matches.find(m => m.recordId === selectedMatchId));
+	let selectedMatch = $derived(availableMatches.find(m => m.recordId === selectedMatchId));
 	let otherRecord = $derived(matchDetails[selectedMatchId]);
+	let hasAvailableMatches = $derived(availableMatches.length > 0);
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -241,13 +263,13 @@
 						</p>
 					{/if}
 				</div>
-				{#if alert.matches.length > 1}
+				{#if availableMatches.length > 1}
 					<select
 						bind:value={selectedMatchId}
 						onchange={() => initializeFieldSelections()}
 						class="text-sm border border-gray-300 rounded px-2 py-1"
 					>
-						{#each alert.matches as match}
+						{#each availableMatches as match}
 							<option value={match.recordId}>
 								{matchDetails[match.recordId] ? getRecordName(matchDetails[match.recordId]) : match.recordId.slice(0, 12)}
 							</option>
@@ -261,6 +283,11 @@
 		<div class="px-6 py-4 overflow-y-auto flex-1">
 			{#if loadingDetails}
 				<div class="text-center py-8 text-gray-500">Loading record details...</div>
+			{:else if !hasAvailableMatches}
+				<div class="text-center py-8">
+					<p class="text-gray-600 mb-2">The matched records are no longer available.</p>
+					<p class="text-sm text-gray-500">They may have been deleted or merged previously.</p>
+				</div>
 			{:else}
 				<!-- Primary Selection -->
 				{#if mergeMode}
@@ -388,12 +415,14 @@
 					>
 						View Current
 					</button>
-					<button
-						onclick={() => handleViewRecord(selectedMatchId)}
-						class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-					>
-						View Duplicate
-					</button>
+					{#if hasAvailableMatches}
+						<button
+							onclick={() => handleViewRecord(selectedMatchId)}
+							class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+						>
+							View Duplicate
+						</button>
+					{/if}
 				</div>
 
 				<div class="flex gap-3">
@@ -404,7 +433,15 @@
 						Cancel
 					</button>
 
-					{#if mergeMode}
+					{#if !hasAvailableMatches}
+						<!-- All matches were deleted, just allow dismissing -->
+						<button
+							onclick={onDismiss}
+							class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
+						>
+							Dismiss Alert
+						</button>
+					{:else if mergeMode}
 						<button
 							onclick={() => mergeMode = false}
 							class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
