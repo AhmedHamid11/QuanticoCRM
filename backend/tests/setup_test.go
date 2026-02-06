@@ -93,7 +93,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
 
 	// Initialize handlers
-	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, nil, tripwireService, validationService)
+	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, nil, tripwireService, validationService, nil, nil)
 	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, db, metadataRepo, nil, tripwireService, validationService)
 	taskHandler := handler.NewTaskHandler(taskRepo, nil, tripwireService, validationService)
 	adminHandler := handler.NewAdminHandler(db, metadataRepo, navigationRepo)

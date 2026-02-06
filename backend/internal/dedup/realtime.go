@@ -57,6 +57,8 @@ func (r *RealtimeChecker) CheckAsync(conn db.DBConn, input CheckAsyncInput) {
 
 // runCheck performs the actual detection and stores alert if duplicates found
 func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input CheckAsyncInput) {
+	log.Printf("[DEDUP] Starting async check for %s/%s in org %s", input.EntityType, input.RecordID, input.OrgID)
+
 	// Check if any matching rules exist for this entity (quick bailout)
 	rules, err := r.ruleRepo.WithDB(conn).ListEnabledRules(ctx, input.OrgID, input.EntityType)
 	if err != nil {
@@ -64,8 +66,10 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 		return
 	}
 	if len(rules) == 0 {
+		log.Printf("[DEDUP] No matching rules found for %s in org %s", input.EntityType, input.OrgID)
 		return // No rules configured, nothing to check
 	}
+	log.Printf("[DEDUP] Found %d matching rules for %s in org %s", len(rules), input.EntityType, input.OrgID)
 
 	// Determine if any rule has block mode enabled
 	// NOTE: Current matching_rules schema doesn't have block_mode column
@@ -88,8 +92,10 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	}
 
 	if len(matches) == 0 {
+		log.Printf("[DEDUP] No matches found for %s/%s", input.EntityType, input.RecordID)
 		return // Silent success - no duplicates found
 	}
+	log.Printf("[DEDUP] Found %d matches for %s/%s", len(matches), input.EntityType, input.RecordID)
 
 	// Convert matches to alert format (top 3 per CONTEXT.md)
 	maxMatches := 3

@@ -39,13 +39,21 @@ func (b *Blocker) GenerateBlockingKeys(record map[string]interface{}) BlockingKe
 		keys.LastNamePrefix = b.normalizer.GetNamePrefix(lastName, 3)
 	}
 
-	// Email domain
-	if email := getStringValue(record, "email"); email != "" {
+	// Email domain - check both "email" and "emailAddress" field names
+	email := getStringValue(record, "email")
+	if email == "" {
+		email = getStringValue(record, "emailAddress")
+	}
+	if email != "" {
 		keys.EmailDomain = b.normalizer.ExtractEmailDomain(email)
 	}
 
-	// Phone E.164
-	if phone := getStringValue(record, "phone"); phone != "" {
+	// Phone E.164 - check both "phone" and "phoneNumber" field names
+	phone := getStringValue(record, "phone")
+	if phone == "" {
+		phone = getStringValue(record, "phoneNumber")
+	}
+	if phone != "" {
 		keys.PhoneE164 = b.normalizer.NormalizePhone(phone)
 	}
 

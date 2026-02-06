@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -17,11 +18,21 @@ type ContactHandler struct {
 	authRepo          *repo.AuthRepo
 	tripwireService   TripwireServiceInterface
 	validationService ValidationServiceInterface
+	realtimeChecker   RealtimeCheckerInterface
+	defaultDB         db.DBConn
 }
 
 // NewContactHandler creates a new ContactHandler
-func NewContactHandler(repo *repo.ContactRepo, taskRepo *repo.TaskRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface) *ContactHandler {
-	return &ContactHandler{repo: repo, taskRepo: taskRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService}
+func NewContactHandler(repo *repo.ContactRepo, taskRepo *repo.TaskRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, realtimeChecker RealtimeCheckerInterface, defaultDB db.DBConn) *ContactHandler {
+	return &ContactHandler{repo: repo, taskRepo: taskRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService, realtimeChecker: realtimeChecker, defaultDB: defaultDB}
+}
+
+// getDB returns the tenant database from context, falling back to default db
+func (h *ContactHandler) getDB(c *fiber.Ctx) db.DBConn {
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return tenantDB
+	}
+	return h.defaultDB
 }
 
 // getRepo returns the contact repo using the tenant database from context
@@ -242,6 +253,19 @@ func (h *ContactHandler) Create(c *fiber.Ctx) error {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Contact", contact.ID, "CREATE", nil, StructToMap(contact))
 	}
 
+	// Async duplicate detection (after record saved - optimistic save pattern)
+	if h.realtimeChecker != nil {
+		recordData := StructToMap(contact)
+		recordName := contact.FirstName
+		if contact.LastName != "" {
+			if recordName != "" {
+				recordName += " "
+			}
+			recordName += contact.LastName
+		}
+		h.realtimeChecker.CheckAsyncWithMap(h.getDB(c), orgID, userID, "Contact", contact.ID, recordName, recordData)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(contact)
 }
 
@@ -296,6 +320,19 @@ func (h *ContactHandler) Update(c *fiber.Ctx) error {
 	// Fire tripwires for UPDATE event
 	if h.tripwireService != nil {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Contact", id, "UPDATE", oldRecord, StructToMap(contact))
+	}
+
+	// Async duplicate detection (after record saved - optimistic save pattern)
+	if h.realtimeChecker != nil {
+		recordData := StructToMap(contact)
+		recordName := contact.FirstName
+		if contact.LastName != "" {
+			if recordName != "" {
+				recordName += " "
+			}
+			recordName += contact.LastName
+		}
+		h.realtimeChecker.CheckAsyncWithMap(h.getDB(c), orgID, userID, "Contact", id, recordName, recordData)
 	}
 
 	return c.JSON(contact)
