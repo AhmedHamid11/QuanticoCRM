@@ -190,6 +190,28 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 		}
 		log.Printf("[Provisioning] Created layout_defs table")
 
+	// Create navigation_tabs table (needed for org navigation display)
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS navigation_tabs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			label TEXT NOT NULL,
+			href TEXT NOT NULL,
+			icon TEXT DEFAULT '',
+			entity_name TEXT,
+			sort_order INTEGER DEFAULT 0,
+			is_visible INTEGER DEFAULT 1,
+			is_system INTEGER DEFAULT 0,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, href)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create navigation_tabs table: %w", err)
+	}
+	log.Printf("[Provisioning] Created navigation_tabs table")
+
 	// Create indexes
 	_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_entity_defs_org ON entity_defs(org_id)`)
 		if err != nil {
@@ -202,6 +224,10 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 		_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_layout_defs_org_entity ON layout_defs(org_id, entity_name)`)
 		if err != nil {
 			return fmt.Errorf("failed to create layout_defs org index: %w", err)
+		}
+		_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_navigation_org ON navigation_tabs(org_id)`)
+		if err != nil {
+			return fmt.Errorf("failed to create navigation_tabs org index: %w", err)
 		}
 		log.Printf("[Provisioning] Created metadata table indexes")
 
