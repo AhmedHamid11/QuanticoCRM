@@ -1238,10 +1238,13 @@ func (h *ImportHandler) resolveLookups(
 	var errors []BulkError
 
 	// Build a map of link fields for quick lookup
+	// Map both "account" and "accountId" to the same field for flexible matching
 	linkFields := make(map[string]*entity.FieldDef)
 	for i := range fields {
 		if fields[i].Type == entity.FieldTypeLink {
 			linkFields[fields[i].Name] = &fields[i]
+			// Also map with "Id" suffix since LookupResolution uses that format
+			linkFields[fields[i].Name+"Id"] = &fields[i]
 		}
 	}
 
@@ -1293,9 +1296,16 @@ func (h *ImportHandler) resolveLookups(
 
 			// Check cache first
 			if cachedID, ok := lookupCache[relatedEntity][valueStr]; ok {
-				record[fieldName] = cachedID
-				// Also store the name if we have it
-				record[fieldName+"Name"] = valueStr
+				// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
+				// We need the base name (e.g., "account") to build proper keys
+				baseName := strings.TrimSuffix(field.Name, "Id")
+				idKey := baseName + "Id"
+				record[idKey] = cachedID
+				record[baseName+"Name"] = valueStr
+				// Only delete original if it's different from what we just set
+				if fieldName != idKey {
+					delete(record, fieldName)
+				}
 				continue
 			}
 
@@ -1339,8 +1349,17 @@ func (h *ImportHandler) resolveLookups(
 
 						// Cache and use the new ID
 						lookupCache[relatedEntity][valueStr] = newID
-						record[fieldName] = newID
-						record[fieldName+"Name"] = valueStr
+						// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
+						// We need the base name (e.g., "account") to build proper keys
+						baseName := strings.TrimSuffix(field.Name, "Id")
+						idKey := baseName + "Id"
+						nameKey := baseName + "Name"
+						record[idKey] = newID
+						record[nameKey] = valueStr
+						// Only delete original if it's different from what we just set
+						if fieldName != idKey {
+							delete(record, fieldName)
+						}
 						continue
 					}
 
@@ -1363,8 +1382,16 @@ func (h *ImportHandler) resolveLookups(
 			lookupCache[relatedEntity][valueStr] = foundID
 
 			// Update record with resolved ID and name
-			record[fieldName] = foundID
-			record[fieldName+"Name"] = valueStr
+			// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
+			// We need the base name (e.g., "account") to build proper keys
+			baseName := strings.TrimSuffix(field.Name, "Id")
+			idKey := baseName + "Id"
+			record[idKey] = foundID
+			record[baseName+"Name"] = valueStr
+			// Only delete original if it's different from what we just set
+			if fieldName != idKey {
+				delete(record, fieldName)
+			}
 		}
 	}
 
@@ -1527,9 +1554,12 @@ func (h *ImportHandler) insertRecord(
 
 		// Handle lookup fields
 		if field.Type == entity.FieldTypeLink {
-			snakeName := util.CamelToSnake(field.Name)
-			idKey := field.Name + "Id"
-			nameKey := field.Name + "Name"
+			// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
+			// We need the base name (e.g., "account") to build proper keys
+			baseName := strings.TrimSuffix(field.Name, "Id")
+			snakeName := util.CamelToSnake(baseName)
+			idKey := baseName + "Id"
+			nameKey := baseName + "Name"
 
 			if idVal, ok := record[idKey]; ok {
 				columns = append(columns, quoteIdentifier(snakeName+"_id"))
