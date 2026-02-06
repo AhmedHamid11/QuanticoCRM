@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { get, del } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { DetailSkeleton, ErrorDisplay } from '$lib/components/ui';
 	import Bearing from '$lib/components/Bearing.svelte';
 	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
@@ -179,12 +180,19 @@
 			if (templateId) params.set('template', templateId);
 			params.set('download', download.toString());
 
+			// Get auth token from memory store (not localStorage)
+			const authToken = auth.accessToken;
+			if (!authToken) {
+				throw new Error('Not authenticated. Please refresh the page and try again.');
+			}
+
 			const response = await fetch(
 				`${API_BASE}/quotes/${quoteId}/pdf?${params}`,
 				{
 					headers: {
-						'Authorization': `Bearer ${JSON.parse(localStorage.getItem('quantico_auth') || '{}').accessToken}`
-					}
+						'Authorization': `Bearer ${authToken}`
+					},
+					credentials: 'include' // Send cookies for session
 				}
 			);
 
