@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 11 of 16 (Detection Foundation)
-**Plan:** 0 of 3 in current phase
-**Status:** Ready to plan
+**Plan:** 1 of 3 in current phase
+**Status:** In progress
 
-**Last activity:** 2026-02-06 - Roadmap created for v3.0
+**Last activity:** 2026-02-06 - Completed 11-01-PLAN.md
 
-Progress: [░░░░░░░░░░] 0% (0/21 plans)
+Progress: [█░░░░░░░░░] 5% (1/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 31 (9 v1.0 + 22 v2.0)
-- Average duration: 4.1 min
-- Total execution time: ~130 min
+- Total plans completed: 32 (9 v1.0 + 22 v2.0 + 1 v3.0)
+- Average duration: 4.0 min
+- Total execution time: ~133 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [░░░░░░░░░░] 0% (0/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 0/21 | - |
+| v3.0 Deduplication | 11-16 | 1/21 | ~3 min |
 
 *Updated after each plan completion*
 
@@ -39,8 +39,13 @@ Progress: [░░░░░░░░░░] 0% (0/21 plans)
 
 ### Key Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Accumulated over v1.0 and v2.0 milestones.
+| Phase | Decision | Rationale | Date |
+|-------|----------|-----------|------|
+| 11-01 | Use DedupFieldConfig instead of FieldConfig | Avoid naming conflict with related_list.go | 2026-02-06 |
+| 11-01 | Three-tier confidence system (high 0.95+, medium 0.85+, low) | Different merge workflows for different confidence levels | 2026-02-06 |
+| 11-01 | Support cross-entity matching via target_entity_type | Enable Contact-Lead deduplication | 2026-02-06 |
+
+_See PROJECT.md Key Decisions table for v1.0 and v2.0 decisions._
 
 ### Pending Todos
 
@@ -60,10 +65,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-06
-Stopped at: Roadmap created for v3.0 Deduplication System
+Last session: 2026-02-06 11:36:47
+Stopped at: Completed 11-01-PLAN.md (Detection Foundation)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-06 - v3.0 roadmap created, ready for Phase 11 planning*
+*Updated: 2026-02-06 - Phase 11 Plan 01 complete, 1/3 plans done in Detection Foundation*
