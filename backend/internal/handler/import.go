@@ -980,8 +980,8 @@ func (h *ImportHandler) AnalyzeLookups(c *fiber.Ctx) error {
 			}
 
 			// Get the value from record
-			idKey := fieldName + "Id"
-			lookupValue, ok := record[idKey]
+			// fieldName is already the full field name (e.g., "accountId") from LookupResolution
+			lookupValue, ok := record[fieldName]
 			if !ok {
 				continue
 			}
@@ -1195,7 +1195,7 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 				for _, rf := range relatedFields {
 					// Include text-like fields that can be used for matching
 					if rf.Type == entity.FieldTypeVarchar || rf.Type == entity.FieldTypeText ||
-						rf.Type == entity.FieldTypeEmail || rf.Type == entity.FieldTypeUrl ||
+						rf.Type == entity.FieldTypeEmail || rf.Type == entity.FieldTypeURL ||
 						rf.Type == entity.FieldTypePhone || rf.Name == "name" {
 						af.RelatedEntityFields = append(af.RelatedEntityFields, AvailableField{
 							Name:  rf.Name,
@@ -1255,9 +1255,9 @@ func (h *ImportHandler) resolveLookups(
 				continue
 			}
 
-			// Get the value to look up (could be in fieldNameId key)
-			idKey := fieldName + "Id"
-			lookupValue, ok := record[idKey]
+			// Get the value to look up
+			// fieldName is already the full field name (e.g., "accountId") from LookupResolution
+			lookupValue, ok := record[fieldName]
 			if !ok {
 				continue
 			}
@@ -1293,7 +1293,7 @@ func (h *ImportHandler) resolveLookups(
 
 			// Check cache first
 			if cachedID, ok := lookupCache[relatedEntity][valueStr]; ok {
-				record[idKey] = cachedID
+				record[fieldName] = cachedID
 				// Also store the name if we have it
 				record[fieldName+"Name"] = valueStr
 				continue
@@ -1333,13 +1333,13 @@ func (h *ImportHandler) resolveLookups(
 								Index: rowIdx,
 								Error: fmt.Sprintf("Failed to create %s '%s': %v", relatedEntity, valueStr, createErr),
 							})
-							delete(record, idKey)
+							delete(record, fieldName)
 							continue
 						}
 
 						// Cache and use the new ID
 						lookupCache[relatedEntity][valueStr] = newID
-						record[idKey] = newID
+						record[fieldName] = newID
 						record[fieldName+"Name"] = valueStr
 						continue
 					}
@@ -1349,7 +1349,7 @@ func (h *ImportHandler) resolveLookups(
 						Error: fmt.Sprintf("No %s found with %s='%s'", relatedEntity, resolution.MatchField, valueStr),
 					})
 					// Clear the invalid value so it doesn't try to insert garbage
-					delete(record, idKey)
+					delete(record, fieldName)
 				} else {
 					errors = append(errors, BulkError{
 						Index: rowIdx,
@@ -1363,7 +1363,7 @@ func (h *ImportHandler) resolveLookups(
 			lookupCache[relatedEntity][valueStr] = foundID
 
 			// Update record with resolved ID and name
-			record[idKey] = foundID
+			record[fieldName] = foundID
 			record[fieldName+"Name"] = valueStr
 		}
 	}

@@ -2,7 +2,7 @@
 // SECURITY: Access tokens are stored only in memory (reactive state)
 // SECURITY: Refresh tokens are in HttpOnly cookies - never accessible to JavaScript
 import { PUBLIC_API_URL } from '$env/static/public';
-import { initSessionTracking, stopSessionTracking } from './session.svelte';
+import { initSessionTracking, stopSessionTracking } from './session.svelte.ts';
 import type {
 	AuthState,
 	AuthResponse,

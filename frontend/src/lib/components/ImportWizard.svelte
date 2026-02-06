@@ -396,10 +396,12 @@
 	// Check if all required fields are filled for missing lookups
 	function canProceedFromLookups(): boolean {
 		for (const lookup of missingLookups) {
-			for (const reqField of lookup.requiredFields) {
-				const value = newRecordData[lookup.fieldName]?.[lookup.matchValue]?.[reqField.name];
-				if (!value || value.trim() === '') {
-					return false;
+			if (lookup.requiredFields) {
+				for (const reqField of lookup.requiredFields) {
+					const value = newRecordData[lookup.fieldName]?.[lookup.matchValue]?.[reqField.name];
+					if (!value || value.trim() === '') {
+						return false;
+					}
 				}
 			}
 		}
@@ -628,7 +630,7 @@
 						Referenced by {lookup.rowIndices.length} row{lookup.rowIndices.length > 1 ? 's' : ''} in your CSV
 					</p>
 
-					{#if lookup.requiredFields.length > 0}
+					{#if lookup.requiredFields && lookup.requiredFields.length > 0}
 						<div class="grid grid-cols-2 gap-4">
 							{#each lookup.requiredFields as reqField}
 								<div>
