@@ -83,19 +83,25 @@ func (s *ProvisioningService) ProvisionDefaultMetadata(ctx context.Context, orgI
 // after an organization was provisioned.
 func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 	// Check if entity_defs table exists
-	var entityDefsExists bool
-	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entity_defs' LIMIT 1").Scan(&entityDefsExists)
-	if err != nil && err.Error() != "sql: no rows" {
+	var tableName string
+	err := s.db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='entity_defs' LIMIT 1").Scan(&tableName)
+
+	// If table exists, we're done
+	if err == nil {
+		return nil
+	}
+
+	// If error is not "no rows", there's a real problem
+	if err.Error() != "sql: no rows" {
 		return fmt.Errorf("failed to check entity_defs table: %w", err)
 	}
 
-	// If entity_defs doesn't exist, create all metadata tables with full schema
+	// Table doesn't exist, create all metadata tables with full schema
 	// This includes all columns from migrations 002, 019, and 039
-	if !entityDefsExists {
-		log.Printf("[Provisioning] entity_defs table missing, creating metadata tables with full schema")
+	log.Printf("[Provisioning] entity_defs table missing, creating metadata tables with full schema")
 
-		// Create entity_defs table with all columns (migration 002 + 019 + 039)
-		_, err := s.db.ExecContext(ctx, `
+	// Create entity_defs table with all columns (migration 002 + 019 + 039)
+	_, err = s.db.ExecContext(ctx, `
 			CREATE TABLE IF NOT EXISTS entity_defs (
 				id TEXT PRIMARY KEY,
 				org_id TEXT NOT NULL,
@@ -114,14 +120,14 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
 				UNIQUE(org_id, name)
 			)
-		`)
-		if err != nil {
-			return fmt.Errorf("failed to create entity_defs table: %w", err)
-		}
-		log.Printf("[Provisioning] Created entity_defs table")
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create entity_defs table: %w", err)
+	}
+	log.Printf("[Provisioning] Created entity_defs table")
 
-		// Create field_defs table with all columns (migration 002 + 019)
-		_, err = s.db.ExecContext(ctx, `
+	// Create field_defs table with all columns (migration 002 + 019)
+	_, err = s.db.ExecContext(ctx, `
 			CREATE TABLE IF NOT EXISTS field_defs (
 				id TEXT PRIMARY KEY,
 				org_id TEXT NOT NULL,
@@ -159,8 +165,8 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 		}
 		log.Printf("[Provisioning] Created field_defs table")
 
-		// Create layout_defs table with all columns (migration 002 + 019)
-		_, err = s.db.ExecContext(ctx, `
+	// Create layout_defs table with all columns (migration 002 + 019)
+	_, err = s.db.ExecContext(ctx, `
 			CREATE TABLE IF NOT EXISTS layout_defs (
 				id TEXT PRIMARY KEY,
 				org_id TEXT NOT NULL,
@@ -178,8 +184,8 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 		}
 		log.Printf("[Provisioning] Created layout_defs table")
 
-		// Create indexes
-		_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_entity_defs_org ON entity_defs(org_id)`)
+	// Create indexes
+	_, err = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_entity_defs_org ON entity_defs(org_id)`)
 		if err != nil {
 			return fmt.Errorf("failed to create entity_defs org index: %w", err)
 		}
@@ -192,7 +198,6 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 			return fmt.Errorf("failed to create layout_defs org index: %w", err)
 		}
 		log.Printf("[Provisioning] Created metadata table indexes")
-	}
 
 	return nil
 }
