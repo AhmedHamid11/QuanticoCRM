@@ -280,6 +280,11 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 				continue
 			}
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				// Handle idempotent errors (safe to skip)
+				if isAddColumnError(err) || isTableNotExistsError(err) {
+					log.Printf("[MIGRATION] Org=%s Skipping safe error in %s: %v", org.ID, file, err)
+					continue
+				}
 				tx.Rollback()
 				return fmt.Errorf("failed to execute %s: %w\nStatement: %s", file, err, stmt)
 			}
@@ -369,4 +374,20 @@ func (p *MigrationPropagator) RetryOrg(ctx context.Context, orgID string) (*enti
 	// Run migration
 	run := p.migrateOrg(ctx, &org, platformVersion.Version)
 	return &run, nil
+}
+
+// isAddColumnError checks if error is about a column already existing
+func isAddColumnError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "duplicate column") ||
+		strings.Contains(errStr, "column already exists") ||
+		strings.Contains(errStr, "already has a column named")
+}
+
+// isTableNotExistsError checks if error is about a missing table
+func isTableNotExistsError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "no such table") ||
+		strings.Contains(errStr, "table does not exist") ||
+		strings.Contains(errStr, "table not found")
 }
