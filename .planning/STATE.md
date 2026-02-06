@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 12 of 16 (Real-Time Detection)
-**Plan:** 2 of 4 in current phase
+**Plan:** 3 of 4 in current phase
 **Status:** In progress
 
-**Last activity:** 2026-02-06 - Completed 12-02-PLAN.md
+**Last activity:** 2026-02-06 - Completed 12-03-PLAN.md
 
-Progress: [██░░░░░░░░] 23% (5/21 plans)
+Progress: [██░░░░░░░░] 28% (6/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 36 (9 v1.0 + 22 v2.0 + 5 v3.0)
-- Average duration: 4.1 min
-- Total execution time: ~146 min
+- Total plans completed: 37 (9 v1.0 + 22 v2.0 + 6 v3.0)
+- Average duration: 4.0 min
+- Total execution time: ~149 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [██░░░░░░░░] 23% (5/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 5/21 | ~16 min |
+| v3.0 Deduplication | 11-16 | 6/21 | ~19 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [██░░░░░░░░] 23% (5/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 12-03 | 404 on getPendingAlert returns null | "No alert" is expected state, not failure - simplifies client code | 2026-02-06 |
+| 12-03 | Color-coded confidence tiers (red/yellow/blue) | Visual hierarchy: red=urgent, yellow=caution, blue=info | 2026-02-06 |
+| 12-03 | Block mode requires typing "DUPLICATE" | Prevent accidental duplicate creation when block mode configured | 2026-02-06 |
 | 12-02 | Async detection AFTER database save | Optimistic save pattern: Fast UX with immediate save, detection runs in background | 2026-02-06 |
 | 12-02 | Use context.Background() with 30s timeout | Avoid Fiber context pooling issues documented in RESEARCH.md | 2026-02-06 |
 | 12-02 | Panic recovery in detection goroutines | Prevent detection bugs from crashing the API server | 2026-02-06 |
@@ -81,10 +84,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-06 12:39:00
-Stopped at: Completed 12-02-PLAN.md (Async Detection Hooks)
+Last session: 2026-02-06 20:42:00
+Stopped at: Completed 12-03-PLAN.md (Frontend Components)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-06 - Phase 12 in progress, 2/4 plans done in Real-Time Detection*
+*Updated: 2026-02-06 - Phase 12 in progress, 3/4 plans done in Real-Time Detection*
