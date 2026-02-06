@@ -76,13 +76,13 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	// For now, default to warn mode (isBlockMode = false)
 	// When block_mode column is added to matching_rules table, update this logic
 	isBlockMode := false
-	// Future implementation when block_mode is added:
-	// for _, rule := range rules {
-	//     if rule.BlockMode {
-	//         isBlockMode = true
-	//         break // If any rule has block mode, the alert should enforce it
-	//     }
-	// }
+
+	// Get merge display fields from the first (highest priority) rule
+	// These define which fields to show on the merge screen
+	var mergeDisplayFields []string
+	if len(rules) > 0 && len(rules[0].MergeDisplayFields) > 0 {
+		mergeDisplayFields = rules[0].MergeDisplayFields
+	}
 
 	// Run duplicate detection
 	matches, err := r.detector.CheckForDuplicates(ctx, conn, input.OrgID, input.EntityType, input.RecordData, input.RecordID)
@@ -126,15 +126,16 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 
 	// Store alert for the current record pointing to its matches
 	alert := &entity.PendingDuplicateAlert{
-		OrgID:             input.OrgID,
-		EntityType:        input.EntityType,
-		RecordID:          input.RecordID,
-		Matches:           alertMatches,
-		TotalMatchCount:   len(matches),
-		HighestConfidence: highestConfidence,
-		IsBlockMode:       isBlockMode,
-		Status:            entity.AlertStatusPending,
-		DetectedAt:        time.Now().UTC(),
+		OrgID:              input.OrgID,
+		EntityType:         input.EntityType,
+		RecordID:           input.RecordID,
+		Matches:            alertMatches,
+		TotalMatchCount:    len(matches),
+		HighestConfidence:  highestConfidence,
+		IsBlockMode:        isBlockMode,
+		MergeDisplayFields: mergeDisplayFields,
+		Status:             entity.AlertStatusPending,
+		DetectedAt:         time.Now().UTC(),
 	}
 
 	if err := r.alertRepo.WithDB(conn).Upsert(ctx, alert); err != nil {
@@ -154,15 +155,16 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 		}
 
 		reverseAlert := &entity.PendingDuplicateAlert{
-			OrgID:             input.OrgID,
-			EntityType:        input.EntityType,
-			RecordID:          match.RecordID, // The other record
-			Matches:           []entity.DuplicateAlertMatch{reverseMatch},
-			TotalMatchCount:   1,
-			HighestConfidence: highestConfidence,
-			IsBlockMode:       isBlockMode,
-			Status:            entity.AlertStatusPending,
-			DetectedAt:        now,
+			OrgID:              input.OrgID,
+			EntityType:         input.EntityType,
+			RecordID:           match.RecordID, // The other record
+			Matches:            []entity.DuplicateAlertMatch{reverseMatch},
+			TotalMatchCount:    1,
+			HighestConfidence:  highestConfidence,
+			IsBlockMode:        isBlockMode,
+			MergeDisplayFields: mergeDisplayFields,
+			Status:             entity.AlertStatusPending,
+			DetectedAt:         now,
 		}
 
 		if err := r.alertRepo.WithDB(conn).Upsert(ctx, reverseAlert); err != nil {

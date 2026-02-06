@@ -31,6 +31,17 @@ func (r *PendingAlertRepo) Upsert(ctx context.Context, alert *entity.PendingDupl
 		return err
 	}
 
+	// Marshal merge display fields to JSON (may be nil/empty)
+	var mergeDisplayFieldsJSON *string
+	if len(alert.MergeDisplayFields) > 0 {
+		jsonBytes, err := json.Marshal(alert.MergeDisplayFields)
+		if err != nil {
+			return err
+		}
+		jsonStr := string(jsonBytes)
+		mergeDisplayFieldsJSON = &jsonStr
+	}
+
 	// Generate ID if not set
 	if alert.ID == "" {
 		alert.ID = sfid.New("alrt")
@@ -45,14 +56,14 @@ func (r *PendingAlertRepo) Upsert(ctx context.Context, alert *entity.PendingDupl
 	query := `
 		INSERT OR REPLACE INTO pending_duplicate_alerts
 		(id, org_id, entity_type, record_id, matches_json, total_match_count,
-		 highest_confidence, is_block_mode, detected_at, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 highest_confidence, is_block_mode, merge_display_fields, detected_at, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = r.db.ExecContext(ctx, query,
 		alert.ID, alert.OrgID, alert.EntityType, alert.RecordID,
 		string(matchesJSON), alert.TotalMatchCount, alert.HighestConfidence,
-		isBlockModeInt, alert.DetectedAt.Format(time.RFC3339), alert.Status)
+		isBlockModeInt, mergeDisplayFieldsJSON, alert.DetectedAt.Format(time.RFC3339), alert.Status)
 
 	return err
 }
@@ -61,7 +72,8 @@ func (r *PendingAlertRepo) Upsert(ctx context.Context, alert *entity.PendingDupl
 func (r *PendingAlertRepo) GetPendingByRecord(ctx context.Context, orgID, entityType, recordID string) (*entity.PendingDuplicateAlert, error) {
 	query := `
 		SELECT id, org_id, entity_type, record_id, matches_json, total_match_count,
-		       highest_confidence, is_block_mode, detected_at, status, resolved_at, resolved_by_id, override_text
+		       highest_confidence, is_block_mode, merge_display_fields, detected_at, status,
+		       resolved_at, resolved_by_id, override_text
 		FROM pending_duplicate_alerts
 		WHERE org_id = ? AND entity_type = ? AND record_id = ? AND status = 'pending'
 		LIMIT 1
@@ -81,12 +93,13 @@ func (r *PendingAlertRepo) GetPendingByRecord(ctx context.Context, orgID, entity
 	var detectedAt string
 	var resolvedAt *string
 	var isBlockModeInt int
-	var resolvedByID, overrideText *string
+	var resolvedByID, overrideText, mergeDisplayFieldsJSON *string
 
 	err = rows.Scan(
 		&alert.ID, &alert.OrgID, &alert.EntityType, &alert.RecordID,
 		&alert.MatchesJSON, &alert.TotalMatchCount, &alert.HighestConfidence,
-		&isBlockModeInt, &detectedAt, &alert.Status, &resolvedAt, &resolvedByID, &overrideText,
+		&isBlockModeInt, &mergeDisplayFieldsJSON, &detectedAt, &alert.Status,
+		&resolvedAt, &resolvedByID, &overrideText,
 	)
 	if err != nil {
 		return nil, err
@@ -109,6 +122,11 @@ func (r *PendingAlertRepo) GetPendingByRecord(ctx context.Context, orgID, entity
 	// Unmarshal matches
 	if alert.MatchesJSON != "" {
 		json.Unmarshal([]byte(alert.MatchesJSON), &alert.Matches)
+	}
+
+	// Unmarshal merge display fields
+	if mergeDisplayFieldsJSON != nil && *mergeDisplayFieldsJSON != "" {
+		json.Unmarshal([]byte(*mergeDisplayFieldsJSON), &alert.MergeDisplayFields)
 	}
 
 	return &alert, nil

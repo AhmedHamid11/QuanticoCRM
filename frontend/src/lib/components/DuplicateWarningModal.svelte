@@ -45,12 +45,19 @@
 	let mergeMode = $state(false);
 	let merging = $state(false);
 
-	// Common fields to compare
-	const compareFields = [
+	// Default fields to compare (used if no merge display fields configured in matching rule)
+	const defaultCompareFields = [
 		'firstName', 'lastName', 'emailAddress', 'phoneNumber',
 		'accountName', 'description', 'addressStreet', 'addressCity',
 		'addressState', 'addressPostalCode', 'addressCountry'
 	];
+
+	// Use merge display fields from alert if available, else use defaults
+	let compareFields = $derived(
+		alert.mergeDisplayFields && alert.mergeDisplayFields.length > 0
+			? alert.mergeDisplayFields
+			: defaultCompareFields
+	);
 
 	// Fetch all record details when modal opens
 	onMount(async () => {
@@ -316,7 +323,7 @@
 								{/if}
 							</div>
 							<div class="px-4 py-2 border-r border-gray-200 {fieldSelections[field] === currentRecordId && mergeMode ? 'bg-green-50 font-medium' : ''}">
-								{#if mergeMode && hasConflict}
+								{#if mergeMode}
 									<label class="flex items-center gap-2 cursor-pointer">
 										<input
 											type="radio"
@@ -332,7 +339,7 @@
 								{/if}
 							</div>
 							<div class="px-4 py-2 {fieldSelections[field] === selectedMatchId && mergeMode ? 'bg-green-50 font-medium' : ''}">
-								{#if mergeMode && hasConflict}
+								{#if mergeMode}
 									<label class="flex items-center gap-2 cursor-pointer">
 										<input
 											type="radio"
@@ -353,7 +360,7 @@
 
 				{#if mergeMode}
 					<p class="text-xs text-gray-500 mt-2">
-						<span class="text-yellow-600">*</span> Fields with conflicting values - select which value to keep
+						<span class="text-yellow-600">*</span> Conflicting values highlighted — select the value you want to keep for each field
 					</p>
 				{/if}
 			{/if}

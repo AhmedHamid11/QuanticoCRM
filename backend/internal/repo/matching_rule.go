@@ -45,7 +45,7 @@ func (r *MatchingRuleRepo) ListRules(ctx context.Context, orgID string, entityTy
 	query := `SELECT id, org_id, name, description, entity_type, target_entity_type,
 	          is_enabled, priority, threshold, high_confidence_threshold,
 	          medium_confidence_threshold, blocking_strategy, field_configs,
-	          created_at, modified_at
+	          merge_display_fields, created_at, modified_at
 	          FROM matching_rules WHERE org_id = ?`
 
 	args := []interface{}{orgID}
@@ -84,7 +84,7 @@ func (r *MatchingRuleRepo) ListEnabledRules(ctx context.Context, orgID, entityTy
 	query := `SELECT id, org_id, name, description, entity_type, target_entity_type,
 	          is_enabled, priority, threshold, high_confidence_threshold,
 	          medium_confidence_threshold, blocking_strategy, field_configs,
-	          created_at, modified_at
+	          merge_display_fields, created_at, modified_at
 	          FROM matching_rules
 	          WHERE org_id = ? AND entity_type = ? AND is_enabled = 1
 	          ORDER BY priority, name`
@@ -116,7 +116,7 @@ func (r *MatchingRuleRepo) GetRule(ctx context.Context, orgID, ruleID string) (*
 	query := `SELECT id, org_id, name, description, entity_type, target_entity_type,
 	          is_enabled, priority, threshold, high_confidence_threshold,
 	          medium_confidence_threshold, blocking_strategy, field_configs,
-	          created_at, modified_at
+	          merge_display_fields, created_at, modified_at
 	          FROM matching_rules WHERE org_id = ? AND id = ?`
 
 	row := r.db.QueryRowContext(ctx, query, orgID, ruleID)
@@ -131,6 +131,17 @@ func (r *MatchingRuleRepo) CreateRule(ctx context.Context, orgID string, input e
 		return nil, fmt.Errorf("failed to marshal field configs: %w", err)
 	}
 
+	// Marshal merge display fields to JSON (may be nil/empty)
+	var mergeDisplayFieldsJSON *string
+	if len(input.MergeDisplayFields) > 0 {
+		jsonBytes, err := json.Marshal(input.MergeDisplayFields)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal merge display fields: %w", err)
+		}
+		jsonStr := string(jsonBytes)
+		mergeDisplayFieldsJSON = &jsonStr
+	}
+
 	id := sfid.New("mrule")
 	now := time.Now().Format(time.RFC3339)
 
@@ -138,14 +149,14 @@ func (r *MatchingRuleRepo) CreateRule(ctx context.Context, orgID string, input e
 	              id, org_id, name, description, entity_type, target_entity_type,
 	              is_enabled, priority, threshold, high_confidence_threshold,
 	              medium_confidence_threshold, blocking_strategy, field_configs,
-	              created_at, modified_at
-	          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	              merge_display_fields, created_at, modified_at
+	          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err = r.db.ExecContext(ctx, query,
 		id, orgID, input.Name, input.Description, input.EntityType, input.TargetEntityType,
 		input.IsEnabled, input.Priority, input.Threshold, input.HighConfidenceThreshold,
 		input.MediumConfidenceThreshold, input.BlockingStrategy, string(fieldConfigsJSON),
-		now, now)
+		mergeDisplayFieldsJSON, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create matching rule: %w", err)
 	}
@@ -199,6 +210,14 @@ func (r *MatchingRuleRepo) UpdateRule(ctx context.Context, orgID, ruleID string,
 		updates = append(updates, "field_configs = ?")
 		args = append(args, string(fieldConfigsJSON))
 	}
+	if input.MergeDisplayFields != nil {
+		mergeDisplayFieldsJSON, err := json.Marshal(input.MergeDisplayFields)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal merge display fields: %w", err)
+		}
+		updates = append(updates, "merge_display_fields = ?")
+		args = append(args, string(mergeDisplayFieldsJSON))
+	}
 
 	if len(updates) == 0 {
 		return r.GetRule(ctx, orgID, ruleID)
@@ -248,13 +267,13 @@ func scanMatchingRule(row interface {
 }) (*entity.MatchingRule, error) {
 	var rule entity.MatchingRule
 	var createdAt, modifiedAt string
-	var description, targetEntityType sql.NullString
+	var description, targetEntityType, mergeDisplayFieldsJSON sql.NullString
 
 	err := row.Scan(
 		&rule.ID, &rule.OrgID, &rule.Name, &description, &rule.EntityType, &targetEntityType,
 		&rule.IsEnabled, &rule.Priority, &rule.Threshold, &rule.HighConfidenceThreshold,
 		&rule.MediumConfidenceThreshold, &rule.BlockingStrategy, &rule.FieldConfigsJSON,
-		&createdAt, &modifiedAt)
+		&mergeDisplayFieldsJSON, &createdAt, &modifiedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan matching rule: %w", err)
 	}
@@ -266,6 +285,9 @@ func scanMatchingRule(row interface {
 	if targetEntityType.Valid {
 		rule.TargetEntityType = &targetEntityType.String
 	}
+	if mergeDisplayFieldsJSON.Valid {
+		rule.MergeDisplayFieldsJSON = mergeDisplayFieldsJSON.String
+	}
 
 	// Parse timestamps
 	rule.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
@@ -275,6 +297,13 @@ func scanMatchingRule(row interface {
 	if rule.FieldConfigsJSON != "" {
 		if err := json.Unmarshal([]byte(rule.FieldConfigsJSON), &rule.FieldConfigs); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal field configs: %w", err)
+		}
+	}
+
+	// Unmarshal merge display fields from JSON
+	if rule.MergeDisplayFieldsJSON != "" {
+		if err := json.Unmarshal([]byte(rule.MergeDisplayFieldsJSON), &rule.MergeDisplayFields); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal merge display fields: %w", err)
 		}
 	}
 

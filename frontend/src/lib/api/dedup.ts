@@ -25,6 +25,7 @@ export interface PendingAlert {
 	totalMatchCount: number;
 	highestConfidence: 'high' | 'medium' | 'low';
 	isBlockMode: boolean;  // From matching rule configuration
+	mergeDisplayFields?: string[];  // Fields to show on merge screen (from matching rule)
 	status: 'pending' | 'dismissed' | 'created_anyway' | 'merged';
 	detectedAt: string;
 	resolvedAt?: string;

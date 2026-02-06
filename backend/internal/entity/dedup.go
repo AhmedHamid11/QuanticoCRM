@@ -14,22 +14,24 @@ type DedupFieldConfig struct {
 
 // MatchingRule defines criteria for detecting duplicates
 type MatchingRule struct {
-	ID                        string        `json:"id" db:"id"`
-	OrgID                     string        `json:"orgId" db:"org_id"`
-	Name                      string        `json:"name" db:"name"`
-	Description               string        `json:"description,omitempty" db:"description"`
-	EntityType                string        `json:"entityType" db:"entity_type"`
-	TargetEntityType          *string       `json:"targetEntityType,omitempty" db:"target_entity_type"`
-	IsEnabled                 bool          `json:"isEnabled" db:"is_enabled"`
-	Priority                  int           `json:"priority" db:"priority"`
-	Threshold                 float64       `json:"threshold" db:"threshold"`
-	HighConfidenceThreshold   float64       `json:"highConfidenceThreshold" db:"high_confidence_threshold"`
-	MediumConfidenceThreshold float64       `json:"mediumConfidenceThreshold" db:"medium_confidence_threshold"`
-	BlockingStrategy          string        `json:"blockingStrategy" db:"blocking_strategy"`
-	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs" db:"-"`            // Loaded from JSON
-	FieldConfigsJSON          string        `json:"-" db:"field_configs"`           // Stored as JSON
-	CreatedAt                 time.Time     `json:"createdAt" db:"created_at"`
-	ModifiedAt                time.Time     `json:"modifiedAt" db:"modified_at"`
+	ID                        string             `json:"id" db:"id"`
+	OrgID                     string             `json:"orgId" db:"org_id"`
+	Name                      string             `json:"name" db:"name"`
+	Description               string             `json:"description,omitempty" db:"description"`
+	EntityType                string             `json:"entityType" db:"entity_type"`
+	TargetEntityType          *string            `json:"targetEntityType,omitempty" db:"target_entity_type"`
+	IsEnabled                 bool               `json:"isEnabled" db:"is_enabled"`
+	Priority                  int                `json:"priority" db:"priority"`
+	Threshold                 float64            `json:"threshold" db:"threshold"`
+	HighConfidenceThreshold   float64            `json:"highConfidenceThreshold" db:"high_confidence_threshold"`
+	MediumConfidenceThreshold float64            `json:"mediumConfidenceThreshold" db:"medium_confidence_threshold"`
+	BlockingStrategy          string             `json:"blockingStrategy" db:"blocking_strategy"`
+	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs" db:"-"`          // Loaded from JSON
+	FieldConfigsJSON          string             `json:"-" db:"field_configs"`         // Stored as JSON
+	MergeDisplayFields        []string           `json:"mergeDisplayFields" db:"-"`    // Fields shown on merge screen
+	MergeDisplayFieldsJSON    string             `json:"-" db:"merge_display_fields"`  // Stored as JSON
+	CreatedAt                 time.Time          `json:"createdAt" db:"created_at"`
+	ModifiedAt                time.Time          `json:"modifiedAt" db:"modified_at"`
 }
 
 // MatchResult represents the outcome of comparing two records
@@ -59,30 +61,32 @@ type DuplicatePair struct {
 
 // MatchingRuleCreateInput for creating new rules
 type MatchingRuleCreateInput struct {
-	Name                      string        `json:"name" validate:"required"`
-	Description               string        `json:"description,omitempty"`
-	EntityType                string        `json:"entityType" validate:"required"`
-	TargetEntityType          *string       `json:"targetEntityType,omitempty"`
-	IsEnabled                 bool          `json:"isEnabled"`
-	Priority                  int           `json:"priority"`
-	Threshold                 float64       `json:"threshold" validate:"required,min=0,max=1"`
-	HighConfidenceThreshold   float64       `json:"highConfidenceThreshold"`
-	MediumConfidenceThreshold float64       `json:"mediumConfidenceThreshold"`
-	BlockingStrategy          string        `json:"blockingStrategy" validate:"required"`
+	Name                      string             `json:"name" validate:"required"`
+	Description               string             `json:"description,omitempty"`
+	EntityType                string             `json:"entityType" validate:"required"`
+	TargetEntityType          *string            `json:"targetEntityType,omitempty"`
+	IsEnabled                 bool               `json:"isEnabled"`
+	Priority                  int                `json:"priority"`
+	Threshold                 float64            `json:"threshold" validate:"required,min=0,max=1"`
+	HighConfidenceThreshold   float64            `json:"highConfidenceThreshold"`
+	MediumConfidenceThreshold float64            `json:"mediumConfidenceThreshold"`
+	BlockingStrategy          string             `json:"blockingStrategy" validate:"required"`
 	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs" validate:"required,min=1"`
+	MergeDisplayFields        []string           `json:"mergeDisplayFields,omitempty"` // Fields shown on merge screen
 }
 
 // MatchingRuleUpdateInput for updating existing rules
 type MatchingRuleUpdateInput struct {
-	Name                      *string        `json:"name,omitempty"`
-	Description               *string        `json:"description,omitempty"`
-	IsEnabled                 *bool          `json:"isEnabled,omitempty"`
-	Priority                  *int           `json:"priority,omitempty"`
-	Threshold                 *float64       `json:"threshold,omitempty"`
-	HighConfidenceThreshold   *float64       `json:"highConfidenceThreshold,omitempty"`
-	MediumConfidenceThreshold *float64       `json:"mediumConfidenceThreshold,omitempty"`
-	BlockingStrategy          *string        `json:"blockingStrategy,omitempty"`
-	FieldConfigs              []DedupFieldConfig  `json:"fieldConfigs,omitempty"`
+	Name                      *string            `json:"name,omitempty"`
+	Description               *string            `json:"description,omitempty"`
+	IsEnabled                 *bool              `json:"isEnabled,omitempty"`
+	Priority                  *int               `json:"priority,omitempty"`
+	Threshold                 *float64           `json:"threshold,omitempty"`
+	HighConfidenceThreshold   *float64           `json:"highConfidenceThreshold,omitempty"`
+	MediumConfidenceThreshold *float64           `json:"mediumConfidenceThreshold,omitempty"`
+	BlockingStrategy          *string            `json:"blockingStrategy,omitempty"`
+	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs,omitempty"`
+	MergeDisplayFields        []string           `json:"mergeDisplayFields,omitempty"` // Fields shown on merge screen
 }
 
 // BlockingStrategy constants
