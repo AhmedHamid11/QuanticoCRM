@@ -133,6 +133,7 @@ func main() {
 	orgSettingsRepo := repo.NewOrgSettingsRepo(masterDBConn)
 	auditRepo := repo.NewAuditRepo(masterDBConn)
 	matchingRuleRepo := repo.NewMatchingRuleRepo(masterDBConn)
+	pendingAlertRepo := repo.NewPendingAlertRepo(masterDBConn)
 
 	// Initialize services
 	tripwireService := service.NewTripwireService(masterDB, tripwireRepo)
@@ -231,7 +232,7 @@ func main() {
 	schemaHandler := handler.NewSchemaHandler(masterDB, metadataRepo)
 	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo, auditLogger)
 	auditHandler := handler.NewAuditHandler(auditRepo)
-	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo)
+	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)

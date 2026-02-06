@@ -15,14 +15,16 @@ import (
 type DedupHandler struct {
 	defaultDB db.DBConn
 	ruleRepo  *repo.MatchingRuleRepo
+	alertRepo *repo.PendingAlertRepo
 	detector  *dedup.Detector
 }
 
 // NewDedupHandler creates a new dedup handler
-func NewDedupHandler(conn db.DBConn, ruleRepo *repo.MatchingRuleRepo) *DedupHandler {
+func NewDedupHandler(conn db.DBConn, ruleRepo *repo.MatchingRuleRepo, alertRepo *repo.PendingAlertRepo) *DedupHandler {
 	return &DedupHandler{
 		defaultDB: conn,
 		ruleRepo:  ruleRepo,
+		alertRepo: alertRepo,
 		detector:  dedup.NewDetector(ruleRepo, "US"),
 	}
 }
@@ -41,6 +43,14 @@ func (h *DedupHandler) getRuleRepo(c *fiber.Ctx) *repo.MatchingRuleRepo {
 		return h.ruleRepo.WithDB(tenantDB)
 	}
 	return h.ruleRepo
+}
+
+// getAlertRepo returns alert repo with tenant DB
+func (h *DedupHandler) getAlertRepo(c *fiber.Ctx) *repo.PendingAlertRepo {
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return h.alertRepo.WithDB(tenantDB)
+	}
+	return h.alertRepo
 }
 
 // --- Matching Rules CRUD ---
@@ -164,6 +174,60 @@ func (h *DedupHandler) CheckDuplicates(c *fiber.Ctx) error {
 	})
 }
 
+// --- Pending Alert Management ---
+
+// GetPendingAlert returns the pending alert for a specific record
+func (h *DedupHandler) GetPendingAlert(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityType := c.Params("entity")
+	recordID := c.Params("id")
+
+	alert, err := h.getAlertRepo(c).GetPendingByRecord(c.Context(), orgID, entityType, recordID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if alert == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No pending alert"})
+	}
+
+	return c.JSON(alert)
+}
+
+// ResolveAlert resolves a pending duplicate alert
+func (h *DedupHandler) ResolveAlert(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	userID := c.Locals("userID").(string)
+	entityType := c.Params("entity")
+	recordID := c.Params("id")
+
+	var input struct {
+		Status       string `json:"status"`
+		OverrideText string `json:"overrideText"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
+	}
+
+	// Validate status
+	validStatuses := map[string]bool{
+		entity.AlertStatusDismissed:     true,
+		entity.AlertStatusCreatedAnyway: true,
+		entity.AlertStatusMerged:        true,
+	}
+	if !validStatuses[input.Status] {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid status. Must be: dismissed, created_anyway, or merged",
+		})
+	}
+
+	err := h.getAlertRepo(c).Resolve(c.Context(), orgID, entityType, recordID, input.Status, userID, input.OverrideText)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // RegisterRoutes registers dedup routes
 func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 	// Matching rules CRUD (admin only - apply admin middleware in main.go)
@@ -175,4 +239,8 @@ func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 
 	// Duplicate detection
 	app.Post("/dedup/:entity/check", h.CheckDuplicates)
+
+	// Pending alert endpoints (not admin-only - regular users need these)
+	app.Get("/dedup/:entity/:id/pending-alert", h.GetPendingAlert)
+	app.Post("/dedup/:entity/:id/resolve-alert", h.ResolveAlert)
 }
