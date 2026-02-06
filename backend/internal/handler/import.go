@@ -72,14 +72,20 @@ const (
 	ImportModeDelete ImportMode = "delete" // Delete records by ID or match field
 )
 
+// LookupResolution specifies how to resolve a lookup field value to an ID
+type LookupResolution struct {
+	MatchField string `json:"matchField"` // Field to match on in related entity (e.g., "name")
+}
+
 // ImportCSVRequest represents optional parameters for CSV import
 type ImportCSVRequest struct {
-	Mode          ImportMode        `json:"mode"`          // create, update, upsert, delete (default: create)
-	MatchField    string            `json:"matchField"`    // Field to match on for upsert/update/delete (e.g., "email")
-	ColumnMapping map[string]string `json:"columnMapping"` // CSV header -> field name
-	SkipErrors    bool              `json:"skipErrors"`
-	FireTripwires bool              `json:"fireTripwires"`
-	ValidateOnly  bool              `json:"validateOnly"`
+	Mode             ImportMode                  `json:"mode"`             // create, update, upsert, delete (default: create)
+	MatchField       string                      `json:"matchField"`       // Field to match on for upsert/update/delete (e.g., "email")
+	ColumnMapping    map[string]string           `json:"columnMapping"`    // CSV header -> field name
+	LookupResolution map[string]LookupResolution `json:"lookupResolution"` // fieldName -> resolution config
+	SkipErrors       bool                        `json:"skipErrors"`
+	FireTripwires    bool                        `json:"fireTripwires"`
+	ValidateOnly     bool                        `json:"validateOnly"`
 }
 
 // ImportCSVResponse represents the response from a CSV import
@@ -111,9 +117,10 @@ type PreviewCSVResponse struct {
 
 // AvailableField represents an entity field available for mapping
 type AvailableField struct {
-	Name  string `json:"name"`
-	Label string `json:"label"`
-	Type  string `json:"type"`
+	Name          string `json:"name"`
+	Label         string `json:"label"`
+	Type          string `json:"type"`
+	RelatedEntity string `json:"relatedEntity,omitempty"` // For link fields, the related entity name
 }
 
 // FieldMapping shows how a CSV column maps to an entity field
@@ -272,6 +279,19 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 	response.Headers = parseResult.Headers
 	response.MappedHeaders = parseResult.MappedHeaders
 	response.TotalRows = parseResult.RowCount
+
+	// Resolve lookup field values to IDs (e.g., company name -> account ID)
+	if len(options.LookupResolution) > 0 {
+		lookupErrors, err := h.resolveLookups(c.Context(), c, orgID, parseResult.Records, fields, options.LookupResolution)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		if len(lookupErrors) > 0 && !options.SkipErrors {
+			response.Failed = len(lookupErrors)
+			response.Errors = lookupErrors
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
+		}
+	}
 
 	// Determine validation operation based on mode
 	validationOp := "CREATE"
@@ -967,11 +987,18 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 			field.Name == "createdById" || field.Name == "modifiedById" {
 			continue
 		}
-		availableFields = append(availableFields, AvailableField{
+		af := AvailableField{
 			Name:  field.Name,
 			Label: field.Label,
 			Type:  string(field.Type),
-		})
+		}
+		// For link fields, include the related entity name
+		if field.Type == entity.FieldTypeLink && field.Options != nil {
+			if relatedEntity, ok := (*field.Options)["entity"].(string); ok {
+				af.RelatedEntity = relatedEntity
+			}
+		}
+		availableFields = append(availableFields, af)
 	}
 
 	return c.JSON(PreviewCSVResponse{
@@ -983,6 +1010,129 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 		Fields:          fieldMappings,
 		AvailableFields: availableFields,
 	})
+}
+
+// resolveLookups resolves lookup field values to actual record IDs
+// For each field with lookup resolution configured, it queries the related entity
+// by the specified match field and replaces the value with the actual record ID
+func (h *ImportHandler) resolveLookups(
+	ctx context.Context,
+	c *fiber.Ctx,
+	orgID string,
+	records []map[string]interface{},
+	fields []entity.FieldDef,
+	lookupResolution map[string]LookupResolution,
+) ([]BulkError, error) {
+	if len(lookupResolution) == 0 {
+		return nil, nil
+	}
+
+	var errors []BulkError
+
+	// Build a map of link fields for quick lookup
+	linkFields := make(map[string]*entity.FieldDef)
+	for i := range fields {
+		if fields[i].Type == entity.FieldTypeLink {
+			linkFields[fields[i].Name] = &fields[i]
+		}
+	}
+
+	// Cache for resolved lookups: relatedEntity -> matchValue -> recordID
+	lookupCache := make(map[string]map[string]string)
+
+	for rowIdx, record := range records {
+		for fieldName, resolution := range lookupResolution {
+			field, ok := linkFields[fieldName]
+			if !ok {
+				continue
+			}
+
+			// Get the value to look up (could be in fieldNameId key)
+			idKey := fieldName + "Id"
+			lookupValue, ok := record[idKey]
+			if !ok {
+				continue
+			}
+
+			valueStr, ok := lookupValue.(string)
+			if !ok || valueStr == "" {
+				continue
+			}
+
+			// Check if this looks like an existing ID (starts with record prefix)
+			if strings.HasPrefix(valueStr, "Rec") {
+				// Already an ID, skip resolution
+				continue
+			}
+
+			// Get the related entity from field options
+			relatedEntity := ""
+			if field.Options != nil {
+				if entity, ok := (*field.Options)["entity"].(string); ok {
+					relatedEntity = entity
+				}
+			}
+			if relatedEntity == "" {
+				errors = append(errors, BulkError{
+					Index: rowIdx,
+					Error: fmt.Sprintf("Field '%s' has no related entity configured", fieldName),
+				})
+				continue
+			}
+
+			// Initialize cache for this entity if needed
+			if _, ok := lookupCache[relatedEntity]; !ok {
+				lookupCache[relatedEntity] = make(map[string]string)
+			}
+
+			// Check cache first
+			if cachedID, ok := lookupCache[relatedEntity][valueStr]; ok {
+				record[idKey] = cachedID
+				// Also store the name if we have it
+				record[fieldName+"Name"] = valueStr
+				continue
+			}
+
+			// Look up the record in the related entity's table
+			relatedTable := util.GetTableName(relatedEntity)
+			matchColumn := util.CamelToSnake(resolution.MatchField)
+
+			query := fmt.Sprintf(
+				"SELECT id, COALESCE(%s, '') as match_value FROM %s WHERE org_id = ? AND LOWER(%s) = LOWER(?) LIMIT 1",
+				quoteIdentifier(matchColumn),
+				relatedTable,
+				quoteIdentifier(matchColumn),
+			)
+
+			var foundID, foundName string
+			err := h.getDB(c).QueryRowContext(ctx, query, orgID, valueStr).Scan(&foundID, &foundName)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					errors = append(errors, BulkError{
+						Index: rowIdx,
+						Error: fmt.Sprintf("No %s found with %s='%s'", relatedEntity, resolution.MatchField, valueStr),
+					})
+					// Clear the invalid value so it doesn't try to insert garbage
+					delete(record, idKey)
+				} else {
+					errors = append(errors, BulkError{
+						Index: rowIdx,
+						Error: fmt.Sprintf("Failed to look up %s: %v", relatedEntity, err),
+					})
+				}
+				continue
+			}
+
+			// Cache the result
+			lookupCache[relatedEntity][valueStr] = foundID
+
+			// Update record with resolved ID and name
+			record[idKey] = foundID
+			record[fieldName+"Name"] = valueStr
+		}
+	}
+
+	return errors, nil
 }
 
 // processBatch processes a batch of records (reused from bulk handler pattern)

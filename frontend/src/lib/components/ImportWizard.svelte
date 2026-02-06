@@ -17,6 +17,11 @@
 		name: string;
 		label: string;
 		type: string;
+		relatedEntity?: string; // For link fields
+	}
+
+	interface LookupResolution {
+		matchField: string;
 	}
 
 	interface PreviewResponse {
@@ -70,6 +75,7 @@
 	let file: File | null = $state(null);
 	let previewData: PreviewResponse | null = $state(null);
 	let columnMapping: Record<string, string> = $state({});
+	let lookupResolution: Record<string, LookupResolution> = $state({}); // fieldName -> resolution config
 	let analyzeResult: AnalyzeResult | null = $state(null);
 	let importResult: ImportResponse | null = $state(null);
 	let loading = $state(false);
@@ -174,6 +180,7 @@
 			formData.append('file', file);
 			formData.append('options', JSON.stringify({
 				columnMapping,
+				lookupResolution: Object.keys(lookupResolution).length > 0 ? lookupResolution : undefined,
 				mode: 'create',
 				skipErrors: false
 			}));
@@ -219,6 +226,32 @@
 
 	function updateMapping(csvHeader: string, fieldName: string) {
 		columnMapping[csvHeader] = fieldName;
+		// Clear lookup resolution if field changed
+		const baseFieldName = fieldName.replace(/Id$/, '');
+		if (!fieldName || !isLinkField(baseFieldName)) {
+			delete lookupResolution[baseFieldName];
+		}
+	}
+
+	function isLinkField(fieldName: string): boolean {
+		const field = availableFields.find(f => f.name === fieldName);
+		return field?.type === 'link';
+	}
+
+	function getFieldForMapping(mappedFieldName: string): AvailableField | undefined {
+		// mappedFieldName might be "accountId" or "account"
+		const baseFieldName = mappedFieldName.replace(/Id$/, '');
+		return availableFields.find(f => f.name === baseFieldName || f.name === mappedFieldName);
+	}
+
+	function toggleLookupByName(fieldName: string, enabled: boolean) {
+		if (enabled) {
+			lookupResolution[fieldName] = { matchField: 'name' };
+		} else {
+			delete lookupResolution[fieldName];
+		}
+		// Trigger reactivity
+		lookupResolution = { ...lookupResolution };
 	}
 </script>
 
@@ -290,10 +323,13 @@
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CSV Header</th>
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sample Data</th>
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Maps To</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Options</th>
 								</tr>
 							</thead>
 							<tbody class="bg-white divide-y divide-gray-200">
 								{#each previewData.headers as header, idx}
+									{@const mappedField = getFieldForMapping(columnMapping[header] || '')}
+									{@const isLink = mappedField?.type === 'link'}
 									<tr>
 										<td class="px-4 py-3 text-sm font-medium text-gray-900">{header}</td>
 										<td class="px-4 py-3 text-sm text-gray-600">
@@ -310,6 +346,26 @@
 													<option value={field.name}>{field.label || field.name}</option>
 												{/each}
 											</select>
+										</td>
+										<td class="px-4 py-3">
+											{#if isLink && mappedField}
+												<label class="flex items-center text-sm text-gray-600 cursor-pointer">
+													<input
+														type="checkbox"
+														checked={!!lookupResolution[mappedField.name]}
+														onchange={(e) => toggleLookupByName(mappedField.name, e.currentTarget.checked)}
+														class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+													/>
+													<span>Look up by name</span>
+												</label>
+												{#if lookupResolution[mappedField.name]}
+													<p class="text-xs text-gray-500 mt-1">
+														Will match {mappedField.relatedEntity || 'record'} by name
+													</p>
+												{/if}
+											{:else}
+												<span class="text-gray-400 text-sm">—</span>
+											{/if}
 										</td>
 									</tr>
 								{/each}
