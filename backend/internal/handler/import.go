@@ -993,10 +993,8 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 			Type:  string(field.Type),
 		}
 		// For link fields, include the related entity name
-		if field.Type == entity.FieldTypeLink && field.Options != nil {
-			if relatedEntity, ok := (*field.Options)["entity"].(string); ok {
-				af.RelatedEntity = relatedEntity
-			}
+		if field.Type == entity.FieldTypeLink && field.LinkEntity != nil {
+			af.RelatedEntity = *field.LinkEntity
 		}
 		availableFields = append(availableFields, af)
 	}
@@ -1065,12 +1063,10 @@ func (h *ImportHandler) resolveLookups(
 				continue
 			}
 
-			// Get the related entity from field options
+			// Get the related entity from field definition
 			relatedEntity := ""
-			if field.Options != nil {
-				if entity, ok := (*field.Options)["entity"].(string); ok {
-					relatedEntity = entity
-				}
+			if field.LinkEntity != nil {
+				relatedEntity = *field.LinkEntity
 			}
 			if relatedEntity == "" {
 				errors = append(errors, BulkError{
