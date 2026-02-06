@@ -22,12 +22,12 @@
   3. Email normalization produces consistent lowercase, trimmed values for exact matching
   4. Phone numbers normalize to E.164 format for comparison
   5. Blocking queries reduce candidate set using Soundex and prefix strategies
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 11-01: Database schema and entity types
-- [ ] 11-02: Similarity service (Jaro-Winkler, email, phone normalization)
-- [ ] 11-03: Rule management API and caching
+- [ ] 11-01-PLAN.md - Database schema and entity types (matching_rules table, Go types, repository)
+- [ ] 11-02-PLAN.md - Similarity service (Jaro-Winkler, email/phone normalization, weighted scorer)
+- [ ] 11-03-PLAN.md - Blocking strategies and rule management API
 
 ### Phase 12: Real-Time Detection
 **Goal**: Prevent new duplicates by detecting matches during record creation
@@ -123,7 +123,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 01-05 | v1.0 | 9/9 | Complete | 2026-02-01 |
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
-| 11. Detection Foundation | v3.0 | 0/3 | Not started | - |
+| 11. Detection Foundation | v3.0 | 0/3 | Planned | - |
 | 12. Real-Time Detection | v3.0 | 0/2 | Not started | - |
 | 13. Merge Engine | v3.0 | 0/5 | Not started | - |
 | 14. Import Integration | v3.0 | 0/3 | Not started | - |
@@ -134,4 +134,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 - v3.0 roadmap created*
+*Last updated: 2026-02-06 - Phase 11 planned (3 plans)*
