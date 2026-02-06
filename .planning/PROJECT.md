@@ -8,6 +8,18 @@ A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber bac
 
 Fast, secure multi-tenant CRM where customer data is protected and platform updates are transparent.
 
+## Current Milestone: v3.0 Deduplication System
+
+**Goal:** Build a comprehensive, entity-agnostic deduplication system with scoring-based matching, import integration, and manual merge capabilities.
+
+**Target features:**
+- Full profile scoring for duplicate detection (all available fields)
+- Import integration with duplicate blocking and review
+- Manual field selection during merge
+- Generic system supporting all entities (Contact, Account, Lead, custom)
+- Background duplicate scanning
+- Duplicate management UI
+
 ## Current State
 
 **Shipped:** v2.0 Security Hardening (2026-02-04)
@@ -50,7 +62,12 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 
 <!-- Current scope. Building toward these. -->
 
-Ready for next milestone. See `/gsd:new-milestone` to define v3.0 requirements.
+- Scoring-based duplicate detection with configurable thresholds
+- Import duplicate detection with blocking review
+- Manual merge with field-by-field selection
+- Entity-agnostic deduplication engine
+- Background duplicate scanning jobs
+- Duplicate management admin UI
 
 ### Out of Scope
 
@@ -98,4 +115,4 @@ Ready for next milestone. See `/gsd:new-milestone` to define v3.0 requirements.
 | SHA-256 hash chain for audit | Tamper evidence | ✓ Good |
 
 ---
-*Last updated: 2026-02-04 after v2.0 milestone*
+*Last updated: 2026-02-05 — v3.0 Deduplication System milestone started*

@@ -9,14 +9,14 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 
 ## Current Position
 
-**Milestone:** v2.0 Security Hardening — SHIPPED ✓
-**Phase:** Between milestones
+**Milestone:** v3.0 Deduplication System
+**Phase:** Not started (defining requirements)
 **Plan:** —
-**Status:** Ready for next milestone
+**Status:** Defining requirements
 
-**Last activity:** 2026-02-05 — Completed quick task 012: CSV Import with field mapping and validation
+**Last activity:** 2026-02-05 — Milestone v3.0 started
 
-Progress: [██████████] 100% (v2.0 complete)
+Progress: [░░░░░░░░░░] 0% (requirements phase)
 
 ## Performance Metrics
 
