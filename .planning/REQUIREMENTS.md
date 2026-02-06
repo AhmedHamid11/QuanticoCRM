@@ -201,15 +201,47 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 
 ## Traceability
 
-| Requirement | Phase | Plan |
-|-------------|-------|------|
-| DETECT-01 through DETECT-09 | TBD | TBD |
-| IMPORT-01 through IMPORT-05 | TBD | TBD |
-| MERGE-01 through MERGE-11 | TBD | TBD |
-| BACKGROUND-01 through BACKGROUND-06 | TBD | TBD |
-| UI-01 through UI-06 | TBD | TBD |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| DETECT-01 | Phase 11 | Pending |
+| DETECT-02 | Phase 12 | Pending |
+| DETECT-03 | Phase 11 | Pending |
+| DETECT-04 | Phase 11 | Pending |
+| DETECT-05 | Phase 11 | Pending |
+| DETECT-06 | Phase 11 | Pending |
+| DETECT-07 | Phase 11 | Pending |
+| DETECT-08 | Phase 11 | Pending |
+| DETECT-09 | Phase 12 | Pending |
+| IMPORT-01 | Phase 14 | Pending |
+| IMPORT-02 | Phase 14 | Pending |
+| IMPORT-03 | Phase 14 | Pending |
+| IMPORT-04 | Phase 14 | Pending |
+| IMPORT-05 | Phase 14 | Pending |
+| MERGE-01 | Phase 13 | Pending |
+| MERGE-02 | Phase 13 | Pending |
+| MERGE-03 | Phase 13 | Pending |
+| MERGE-04 | Phase 13 | Pending |
+| MERGE-05 | Phase 13 | Pending |
+| MERGE-06 | Phase 13 | Pending |
+| MERGE-07 | Phase 13 | Pending |
+| MERGE-08 | Phase 13 | Pending |
+| MERGE-09 | Phase 13 | Pending |
+| MERGE-10 | Phase 13 | Pending |
+| MERGE-11 | Phase 13 | Pending |
+| BACKGROUND-01 | Phase 15 | Pending |
+| BACKGROUND-02 | Phase 15 | Pending |
+| BACKGROUND-03 | Phase 15 | Pending |
+| BACKGROUND-04 | Phase 15 | Pending |
+| BACKGROUND-05 | Phase 15 | Pending |
+| BACKGROUND-06 | Phase 15 | Pending |
+| UI-01 | Phase 16 | Pending |
+| UI-02 | Phase 16 | Pending |
+| UI-03 | Phase 16 | Pending |
+| UI-04 | Phase 16 | Pending |
+| UI-05 | Phase 16 | Pending |
+| UI-06 | Phase 16 | Pending |
 
 ---
 
-*31 requirements across 5 categories*
-*Last updated: 2026-02-05*
+*37 requirements across 5 categories*
+*Last updated: 2026-02-06*
