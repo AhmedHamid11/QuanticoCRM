@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 11 of 16 (Detection Foundation)
-**Plan:** 1 of 3 in current phase
+**Plan:** 2 of 3 in current phase
 **Status:** In progress
 
-**Last activity:** 2026-02-06 - Completed 11-01-PLAN.md
+**Last activity:** 2026-02-06 - Completed 11-02-PLAN.md
 
-Progress: [█░░░░░░░░░] 5% (1/21 plans)
+Progress: [██░░░░░░░░] 10% (2/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32 (9 v1.0 + 22 v2.0 + 1 v3.0)
+- Total plans completed: 33 (9 v1.0 + 22 v2.0 + 2 v3.0)
 - Average duration: 4.0 min
-- Total execution time: ~133 min
+- Total execution time: ~135 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [█░░░░░░░░░] 5% (1/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 1/21 | ~3 min |
+| v3.0 Deduplication | 11-16 | 2/21 | ~5 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,10 @@ Progress: [█░░░░░░░░░] 5% (1/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 11-02 | Use Jaro-Winkler over Levenshtein for names | Better prefix weighting for person names | 2026-02-06 |
+| 11-02 | Email weighting 80% local / 20% domain | Local part more important for person identity | 2026-02-06 |
+| 11-02 | Binary phone matching after E.164 normalization | Phone numbers either match or don't, no fuzzy | 2026-02-06 |
+| 11-02 | Skip empty fields without penalty | Don't penalize incomplete records | 2026-02-06 |
 | 11-01 | Use DedupFieldConfig instead of FieldConfig | Avoid naming conflict with related_list.go | 2026-02-06 |
 | 11-01 | Three-tier confidence system (high 0.95+, medium 0.85+, low) | Different merge workflows for different confidence levels | 2026-02-06 |
 | 11-01 | Support cross-entity matching via target_entity_type | Enable Contact-Lead deduplication | 2026-02-06 |
@@ -65,10 +69,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-06 11:36:47
-Stopped at: Completed 11-01-PLAN.md (Detection Foundation)
+Last session: 2026-02-06 11:37:05
+Stopped at: Completed 11-02-PLAN.md (Detection Foundation)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-06 - Phase 11 Plan 01 complete, 1/3 plans done in Detection Foundation*
+*Updated: 2026-02-06 - Phase 11 Plan 02 complete, 2/3 plans done in Detection Foundation*
