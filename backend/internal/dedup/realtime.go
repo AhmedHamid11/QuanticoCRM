@@ -124,7 +124,7 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 		}
 	}
 
-	// Store alert with IsBlockMode from matching rule configuration
+	// Store alert for the current record pointing to its matches
 	alert := &entity.PendingDuplicateAlert{
 		OrgID:             input.OrgID,
 		EntityType:        input.EntityType,
@@ -142,6 +142,35 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	} else {
 		log.Printf("INFO: Created duplicate alert for %s/%s with %d matches (highest: %s, blockMode: %v)",
 			input.EntityType, input.RecordID, len(matches), highestConfidence, isBlockMode)
+	}
+
+	// Create bidirectional alerts - each matched record should also see this record as a duplicate
+	// This ensures both parties in a duplicate pair can see and resolve the alert
+	now := time.Now().UTC()
+	for _, match := range alertMatches {
+		reverseMatch := entity.DuplicateAlertMatch{
+			RecordID:    input.RecordID,
+			MatchResult: match.MatchResult, // Same match result applies both directions
+		}
+
+		reverseAlert := &entity.PendingDuplicateAlert{
+			OrgID:             input.OrgID,
+			EntityType:        input.EntityType,
+			RecordID:          match.RecordID, // The other record
+			Matches:           []entity.DuplicateAlertMatch{reverseMatch},
+			TotalMatchCount:   1,
+			HighestConfidence: highestConfidence,
+			IsBlockMode:       isBlockMode,
+			Status:            entity.AlertStatusPending,
+			DetectedAt:        now,
+		}
+
+		if err := r.alertRepo.WithDB(conn).Upsert(ctx, reverseAlert); err != nil {
+			log.Printf("ERROR: Failed to store reverse duplicate alert for %s/%s: %v", input.EntityType, match.RecordID, err)
+		} else {
+			log.Printf("INFO: Created reverse duplicate alert for %s/%s pointing to %s",
+				input.EntityType, match.RecordID, input.RecordID)
+		}
 	}
 }
 

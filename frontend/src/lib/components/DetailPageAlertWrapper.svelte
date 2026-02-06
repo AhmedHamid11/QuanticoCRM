@@ -8,10 +8,9 @@
     interface Props {
         entityType: string;
         recordId: string;
-        userCanMerge?: boolean;
     }
 
-    let { entityType, recordId, userCanMerge = false }: Props = $props();
+    let { entityType, recordId }: Props = $props();
 
     let pendingAlert = $state<PendingAlert | null>(null);
     let loading = $state(true);
@@ -43,20 +42,6 @@
         }
     }
 
-    async function handleCreateAnyway(overrideText?: string) {
-        if (!pendingAlert) return;
-
-        try {
-            await resolveAlert(entityType, recordId, 'created_anyway', overrideText);
-            pendingAlert = null;
-            showModal = false;
-            toast.success('Record kept, alert resolved');
-        } catch (error: any) {
-            console.error('Failed to resolve alert:', error);
-            toast.error('Failed to resolve alert');
-        }
-    }
-
     function handleViewMatches() {
         showModal = true;
     }
@@ -65,10 +50,10 @@
         showModal = false;
     }
 
-    function handleMerge(targetRecordId: string) {
-        // For now, just close modal - Phase 13 will implement actual merge
+    function handleMergeComplete() {
+        // After merge, the alert is resolved and we may have navigated to another record
+        pendingAlert = null;
         showModal = false;
-        // The modal's default behavior will navigate to merge UI
     }
 
     onMount(() => {
@@ -95,12 +80,11 @@
         <DuplicateWarningModal
             alert={pendingAlert}
             {entityType}
+            currentRecordId={recordId}
             isBlockMode={pendingAlert.isBlockMode}
-            {userCanMerge}
             onClose={handleCloseModal}
             onDismiss={handleDismiss}
-            onCreateAnyway={handleCreateAnyway}
-            onMerge={handleMerge}
+            onMergeComplete={handleMergeComplete}
         />
     {/if}
 {/if}
