@@ -2,12 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -228,6 +231,78 @@ func (h *DedupHandler) ResolveAlert(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// BackfillBlockingKeys populates blocking key columns for all existing records
+// This is needed for records created before blocking keys were being populated
+func (h *DedupHandler) BackfillBlockingKeys(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityType := c.Params("entity")
+
+	if entityType == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "entityType is required"})
+	}
+
+	conn := h.getDB(c)
+	tableName := util.GetTableName(entityType)
+	blocker := h.detector.GetBlocker()
+
+	// Query all records for this entity
+	query := fmt.Sprintf(`SELECT * FROM %s WHERE org_id = ?`, tableName)
+	rows, err := conn.QueryContext(c.Context(), query, orgID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	defer rows.Close()
+
+	// Scan all records into maps
+	records, err := util.ScanRowsToMaps(rows)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Update blocking keys for each record
+	updated := 0
+	failed := 0
+	for _, record := range records {
+		recordID := getStringFromMap(record, "id")
+		if recordID == "" {
+			continue
+		}
+
+		// Convert snake_case keys to camelCase for blocker
+		camelRecord := make(map[string]interface{})
+		for k, v := range record {
+			camelKey := util.SnakeToCamel(k)
+			camelRecord[camelKey] = v
+		}
+
+		if err := blocker.UpdateBlockingKeys(c.Context(), conn, entityType, recordID, camelRecord); err != nil {
+			log.Printf("Failed to update blocking keys for %s/%s: %v", entityType, recordID, err)
+			failed++
+		} else {
+			updated++
+		}
+	}
+
+	log.Printf("[DEDUP] Backfilled blocking keys for %s: %d updated, %d failed", entityType, updated, failed)
+
+	return c.JSON(fiber.Map{
+		"entityType": entityType,
+		"total":      len(records),
+		"updated":    updated,
+		"failed":     failed,
+	})
+}
+
+// getStringFromMap extracts string value from map
+func getStringFromMap(m map[string]interface{}, key string) string {
+	if val, ok := m[key]; ok {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
 // RegisterRoutes registers dedup routes
 func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 	// Matching rules CRUD (admin only - apply admin middleware in main.go)
@@ -236,6 +311,9 @@ func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/dedup/rules", h.CreateRule)
 	app.Put("/dedup/rules/:id", h.UpdateRule)
 	app.Delete("/dedup/rules/:id", h.DeleteRule)
+
+	// Admin: Backfill blocking keys for existing records
+	app.Post("/dedup/:entity/backfill-blocking-keys", h.BackfillBlockingKeys)
 
 	// Duplicate detection
 	app.Post("/dedup/:entity/check", h.CheckDuplicates)
