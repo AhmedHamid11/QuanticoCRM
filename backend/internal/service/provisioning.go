@@ -650,9 +650,9 @@ func (s *ProvisioningService) createNavTab(ctx context.Context, orgID, label, hr
 	if isSystem {
 		isSystemVal = 1
 	}
-	// Use INSERT OR REPLACE to handle potential duplicates
+	// Use INSERT OR IGNORE to skip if tab already exists (based on UNIQUE(org_id, href))
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO navigation_tabs (id, org_id, label, href, icon, entity_name, sort_order, is_visible, is_system, created_at, modified_at)
+		INSERT OR IGNORE INTO navigation_tabs (id, org_id, label, href, icon, entity_name, sort_order, is_visible, is_system, created_at, modified_at)
 		VALUES (?, ?, ?, ?, '', ?, ?, 1, ?, ?, ?)
 	`, id, orgID, label, href, entity, order, isSystemVal, now, now)
 	if err != nil {

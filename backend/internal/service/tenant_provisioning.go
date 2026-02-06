@@ -434,7 +434,8 @@ func (s *TenantProvisioningService) runMigrations(ctx context.Context, db *sql.D
 			is_visible INTEGER DEFAULT 1,
 			is_system INTEGER DEFAULT 0,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-			modified_at TEXT DEFAULT CURRENT_TIMESTAMP
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, href)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_navigation_org ON navigation_tabs(org_id)`,
 
