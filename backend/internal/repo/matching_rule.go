@@ -40,15 +40,24 @@ func (r *MatchingRuleRepo) WithRawDB(rawDB *sql.DB) *MatchingRuleRepo {
 	return &MatchingRuleRepo{db: rawDB}
 }
 
-// ListRules returns all matching rules for an organization
-func (r *MatchingRuleRepo) ListRules(ctx context.Context, orgID string) ([]entity.MatchingRule, error) {
+// ListRules returns all matching rules for an organization, optionally filtered by entity type
+func (r *MatchingRuleRepo) ListRules(ctx context.Context, orgID string, entityType string) ([]entity.MatchingRule, error) {
 	query := `SELECT id, org_id, name, description, entity_type, target_entity_type,
 	          is_enabled, priority, threshold, high_confidence_threshold,
 	          medium_confidence_threshold, blocking_strategy, field_configs,
 	          created_at, modified_at
-	          FROM matching_rules WHERE org_id = ? ORDER BY priority, name`
+	          FROM matching_rules WHERE org_id = ?`
 
-	rows, err := r.db.QueryContext(ctx, query, orgID)
+	args := []interface{}{orgID}
+
+	if entityType != "" {
+		query += " AND entity_type = ?"
+		args = append(args, entityType)
+	}
+
+	query += " ORDER BY priority, name"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list matching rules: %w", err)
 	}

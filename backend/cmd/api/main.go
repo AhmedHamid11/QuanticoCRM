@@ -132,6 +132,7 @@ func main() {
 	migrationRepo := repo.NewMigrationRepo(masterDBConn)
 	orgSettingsRepo := repo.NewOrgSettingsRepo(masterDBConn)
 	auditRepo := repo.NewAuditRepo(masterDBConn)
+	matchingRuleRepo := repo.NewMatchingRuleRepo(masterDBConn)
 
 	// Initialize services
 	tripwireService := service.NewTripwireService(masterDB, tripwireRepo)
@@ -230,6 +231,7 @@ func main() {
 	schemaHandler := handler.NewSchemaHandler(masterDB, metadataRepo)
 	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo, auditLogger)
 	auditHandler := handler.NewAuditHandler(auditRepo)
+	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -499,6 +501,9 @@ func main() {
 	adminProtected.Get("/audit-logs/export", auditHandler.Export)
 	adminProtected.Get("/audit-logs/verify", auditHandler.VerifyChain)
 	adminProtected.Get("/audit-logs/event-types", auditHandler.GetEventTypes)
+
+	// Deduplication - admin can manage rules and check for duplicates
+	dedupHandler.RegisterRoutes(adminProtected)
 
 	// PDF Template public routes (read-only for all authenticated users)
 	pdfTemplateHandler.RegisterPublicRoutes(protected)
