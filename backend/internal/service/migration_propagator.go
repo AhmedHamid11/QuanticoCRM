@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
+	"github.com/fastcrm/backend/internal/migrations"
 	"github.com/fastcrm/backend/internal/repo"
 )
 
@@ -24,7 +23,6 @@ type MigrationPropagator struct {
 	versionRepo    *repo.VersionRepo
 	migrationRepo  *repo.MigrationRepo
 	versionService *VersionService
-	migrationsDir  string
 }
 
 // NewMigrationPropagator creates a new MigrationPropagator
@@ -35,18 +33,12 @@ func NewMigrationPropagator(
 	migrationRepo *repo.MigrationRepo,
 	versionService *VersionService,
 ) *MigrationPropagator {
-	migrationsDir := os.Getenv("MIGRATIONS_DIR")
-	if migrationsDir == "" {
-		migrationsDir = "../../migrations"
-	}
-
 	return &MigrationPropagator{
 		masterDB:       masterDB,
 		dbManager:      dbManager,
 		versionRepo:    versionRepo,
 		migrationRepo:  migrationRepo,
 		versionService: versionService,
-		migrationsDir:  migrationsDir,
 	}
 }
 
@@ -263,21 +255,21 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 	// Apply pending migrations
 	appliedCount := 0
 	for _, file := range files {
-		name := filepath.Base(file)
-		if applied[name] {
+		// file is now just the filename (e.g., "001_create_users.sql") from embedded FS
+		if applied[file] {
 			continue
 		}
 
-		// Read migration file
-		content, err := os.ReadFile(file)
+		// Read migration file from embedded FS
+		content, err := fs.ReadFile(migrations.Files, file)
 		if err != nil {
-			return fmt.Errorf("failed to read migration %s: %w", name, err)
+			return fmt.Errorf("failed to read migration %s: %w", file, err)
 		}
 
 		// Begin transaction for this migration
 		tx, err := tenantDB.BeginTx(ctx, nil)
 		if err != nil {
-			return fmt.Errorf("failed to begin transaction for %s: %w", name, err)
+			return fmt.Errorf("failed to begin transaction for %s: %w", file, err)
 		}
 
 		// Execute statements
@@ -289,22 +281,22 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 			}
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				tx.Rollback()
-				return fmt.Errorf("failed to execute %s: %w\nStatement: %s", name, err, stmt)
+				return fmt.Errorf("failed to execute %s: %w\nStatement: %s", file, err, stmt)
 			}
 		}
 
 		// Record migration
-		if _, err := tx.ExecContext(ctx, "INSERT INTO _migrations (name) VALUES (?)", name); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO _migrations (name) VALUES (?)", file); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to record migration %s: %w", name, err)
+			return fmt.Errorf("failed to record migration %s: %w", file, err)
 		}
 
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit migration %s: %w", name, err)
+			return fmt.Errorf("failed to commit migration %s: %w", file, err)
 		}
 
 		appliedCount++
-		log.Printf("[MIGRATION] Org=%s Applied: %s", org.ID, name)
+		log.Printf("[MIGRATION] Org=%s Applied: %s", org.ID, file)
 	}
 
 	if appliedCount > 0 {
@@ -314,20 +306,20 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 	return nil
 }
 
-// getMigrationFiles returns sorted list of migration files
+// getMigrationFiles returns sorted list of migration files from embedded FS
 func (p *MigrationPropagator) getMigrationFiles() ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(p.migrationsDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && strings.HasSuffix(path, ".sql") {
-			files = append(files, path)
-		}
-		return nil
-	})
+	// Use embedded migrations instead of reading from filesystem
+	// This works in Docker containers where the filesystem paths don't exist
+	entries, err := fs.ReadDir(migrations.Files, ".")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list migrations: %w", err)
+	}
+
+	var files []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sql") {
+			files = append(files, entry.Name())
+		}
 	}
 	sort.Strings(files)
 	return files, nil
