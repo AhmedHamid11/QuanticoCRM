@@ -3,7 +3,7 @@
     import { getPendingAlert, resolveAlert, type PendingAlert, type AlertResolution } from '$lib/api/dedup';
     import DuplicateAlertBanner from './DuplicateAlertBanner.svelte';
     import DuplicateWarningModal from './DuplicateWarningModal.svelte';
-    import { toast } from '$lib/stores/toast';
+    import { toast } from '$lib/stores/toast.svelte';
 
     interface Props {
         entityType: string;

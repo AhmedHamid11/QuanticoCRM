@@ -8,6 +8,7 @@
 	import RelatedList from '$lib/components/RelatedList.svelte';
 	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
 	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
+	import DetailPageAlertWrapper from '$lib/components/DetailPageAlertWrapper.svelte';
 	import type { Contact } from '$lib/types/contact';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
 	import type { RelatedListConfig } from '$lib/types/related-list';
@@ -219,6 +220,14 @@
 		<span class="mx-2">/</span>
 		<span class="text-gray-900">{contact ? getFullName(contact) : 'Loading...'}</span>
 	</nav>
+
+	<!-- Duplicate alert banner -->
+	{#if contact}
+		<DetailPageAlertWrapper
+			entityType="Contact"
+			recordId={contact.id}
+		/>
+	{/if}
 
 	{#if loading}
 		<DetailSkeleton sections={2} fieldsPerSection={4} />

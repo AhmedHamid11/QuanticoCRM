@@ -8,6 +8,7 @@
 	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
 	import Bearing from '$lib/components/Bearing.svelte';
 	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
+	import DetailPageAlertWrapper from '$lib/components/DetailPageAlertWrapper.svelte';
 	import type { Account } from '$lib/types/account';
 	import type { RelatedListConfig } from '$lib/types/related-list';
 	import type { BearingWithStages } from '$lib/types/bearing';
@@ -264,6 +265,12 @@
 				</button>
 			</div>
 		</div>
+
+		<!-- Duplicate alert banner -->
+		<DetailPageAlertWrapper
+			entityType="Account"
+			recordId={account.id}
+		/>
 
 		<!-- Tabs (only show if entity has activities enabled) -->
 		{#if entityDef?.hasActivities}
