@@ -37,11 +37,13 @@ Plans:
   1. When creating a record, system shows duplicate warning with match scores before save
   2. User can choose warn mode (proceed anyway) or block mode (must resolve first)
   3. Confidence levels display as High/Medium/Low tiers (>=95%, >=85%, >=70%)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 12-01: Hook into GenericEntityHandler.Create() for duplicate check
-- [ ] 12-02: Duplicate warning UI with confidence tiers
+- [ ] 12-01-PLAN.md - Pending alert infrastructure (migration, entity, repo, API endpoints)
+- [ ] 12-02-PLAN.md - Async detection hooks (RealtimeChecker, GenericEntityHandler integration)
+- [ ] 12-03-PLAN.md - Frontend components (DuplicateAlertBanner, DuplicateWarningModal, API utils)
+- [ ] 12-04-PLAN.md - Detail page integration (Contact, Account pages with alert display)
 
 ### Phase 13: Merge Engine
 **Goal**: Complete merge capability with field selection, related record transfer, audit logging, and undo
@@ -124,14 +126,14 @@ Plans:
 | 01-05 | v1.0 | 9/9 | Complete | 2026-02-01 |
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
 | 11. Detection Foundation | v3.0 | 3/3 | Complete | 2026-02-06 |
-| 12. Real-Time Detection | v3.0 | 0/2 | Not started | - |
+| 12. Real-Time Detection | v3.0 | 0/4 | Ready | - |
 | 13. Merge Engine | v3.0 | 0/5 | Not started | - |
 | 14. Import Integration | v3.0 | 0/3 | Not started | - |
 | 15. Background Scanning | v3.0 | 0/3 | Not started | - |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
-**v3.0 Total:** 3/21 plans
+**v3.0 Total:** 3/23 plans
 
 ---
 
-*Last updated: 2026-02-06 - Phase 11 complete (3/3 plans)*
+*Last updated: 2026-02-06 - Phase 12 planned (4 plans in 4 waves)*
