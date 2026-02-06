@@ -59,6 +59,15 @@ func (r *RealtimeChecker) CheckAsync(conn db.DBConn, input CheckAsyncInput) {
 func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input CheckAsyncInput) {
 	log.Printf("[DEDUP] Starting async check for %s/%s in org %s", input.EntityType, input.RecordID, input.OrgID)
 
+	// Always update blocking keys for this record so it can be found by future checks
+	// This must happen regardless of whether rules exist, since rules may be added later
+	if err := r.detector.GetBlocker().UpdateBlockingKeys(ctx, conn, input.EntityType, input.RecordID, input.RecordData); err != nil {
+		log.Printf("ERROR: Failed to update blocking keys for %s/%s: %v", input.EntityType, input.RecordID, err)
+		// Continue anyway - blocking key update is best-effort
+	} else {
+		log.Printf("[DEDUP] Updated blocking keys for %s/%s", input.EntityType, input.RecordID)
+	}
+
 	// Check if any matching rules exist for this entity (quick bailout)
 	rules, err := r.ruleRepo.WithDB(conn).ListEnabledRules(ctx, input.OrgID, input.EntityType)
 	if err != nil {
