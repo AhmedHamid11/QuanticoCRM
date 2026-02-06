@@ -5,25 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Core value:** Fast, secure multi-tenant CRM where customer data is protected
-**Current focus:** Phase 11 - Detection Foundation
+**Current focus:** Phase 12 - Real-Time Detection
 
 ## Current Position
 
 **Milestone:** v3.0 Deduplication System
-**Phase:** 11 of 16 (Detection Foundation)
-**Plan:** 3 of 3 in current phase
-**Status:** Phase complete
+**Phase:** 12 of 16 (Real-Time Detection)
+**Plan:** 1 of 4 in current phase
+**Status:** In progress
 
-**Last activity:** 2026-02-06 - Completed 11-03-PLAN.md
+**Last activity:** 2026-02-06 - Completed 12-01-PLAN.md
 
-Progress: [██░░░░░░░░] 14% (3/21 plans)
+Progress: [██░░░░░░░░] 19% (4/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (9 v1.0 + 22 v2.0 + 3 v3.0)
+- Total plans completed: 35 (9 v1.0 + 22 v2.0 + 4 v3.0)
 - Average duration: 4.0 min
-- Total execution time: ~138 min
+- Total execution time: ~141 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [██░░░░░░░░] 14% (3/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 3/21 | ~8 min |
+| v3.0 Deduplication | 11-16 | 4/21 | ~11 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,10 @@ Progress: [██░░░░░░░░] 14% (3/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 12-01 | Use INSERT OR REPLACE for alert upsert | Handle rapid edits where detection re-runs and replaces existing pending alert | 2026-02-06 |
+| 12-01 | Include is_block_mode field in alerts | Frontend needs to know whether to show warning banner or blocking modal | 2026-02-06 |
+| 12-01 | Alert endpoints not admin-only | Regular users need to see alerts on records they view and resolve them | 2026-02-06 |
+| 12-01 | Store top 3 matches with record name | UI can display "Possible duplicates: John Smith, Jane Doe, Bob Johnson" | 2026-02-06 |
 | 11-03 | Use go-phonetics for Soundex encoding | Well-maintained library, avoid reinventing Soundex | 2026-02-06 |
 | 11-03 | Limit candidate queries to 1000 records | Prevent memory/performance issues from huge result sets | 2026-02-06 |
 | 11-03 | Multi-strategy blocker with OR logic | Different strategies serve different use cases | 2026-02-06 |
@@ -73,10 +77,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-06 11:43:05
-Stopped at: Completed 11-03-PLAN.md (Detection Foundation - Phase Complete)
+Last session: 2026-02-06 12:34:27
+Stopped at: Completed 12-01-PLAN.md (Pending Alert Infrastructure)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-06 - Phase 11 complete, 3/3 plans done in Detection Foundation*
+*Updated: 2026-02-06 - Phase 12 in progress, 1/4 plans done in Real-Time Detection*
