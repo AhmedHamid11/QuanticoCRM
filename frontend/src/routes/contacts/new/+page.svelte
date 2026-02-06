@@ -165,8 +165,9 @@
 	});
 </script>
 
-<div class="max-w-2xl mx-auto">
-	<div class="flex items-center justify-between mb-6">
+<div class="space-y-6">
+	<!-- Header -->
+	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-900">New Contact</h1>
 		<a href="/contacts" class="text-gray-600 hover:text-gray-900 text-sm">
 			← Back to Contacts
