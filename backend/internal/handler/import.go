@@ -100,12 +100,20 @@ type ImportCSVResponse struct {
 
 // PreviewCSVResponse represents a preview of CSV data before import
 type PreviewCSVResponse struct {
-	Headers       []string                   `json:"headers"`
-	MappedHeaders []string                   `json:"mappedHeaders"`
-	SampleRows    []map[string]interface{}   `json:"sampleRows"`
-	TotalRows     int                        `json:"totalRows"`
-	UnmappedCols  []string                   `json:"unmappedColumns"`
-	Fields        []FieldMapping             `json:"fields"`
+	Headers         []string                   `json:"headers"`
+	MappedHeaders   []string                   `json:"mappedHeaders"`
+	SampleRows      []map[string]interface{}   `json:"sampleRows"`
+	TotalRows       int                        `json:"totalRows"`
+	UnmappedCols    []string                   `json:"unmappedColumns"`
+	Fields          []FieldMapping             `json:"fields"`
+	AvailableFields []AvailableField           `json:"availableFields"` // All entity fields for dropdown
+}
+
+// AvailableField represents an entity field available for mapping
+type AvailableField struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
+	Type  string `json:"type"`
 }
 
 // FieldMapping shows how a CSV column maps to an entity field
@@ -951,13 +959,29 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 		sampleMaps = append(sampleMaps, record)
 	}
 
+	// Build list of all available fields for dropdown
+	var availableFields []AvailableField
+	for _, field := range fields {
+		// Skip system fields that shouldn't be imported
+		if field.Name == "id" || field.Name == "createdAt" || field.Name == "modifiedAt" ||
+			field.Name == "createdById" || field.Name == "modifiedById" {
+			continue
+		}
+		availableFields = append(availableFields, AvailableField{
+			Name:  field.Name,
+			Label: field.Label,
+			Type:  string(field.Type),
+		})
+	}
+
 	return c.JSON(PreviewCSVResponse{
-		Headers:       headers,
-		MappedHeaders: parseResult.MappedHeaders,
-		SampleRows:    sampleMaps,
-		TotalRows:     parseResult.RowCount,
-		UnmappedCols:  unmappedCols,
-		Fields:        fieldMappings,
+		Headers:         headers,
+		MappedHeaders:   parseResult.MappedHeaders,
+		SampleRows:      sampleMaps,
+		TotalRows:       parseResult.RowCount,
+		UnmappedCols:    unmappedCols,
+		Fields:          fieldMappings,
+		AvailableFields: availableFields,
 	})
 }
 

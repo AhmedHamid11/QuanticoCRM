@@ -13,6 +13,12 @@
 
 	let { entityName, onComplete, onCancel }: Props = $props();
 
+	interface AvailableField {
+		name: string;
+		label: string;
+		type: string;
+	}
+
 	interface PreviewResponse {
 		headers: string[];
 		mappedHeaders: string[];
@@ -20,6 +26,7 @@
 		totalRows: number;
 		unmappedColumns: string[];
 		fields: FieldMapping[];
+		availableFields: AvailableField[];
 	}
 
 	interface FieldMapping {
@@ -67,7 +74,7 @@
 	let importResult: ImportResponse | null = $state(null);
 	let loading = $state(false);
 	let error = $state('');
-	let availableFields: string[] = $state([]);
+	let availableFields: AvailableField[] = $state([]);
 
 	// Handle file selection
 	async function handleFileSelect(event: Event) {
@@ -109,8 +116,8 @@
 			});
 			columnMapping = mapping;
 
-			// Get available fields for dropdowns
-			availableFields = previewData.fields.map(f => f.fieldName).filter(Boolean);
+			// Get available fields for dropdowns (use the full list from backend)
+			availableFields = previewData.availableFields || [];
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load file';
 			file = null;
@@ -300,7 +307,7 @@
 											>
 												<option value="">-- Skip this column --</option>
 												{#each availableFields as field}
-													<option value={field}>{field}</option>
+													<option value={field.name}>{field.label || field.name}</option>
 												{/each}
 											</select>
 										</td>
