@@ -396,7 +396,9 @@ func isTableNotExistsError(err error) bool {
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "no such table") ||
 		strings.Contains(errStr, "table does not exist") ||
-		strings.Contains(errStr, "table not found")
+		strings.Contains(errStr, "table not found") ||
+		strings.Contains(errStr, "no such column") ||
+		strings.Contains(errStr, "column does not exist")
 }
 
 // isMasterOnlyStatement checks if a statement operates on master-only tables
