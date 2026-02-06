@@ -86,7 +86,7 @@
 			>
 				{#each visibleFields as fieldLayout (fieldLayout.name)}
 					{@const field = getFieldDef(fieldLayout.name)}
-					{#if field && !field.isReadOnly && field.name !== 'id'}
+					{#if field && !field.isReadOnly && field.type !== 'rollup' && field.name !== 'id'}
 						{@const fieldError = getFieldError(field.name)}
 						{@const isWideField = field.type === 'text' || field.type === 'stream'}
 						<div class={isWideField ? 'col-span-full' : ''}>
