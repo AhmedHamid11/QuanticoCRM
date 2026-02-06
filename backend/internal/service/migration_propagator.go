@@ -222,15 +222,33 @@ func (p *MigrationPropagator) getOrgsNeedingUpdate(ctx context.Context, platform
 // applyMigrations applies pending migrations to a tenant database
 func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.DBConn, org *orgInfo) error {
 	// Create _migrations table if not exists
-	_, err := tenantDB.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS _migrations (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT UNIQUE NOT NULL,
-			applied_at TEXT DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
+	// Retry on connection errors as they may be transient
+	maxRetries := 3
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err = tenantDB.ExecContext(ctx, `
+			CREATE TABLE IF NOT EXISTS _migrations (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT UNIQUE NOT NULL,
+				applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+			)
+		`)
+		if err == nil {
+			break
+		}
+		// Check if it's a connection error (transient)
+		if isConnectionError(err) {
+			if attempt < maxRetries-1 {
+				log.Printf("[MIGRATION] Org=%s Connection error creating migrations table (attempt %d), retrying...", org.ID, attempt+1)
+				time.Sleep(time.Duration(attempt*100) * time.Millisecond)
+				continue
+			}
+		}
+		// Non-connection error or last attempt
 		return fmt.Errorf("failed to create migrations table: %w", err)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create migrations table after retries: %w", err)
 	}
 
 	// Get applied migrations
@@ -266,10 +284,28 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 			return fmt.Errorf("failed to read migration %s: %w", file, err)
 		}
 
-		// Begin transaction for this migration
-		tx, err := tenantDB.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction for %s: %w", file, err)
+		// Begin transaction for this migration with retry logic
+		var tx interface {
+			ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+			Rollback() error
+			Commit() error
+		}
+		maxRetries := 3
+		var beginErr error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			tx, beginErr = tenantDB.BeginTx(ctx, nil)
+			if beginErr == nil {
+				break
+			}
+			if isConnectionError(beginErr) && attempt < maxRetries-1 {
+				log.Printf("[MIGRATION] Org=%s Connection error beginning transaction for %s (attempt %d), retrying...", org.ID, file, attempt+1)
+				time.Sleep(time.Duration(attempt*100) * time.Millisecond)
+				continue
+			}
+			return fmt.Errorf("failed to begin transaction for %s: %w", file, beginErr)
+		}
+		if beginErr != nil {
+			return fmt.Errorf("failed to begin transaction for %s after retries: %w", file, beginErr)
 		}
 
 		// Execute statements
@@ -291,6 +327,12 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 				if isAddColumnError(err) || isTableNotExistsError(err) {
 					log.Printf("[MIGRATION] Org=%s Skipping safe error in %s: %v", org.ID, file, err)
 					continue
+				}
+				// Check for connection errors - these are transient and shouldn't fail the whole migration
+				if isConnectionError(err) {
+					log.Printf("[MIGRATION] Org=%s WARNING: Connection error in %s, attempting rollback and continuing: %v", org.ID, file, err)
+					tx.Rollback()
+					return fmt.Errorf("failed to execute %s (connection error): %w", file, err)
 				}
 				tx.Rollback()
 				return fmt.Errorf("failed to execute %s: %w\nStatement: %s", file, err, stmt)
@@ -399,6 +441,20 @@ func isTableNotExistsError(err error) bool {
 		strings.Contains(errStr, "table not found") ||
 		strings.Contains(errStr, "no such column") ||
 		strings.Contains(errStr, "column does not exist")
+}
+
+// isConnectionError checks if error is a transient connection error
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "stream is closed") ||
+		strings.Contains(errStr, "database is closed") ||
+		strings.Contains(errStr, "bad connection") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "broken pipe") ||
+		strings.Contains(errStr, "connection reset")
 }
 
 // isMasterOnlyStatement checks if a statement operates on master-only tables
