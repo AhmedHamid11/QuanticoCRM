@@ -82,17 +82,23 @@ func (s *ProvisioningService) ProvisionDefaultMetadata(ctx context.Context, orgI
 // and creates them if they don't. This handles migration gaps like when migration 002 was added
 // after an organization was provisioned.
 func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
+	log.Printf("[Provisioning] Checking if entity_defs table exists...")
+
 	// Check if entity_defs table exists
 	var tableName string
 	err := s.db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='entity_defs' LIMIT 1").Scan(&tableName)
 
 	// If table exists, we're done
 	if err == nil {
+		log.Printf("[Provisioning] entity_defs table already exists, skipping creation")
 		return nil
 	}
 
 	// If error is not "no rows", there's a real problem
-	if err.Error() != "sql: no rows" {
+	errStr := err.Error()
+	log.Printf("[Provisioning] Table check error: %s", errStr)
+	if errStr != "sql: no rows" {
+		log.Printf("[Provisioning] ERROR: failed to check entity_defs table: %v", err)
 		return fmt.Errorf("failed to check entity_defs table: %w", err)
 	}
 
