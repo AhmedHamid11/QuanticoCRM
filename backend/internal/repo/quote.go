@@ -281,8 +281,18 @@ func (r *QuoteRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Quot
 		return nil, fmt.Errorf("failed to get quote: %w", err)
 	}
 
-	q.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	q.ModifiedAt, _ = time.Parse(time.RFC3339, modifiedAt)
+	// Try parsing as RFC3339 first, then fall back to SQLite format (YYYY-MM-DD HH:MM:SS)
+	createdT, err := time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		createdT, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	}
+	q.CreatedAt = createdT
+
+	modifiedT, err := time.Parse(time.RFC3339, modifiedAt)
+	if err != nil {
+		modifiedT, _ = time.Parse("2006-01-02 15:04:05", modifiedAt)
+	}
+	q.ModifiedAt = modifiedT
 	q.CustomFields = make(map[string]interface{})
 	json.Unmarshal([]byte(customFieldsJSON), &q.CustomFields)
 
@@ -438,8 +448,19 @@ func (r *QuoteRepo) ListByOrg(ctx context.Context, orgID string, params entity.Q
 			return nil, fmt.Errorf("failed to scan quote: %w", err)
 		}
 
-		q.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		q.ModifiedAt, _ = time.Parse(time.RFC3339, modifiedAt)
+		// Try parsing as RFC3339 first, then fall back to SQLite format (YYYY-MM-DD HH:MM:SS)
+		createdT, err := time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			createdT, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		}
+		q.CreatedAt = createdT
+
+		modifiedT, err := time.Parse(time.RFC3339, modifiedAt)
+		if err != nil {
+			modifiedT, _ = time.Parse("2006-01-02 15:04:05", modifiedAt)
+		}
+		q.ModifiedAt = modifiedT
+
 		q.CustomFields = make(map[string]interface{})
 		json.Unmarshal([]byte(customFieldsJSON), &q.CustomFields)
 		quotes = append(quotes, q)
