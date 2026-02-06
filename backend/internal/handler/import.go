@@ -74,7 +74,9 @@ const (
 
 // LookupResolution specifies how to resolve a lookup field value to an ID
 type LookupResolution struct {
-	MatchField string `json:"matchField"` // Field to match on in related entity (e.g., "name")
+	MatchField       string                            `json:"matchField"`       // Field to match on in related entity (e.g., "name")
+	CreateIfNotFound bool                              `json:"createIfNotFound"` // Create the related record if not found
+	NewRecordData    map[string]map[string]interface{} `json:"newRecordData"`    // Data for new records: matchValue -> field values
 }
 
 // ImportCSVRequest represents optional parameters for CSV import
@@ -130,6 +132,21 @@ type FieldMapping struct {
 	FieldLabel string `json:"fieldLabel"`
 	FieldType  string `json:"fieldType"`
 	Mapped     bool   `json:"mapped"`
+}
+
+// MissingLookup represents a lookup value that doesn't exist and needs to be created
+type MissingLookup struct {
+	FieldName      string           `json:"fieldName"`      // The link field name (e.g., "account")
+	RelatedEntity  string           `json:"relatedEntity"`  // The entity to create (e.g., "Account")
+	MatchValue     string           `json:"matchValue"`     // The value that wasn't found (e.g., "Acme Corp")
+	MatchField     string           `json:"matchField"`     // Field used for matching (e.g., "name")
+	RequiredFields []AvailableField `json:"requiredFields"` // Required fields that need values
+	RowIndices     []int            `json:"rowIndices"`     // CSV rows that reference this value
+}
+
+// AnalyzeLookupResponse contains info about missing lookups that need to be created
+type AnalyzeLookupResponse struct {
+	MissingLookups []MissingLookup `json:"missingLookups"` // Lookups that don't exist
 }
 
 // getTableName converts entity name to table name
@@ -881,6 +898,182 @@ func (h *ImportHandler) AnalyzeCSV(c *fiber.Ctx) error {
 	return c.JSON(analyzeResult)
 }
 
+// AnalyzeLookups handles POST /api/v1/entities/:entity/import/csv/analyze-lookups
+// Returns information about lookup values that don't exist and would need to be created
+func (h *ImportHandler) AnalyzeLookups(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+
+	// Verify entity exists
+	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if ent == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+	}
+
+	// Get the uploaded file
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No file uploaded"})
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
+	}
+	defer file.Close()
+
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read file content"})
+	}
+
+	// Parse options from form data
+	var options ImportCSVRequest
+	if optionsStr := c.FormValue("options"); optionsStr != "" {
+		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid options JSON"})
+		}
+	}
+
+	// Get field definitions for the main entity
+	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Parse CSV with mapping
+	var parseResult *service.CSVParseResult
+	if len(options.ColumnMapping) > 0 {
+		parseResult, err = h.csvParser.ParseWithMapping(bytes.NewReader(fileContent), options.ColumnMapping)
+	} else {
+		parseResult, err = h.csvParser.Parse(bytes.NewReader(fileContent), fields)
+	}
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Build map of link fields
+	linkFields := make(map[string]*entity.FieldDef)
+	for i := range fields {
+		if fields[i].Type == entity.FieldTypeLink {
+			linkFields[fields[i].Name] = &fields[i]
+		}
+	}
+
+	// Collect unique lookup values for each field with createIfNotFound
+	// fieldName -> matchValue -> row indices
+	lookupValues := make(map[string]map[string][]int)
+
+	for rowIdx, record := range parseResult.Records {
+		for fieldName, resolution := range options.LookupResolution {
+			if !resolution.CreateIfNotFound {
+				continue
+			}
+
+			field, ok := linkFields[fieldName]
+			if !ok {
+				continue
+			}
+
+			// Get the value from record
+			idKey := fieldName + "Id"
+			lookupValue, ok := record[idKey]
+			if !ok {
+				continue
+			}
+
+			valueStr, ok := lookupValue.(string)
+			if !ok || valueStr == "" {
+				continue
+			}
+
+			// Skip if it looks like an ID already
+			if strings.HasPrefix(valueStr, "Rec") {
+				continue
+			}
+
+			// Track this value
+			if lookupValues[fieldName] == nil {
+				lookupValues[fieldName] = make(map[string][]int)
+			}
+			lookupValues[fieldName][valueStr] = append(lookupValues[fieldName][valueStr], rowIdx)
+
+			_ = field // used for validation
+		}
+	}
+
+	// Check which values don't exist and build response
+	var missingLookups []MissingLookup
+
+	for fieldName, values := range lookupValues {
+		field := linkFields[fieldName]
+		resolution := options.LookupResolution[fieldName]
+
+		relatedEntity := ""
+		if field.LinkEntity != nil {
+			relatedEntity = *field.LinkEntity
+		}
+		if relatedEntity == "" {
+			continue
+		}
+
+		// Get required fields for the related entity
+		relatedFields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, relatedEntity)
+		if err != nil {
+			continue
+		}
+
+		var requiredFields []AvailableField
+		for _, rf := range relatedFields {
+			if rf.IsRequired && rf.Name != "id" && rf.Name != "name" {
+				requiredFields = append(requiredFields, AvailableField{
+					Name:  rf.Name,
+					Label: rf.Label,
+					Type:  string(rf.Type),
+				})
+			}
+		}
+
+		// Query to check which values exist
+		relatedTable := util.GetTableName(relatedEntity)
+		matchColumn := util.CamelToSnake(resolution.MatchField)
+
+		for matchValue, rowIndices := range values {
+			// Check if this value exists
+			query := fmt.Sprintf(
+				"SELECT COUNT(*) FROM %s WHERE org_id = ? AND LOWER(%s) = LOWER(?)",
+				relatedTable,
+				quoteIdentifier(matchColumn),
+			)
+
+			var count int
+			err := h.getDB(c).QueryRowContext(c.Context(), query, orgID, matchValue).Scan(&count)
+			if err != nil {
+				continue
+			}
+
+			if count == 0 {
+				// This value doesn't exist - add to missing list
+				missingLookups = append(missingLookups, MissingLookup{
+					FieldName:      fieldName,
+					RelatedEntity:  relatedEntity,
+					MatchValue:     matchValue,
+					MatchField:     resolution.MatchField,
+					RequiredFields: requiredFields,
+					RowIndices:     rowIndices,
+				})
+			}
+		}
+	}
+
+	return c.JSON(AnalyzeLookupResponse{
+		MissingLookups: missingLookups,
+	})
+}
+
 // PreviewCSV handles POST /api/v1/entities/:entity/import/csv/preview
 func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
@@ -1104,6 +1297,36 @@ func (h *ImportHandler) resolveLookups(
 			err := h.getDB(c).QueryRowContext(ctx, query, orgID, valueStr).Scan(&foundID, &foundName)
 			if err != nil {
 				if err == sql.ErrNoRows {
+					// Record not found - check if we should create it
+					if resolution.CreateIfNotFound {
+						// Get the data for this new record
+						newData := make(map[string]interface{})
+						if resolution.NewRecordData != nil {
+							if data, ok := resolution.NewRecordData[valueStr]; ok {
+								newData = data
+							}
+						}
+						// Always set the match field (e.g., name)
+						newData[resolution.MatchField] = valueStr
+
+						// Create the new record
+						newID, createErr := h.createRelatedRecord(ctx, c, orgID, relatedEntity, newData)
+						if createErr != nil {
+							errors = append(errors, BulkError{
+								Index: rowIdx,
+								Error: fmt.Sprintf("Failed to create %s '%s': %v", relatedEntity, valueStr, createErr),
+							})
+							delete(record, idKey)
+							continue
+						}
+
+						// Cache and use the new ID
+						lookupCache[relatedEntity][valueStr] = newID
+						record[idKey] = newID
+						record[fieldName+"Name"] = valueStr
+						continue
+					}
+
 					errors = append(errors, BulkError{
 						Index: rowIdx,
 						Error: fmt.Sprintf("No %s found with %s='%s'", relatedEntity, resolution.MatchField, valueStr),
@@ -1129,6 +1352,66 @@ func (h *ImportHandler) resolveLookups(
 	}
 
 	return errors, nil
+}
+
+// createRelatedRecord creates a new record in a related entity table during import
+func (h *ImportHandler) createRelatedRecord(
+	ctx context.Context,
+	c *fiber.Ctx,
+	orgID string,
+	entityName string,
+	data map[string]interface{},
+) (string, error) {
+	userID := c.Locals("userID").(string)
+
+	// Get field definitions for the related entity
+	fields, err := h.getMetadataRepo(c).ListFields(ctx, orgID, entityName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get fields for %s: %w", entityName, err)
+	}
+
+	tableName := util.GetTableName(entityName)
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Build insert query
+	var columns []string
+	var placeholders []string
+	var values []interface{}
+
+	id := sfid.New("Rec")
+	columns = append(columns, "id")
+	placeholders = append(placeholders, "?")
+	values = append(values, id)
+
+	columns = append(columns, "org_id")
+	placeholders = append(placeholders, "?")
+	values = append(values, orgID)
+
+	for _, field := range fields {
+		if field.Name == "id" {
+			continue
+		}
+
+		if val, ok := data[field.Name]; ok {
+			columns = append(columns, quoteIdentifier(util.CamelToSnake(field.Name)))
+			placeholders = append(placeholders, "?")
+			values = append(values, val)
+		}
+	}
+
+	columns = append(columns, "created_at", "modified_at", "created_by_id", "modified_by_id")
+	placeholders = append(placeholders, "?", "?", "?", "?")
+	values = append(values, now, now, userID, userID)
+
+	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		tableName, strings.Join(columns, ", "), strings.Join(placeholders, ", "))
+
+	_, err = h.getDB(c).ExecContext(ctx, query, values...)
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }
 
 // processBatch processes a batch of records (reused from bulk handler pattern)
@@ -1365,4 +1648,5 @@ func (h *ImportHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/entities/:entity/import/csv", h.ImportCSV)
 	app.Post("/entities/:entity/import/csv/preview", h.PreviewCSV)
 	app.Post("/entities/:entity/import/csv/analyze", h.AnalyzeCSV)
+	app.Post("/entities/:entity/import/csv/analyze-lookups", h.AnalyzeLookups)
 }

@@ -22,6 +22,21 @@
 
 	interface LookupResolution {
 		matchField: string;
+		createIfNotFound?: boolean;
+		newRecordData?: Record<string, Record<string, any>>; // matchValue -> field values
+	}
+
+	interface MissingLookup {
+		fieldName: string;
+		relatedEntity: string;
+		matchValue: string;
+		matchField: string;
+		requiredFields: AvailableField[];
+		rowIndices: number[];
+	}
+
+	interface AnalyzeLookupResponse {
+		missingLookups: MissingLookup[];
 	}
 
 	interface PreviewResponse {
@@ -71,11 +86,13 @@
 		ids?: string[];
 	}
 
-	let step = $state(1); // 1=Upload, 2=Validate, 3=Import
+	let step = $state(1); // 1=Upload, 2=Validate, 2.5=CreateLookups, 3=Import
 	let file: File | null = $state(null);
 	let previewData: PreviewResponse | null = $state(null);
 	let columnMapping: Record<string, string> = $state({});
 	let lookupResolution: Record<string, LookupResolution> = $state({}); // fieldName -> resolution config
+	let missingLookups: MissingLookup[] = $state([]); // Lookups that need to be created
+	let newRecordData: Record<string, Record<string, Record<string, any>>> = $state({}); // fieldName -> matchValue -> field values
 	let analyzeResult: AnalyzeResult | null = $state(null);
 	let importResult: ImportResponse | null = $state(null);
 	let loading = $state(false);
@@ -140,6 +157,46 @@
 		error = '';
 
 		try {
+			// Check if any lookups have createIfNotFound enabled
+			const hasCreateIfNotFound = Object.values(lookupResolution).some(r => r.createIfNotFound);
+
+			// If createIfNotFound is enabled, first check for missing lookups
+			if (hasCreateIfNotFound) {
+				const lookupFormData = new FormData();
+				lookupFormData.append('file', file);
+				lookupFormData.append('options', JSON.stringify({ columnMapping, lookupResolution }));
+
+				const lookupResponse = await fetch(`${API_BASE}/entities/${entityName}/import/csv/analyze-lookups`, {
+					method: 'POST',
+					body: lookupFormData,
+					credentials: 'include',
+					headers: {
+						'Authorization': `Bearer ${auth.accessToken || ''}`,
+						'X-CSRF-Token': getCsrfToken()
+					}
+				});
+
+				if (lookupResponse.ok) {
+					const lookupResult: AnalyzeLookupResponse = await lookupResponse.json();
+					if (lookupResult.missingLookups && lookupResult.missingLookups.length > 0) {
+						missingLookups = lookupResult.missingLookups;
+						// Initialize newRecordData for each missing lookup
+						for (const lookup of missingLookups) {
+							if (!newRecordData[lookup.fieldName]) {
+								newRecordData[lookup.fieldName] = {};
+							}
+							if (!newRecordData[lookup.fieldName][lookup.matchValue]) {
+								newRecordData[lookup.fieldName][lookup.matchValue] = {};
+							}
+						}
+						step = 2.5; // Show create lookups step
+						loading = false;
+						return;
+					}
+				}
+			}
+
+			// Standard validation
 			const formData = new FormData();
 			formData.append('file', file);
 			formData.append('options', JSON.stringify({ columnMapping }));
@@ -176,11 +233,20 @@
 		error = '';
 
 		try {
+			// Build final lookup resolution with newRecordData
+			const finalLookupResolution: Record<string, LookupResolution> = {};
+			for (const [fieldName, resolution] of Object.entries(lookupResolution)) {
+				finalLookupResolution[fieldName] = {
+					...resolution,
+					newRecordData: newRecordData[fieldName] || undefined
+				};
+			}
+
 			const formData = new FormData();
 			formData.append('file', file);
 			formData.append('options', JSON.stringify({
 				columnMapping,
-				lookupResolution: Object.keys(lookupResolution).length > 0 ? lookupResolution : undefined,
+				lookupResolution: Object.keys(finalLookupResolution).length > 0 ? finalLookupResolution : undefined,
 				mode: 'create',
 				skipErrors: false
 			}));
@@ -221,6 +287,43 @@
 		if (step === 2) {
 			step = 1;
 			analyzeResult = null;
+		} else if (step === 2.5) {
+			step = 1;
+			missingLookups = [];
+		}
+	}
+
+	// Proceed from create lookups step to validation
+	async function proceedFromLookups() {
+		loading = true;
+		error = '';
+
+		try {
+			const formData = new FormData();
+			formData.append('file', file!);
+			formData.append('options', JSON.stringify({ columnMapping }));
+
+			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv/analyze`, {
+				method: 'POST',
+				body: formData,
+				credentials: 'include',
+				headers: {
+					'Authorization': `Bearer ${auth.accessToken || ''}`,
+					'X-CSRF-Token': getCsrfToken()
+				}
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || 'Validation failed');
+			}
+
+			analyzeResult = await response.json();
+			step = 2;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Validation failed';
+		} finally {
+			loading = false;
 		}
 	}
 
@@ -246,12 +349,46 @@
 
 	function toggleLookupByName(fieldName: string, enabled: boolean) {
 		if (enabled) {
-			lookupResolution[fieldName] = { matchField: 'name' };
+			lookupResolution[fieldName] = { matchField: 'name', createIfNotFound: false };
 		} else {
 			delete lookupResolution[fieldName];
 		}
 		// Trigger reactivity
 		lookupResolution = { ...lookupResolution };
+	}
+
+	function toggleCreateIfNotFound(fieldName: string, enabled: boolean) {
+		if (lookupResolution[fieldName]) {
+			lookupResolution[fieldName] = {
+				...lookupResolution[fieldName],
+				createIfNotFound: enabled
+			};
+			lookupResolution = { ...lookupResolution };
+		}
+	}
+
+	function updateNewRecordField(fieldName: string, matchValue: string, field: string, value: string) {
+		if (!newRecordData[fieldName]) {
+			newRecordData[fieldName] = {};
+		}
+		if (!newRecordData[fieldName][matchValue]) {
+			newRecordData[fieldName][matchValue] = {};
+		}
+		newRecordData[fieldName][matchValue][field] = value;
+		newRecordData = { ...newRecordData };
+	}
+
+	// Check if all required fields are filled for missing lookups
+	function canProceedFromLookups(): boolean {
+		for (const lookup of missingLookups) {
+			for (const reqField of lookup.requiredFields) {
+				const value = newRecordData[lookup.fieldName]?.[lookup.matchValue]?.[reqField.name];
+				if (!value || value.trim() === '') {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 </script>
 
@@ -349,20 +486,33 @@
 										</td>
 										<td class="px-4 py-3">
 											{#if isLink && mappedField}
-												<label class="flex items-center text-sm text-gray-600 cursor-pointer">
-													<input
-														type="checkbox"
-														checked={!!lookupResolution[mappedField.name]}
-														onchange={(e) => toggleLookupByName(mappedField.name, e.currentTarget.checked)}
-														class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-													/>
-													<span>Look up by name</span>
-												</label>
-												{#if lookupResolution[mappedField.name]}
-													<p class="text-xs text-gray-500 mt-1">
-														Will match {mappedField.relatedEntity || 'record'} by name
-													</p>
-												{/if}
+												<div class="space-y-2">
+													<label class="flex items-center text-sm text-gray-600 cursor-pointer">
+														<input
+															type="checkbox"
+															checked={!!lookupResolution[mappedField.name]}
+															onchange={(e) => toggleLookupByName(mappedField.name, e.currentTarget.checked)}
+															class="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+														/>
+														<span>Look up by name</span>
+													</label>
+													{#if lookupResolution[mappedField.name]}
+														<label class="flex items-center text-sm text-gray-600 cursor-pointer ml-6">
+															<input
+																type="checkbox"
+																checked={!!lookupResolution[mappedField.name]?.createIfNotFound}
+																onchange={(e) => toggleCreateIfNotFound(mappedField.name, e.currentTarget.checked)}
+																class="mr-2 h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+															/>
+															<span>Create if not found</span>
+														</label>
+														<p class="text-xs text-gray-500 ml-6">
+															{lookupResolution[mappedField.name]?.createIfNotFound
+																? `Will create new ${mappedField.relatedEntity || 'record'} if not found`
+																: `Will match ${mappedField.relatedEntity || 'record'} by name`}
+														</p>
+													{/if}
+												</div>
 											{:else}
 												<span class="text-gray-400 text-sm">—</span>
 											{/if}
@@ -390,6 +540,65 @@
 					</button>
 				</div>
 			{/if}
+		</div>
+	{/if}
+
+	<!-- Step 2.5: Create Missing Lookups -->
+	{#if step === 2.5 && missingLookups.length > 0}
+		<div class="bg-white shadow rounded-lg p-6">
+			<h2 class="text-xl font-semibold mb-4">Create New Records</h2>
+			<p class="text-gray-600 mb-4">
+				The following records will be created during import. Please fill in the required fields.
+			</p>
+
+			{#each missingLookups as lookup}
+				<div class="border rounded-lg p-4 mb-4">
+					<h3 class="font-medium text-gray-900 mb-2">
+						New {lookup.relatedEntity}: <span class="text-blue-600">{lookup.matchValue}</span>
+					</h3>
+					<p class="text-sm text-gray-500 mb-3">
+						Referenced by {lookup.rowIndices.length} row{lookup.rowIndices.length > 1 ? 's' : ''} in your CSV
+					</p>
+
+					{#if lookup.requiredFields.length > 0}
+						<div class="grid grid-cols-2 gap-4">
+							{#each lookup.requiredFields as reqField}
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										{reqField.label || reqField.name} <span class="text-red-500">*</span>
+									</label>
+									<input
+										type="text"
+										value={newRecordData[lookup.fieldName]?.[lookup.matchValue]?.[reqField.name] || ''}
+										oninput={(e) => updateNewRecordField(lookup.fieldName, lookup.matchValue, reqField.name, e.currentTarget.value)}
+										class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+										placeholder={`Enter ${reqField.label || reqField.name}`}
+									/>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="text-sm text-green-600">No additional required fields needed.</p>
+					{/if}
+				</div>
+			{/each}
+
+			<div class="flex justify-between mt-6">
+				<button
+					onclick={goBack}
+					class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+				>
+					Back
+				</button>
+				<button
+					onclick={proceedFromLookups}
+					disabled={loading || !canProceedFromLookups()}
+					class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+					title={!canProceedFromLookups() ? 'Please fill in all required fields' : ''}
+				>
+					{loading ? 'Validating...' : 'Continue'}
+				</button>
+			</div>
 		</div>
 	{/if}
 
