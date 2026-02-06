@@ -29,6 +29,12 @@ type ValidationServiceInterface interface {
 	ValidateOperation(ctx context.Context, orgID, entityType, recordID string, operation string, oldRecord, newRecord map[string]interface{}) (*entity.ValidationResult, error)
 }
 
+// RealtimeCheckerInterface defines the interface for realtime duplicate checking
+type RealtimeCheckerInterface interface {
+	CheckAsyncWithMap(conn db.DBConn, orgID, userID, entityType, recordID, recordName string, recordData map[string]interface{})
+	HasRulesForEntity(ctx context.Context, conn db.DBConn, orgID, entityType string) bool
+}
+
 // StructToMap is an alias for util.StructToMap for backward compatibility
 var StructToMap = util.StructToMap
 
@@ -39,16 +45,18 @@ type GenericEntityHandler struct {
 	authRepo          *repo.AuthRepo // NEW: for user name lookups
 	tripwireService   TripwireServiceInterface
 	validationService ValidationServiceInterface
+	realtimeChecker   RealtimeCheckerInterface
 }
 
 // NewGenericEntityHandler creates a new GenericEntityHandler
-func NewGenericEntityHandler(conn db.DBConn, metadataRepo *repo.MetadataRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface) *GenericEntityHandler {
+func NewGenericEntityHandler(conn db.DBConn, metadataRepo *repo.MetadataRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, realtimeChecker RealtimeCheckerInterface) *GenericEntityHandler {
 	return &GenericEntityHandler{
 		defaultDB:         conn,
 		metadataRepo:      metadataRepo,
 		authRepo:          authRepo,
 		tripwireService:   tripwireService,
 		validationService: validationService,
+		realtimeChecker:   realtimeChecker,
 	}
 }
 
@@ -916,6 +924,28 @@ func (h *GenericEntityHandler) Create(c *fiber.Ctx) error {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, id, "CREATE", nil, body)
 	}
 
+	// IMPORTANT: Spawn async duplicate detection AFTER record is successfully saved
+	// This implements the "optimistic save with async detection" pattern:
+	// - Record saves immediately (HTTP response prepared below)
+	// - Detection runs in background goroutine
+	// - Results surface as alerts when user views the record
+	// The record MUST exist in the database before this point.
+	if h.realtimeChecker != nil {
+		recordData := body // Already a map[string]interface{}
+		// Get record name for display
+		recordName := ""
+		if name, ok := body["name"].(string); ok {
+			recordName = name
+		} else if firstName, ok := body["firstName"].(string); ok {
+			recordName = firstName
+			if lastName, ok := body["lastName"].(string); ok {
+				recordName += " " + lastName
+			}
+		}
+
+		h.realtimeChecker.CheckAsyncWithMap(h.getDB(c), orgID, userID, entityName, id, recordName, recordData)
+	}
+
 	// Return created record
 	body["id"] = id
 	body["createdAt"] = now
@@ -1148,6 +1178,29 @@ func (h *GenericEntityHandler) Update(c *fiber.Ctx) error {
 	if h.tripwireService != nil && oldRecord != nil {
 		orgID := c.Locals("orgID").(string)
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, id, "UPDATE", oldRecord, body)
+	}
+
+	// IMPORTANT: Spawn async duplicate detection AFTER record is successfully updated
+	// This implements the "optimistic save with async detection" pattern:
+	// - Record updates immediately (database UPDATE already executed above)
+	// - Detection runs in background goroutine
+	// - Results surface as alerts when user views the record
+	// The updated record MUST exist in the database before this point.
+	if h.realtimeChecker != nil {
+		// Only check if key fields changed (fields in matching rules)
+		// For simplicity, always check on update - the detector will handle it
+		recordData := body
+		recordName := ""
+		if name, ok := body["name"].(string); ok {
+			recordName = name
+		} else if firstName, ok := body["firstName"].(string); ok {
+			recordName = firstName
+			if lastName, ok := body["lastName"].(string); ok {
+				recordName += " " + lastName
+			}
+		}
+
+		h.realtimeChecker.CheckAsyncWithMap(h.getDB(c), orgID, userID, entityName, id, recordName, recordData)
 	}
 
 	body["id"] = id

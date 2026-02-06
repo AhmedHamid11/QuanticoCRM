@@ -9,6 +9,7 @@ import (
 
 	"github.com/fastcrm/backend/internal/config"
 	"github.com/fastcrm/backend/internal/db"
+	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/flow"
 	"github.com/fastcrm/backend/internal/handler"
@@ -135,6 +136,11 @@ func main() {
 	matchingRuleRepo := repo.NewMatchingRuleRepo(masterDBConn)
 	pendingAlertRepo := repo.NewPendingAlertRepo(masterDBConn)
 
+	// Initialize dedup services
+	defaultRegion := "US" // Default region for phone normalization
+	detector := dedup.NewDetector(matchingRuleRepo, defaultRegion)
+	realtimeChecker := dedup.NewRealtimeChecker(detector, pendingAlertRepo, matchingRuleRepo)
+
 	// Initialize services
 	tripwireService := service.NewTripwireService(masterDB, tripwireRepo)
 	validationService := service.NewValidationService(masterDB, validationRepo)
@@ -208,7 +214,7 @@ func main() {
 	lookupHandler := handler.NewLookupHandler(masterDB, metadataRepo)
 	relatedHandler := handler.NewRelatedHandler(masterDB)
 	relatedListHandler := handler.NewRelatedListHandler(relatedListRepo, metadataRepo, masterDB)
-	genericEntityHandler := handler.NewGenericEntityHandler(masterDB, metadataRepo, authRepo, tripwireService, validationService)
+	genericEntityHandler := handler.NewGenericEntityHandler(masterDB, metadataRepo, authRepo, tripwireService, validationService, realtimeChecker)
 	dataExplorerHandler := handler.NewDataExplorerHandler(masterDB)
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
