@@ -373,7 +373,7 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 
 	// Create navigation tabs (in metadata provisioning for tenant DB)
 	// This ensures navigation tabs are always available when metadata is provisioned
-	if err := s.ProvisionNavigation(c.Context(), orgID); err != nil {
+	if err := s.ProvisionNavigation(ctx, orgID); err != nil {
 		return fmt.Errorf("failed to provision navigation: %w", err)
 	}
 
