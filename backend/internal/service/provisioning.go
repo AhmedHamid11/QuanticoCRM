@@ -99,6 +99,26 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 	err := s.db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='entity_defs' LIMIT 1").Scan(&tableName)
 
 	tableExists := err == nil
+
+	// Always ensure navigation_tabs exists, regardless of entity_defs status
+	// This fixes the case where entity_defs exists but navigation_tabs doesn't
+	_, _ = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS navigation_tabs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			label TEXT NOT NULL,
+			href TEXT NOT NULL,
+			icon TEXT DEFAULT '',
+			entity_name TEXT,
+			sort_order INTEGER DEFAULT 0,
+			is_visible INTEGER DEFAULT 1,
+			is_system INTEGER DEFAULT 0,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, href)
+		)
+	`)
+
 	if tableExists {
 		// Verify the schema is correct by checking for UNIQUE constraint on (org_id, name)
 		var uniqueConstraintExists int
@@ -1030,9 +1050,9 @@ func (s *ProvisioningService) createNavTabWithError(ctx context.Context, orgID, 
 	if isSystem {
 		isSystemVal = 1
 	}
-	// Use INSERT OR IGNORE to skip if tab already exists (based on UNIQUE(org_id, href))
+	// Use INSERT OR REPLACE to fix stale/broken tab data during reprovision
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO navigation_tabs (id, org_id, label, href, icon, entity_name, sort_order, is_visible, is_system, created_at, modified_at)
+		INSERT OR REPLACE INTO navigation_tabs (id, org_id, label, href, icon, entity_name, sort_order, is_visible, is_system, created_at, modified_at)
 		VALUES (?, ?, ?, ?, '', ?, ?, 1, ?, ?, ?)
 	`, id, orgID, label, href, entity, order, isSystemVal, now, now)
 	if err != nil {
