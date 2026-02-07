@@ -1,6 +1,6 @@
 import { PUBLIC_API_URL } from '$env/static/public';
 import type { FieldValidationError } from '$lib/types/validation';
-import { auth } from '$lib/stores/auth.svelte';
+import { auth, refreshTokens } from '$lib/stores/auth.svelte';
 
 const API_BASE = PUBLIC_API_URL || '/api/v1';
 
@@ -113,8 +113,36 @@ export async function api<T>(endpoint: string, options: ApiOptions = {}): Promis
 				const error = await response.json().catch(() => ({ error: 'Unknown error' }));
 				const errorMessage = error.error || `HTTP ${response.status}`;
 
-				// Handle 401 Unauthorized - session expired (don't retry)
-				if (response.status === 401 && errorMessage.toLowerCase().includes('invalid or expired token')) {
+				// Handle 401 Unauthorized - try token refresh before giving up
+				if (response.status === 401) {
+					const refreshed = await refreshTokens();
+					if (refreshed) {
+						const retryHeaders: Record<string, string> = {
+							'Content-Type': 'application/json',
+							...headers
+						};
+						const newToken = auth.accessToken;
+						if (newToken) {
+							retryHeaders['Authorization'] = `Bearer ${newToken}`;
+						}
+						if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+							const freshCsrf = getCSRFToken();
+							if (freshCsrf) {
+								retryHeaders['X-CSRF-Token'] = freshCsrf;
+							}
+						}
+						const retryResponse = await fetch(`${API_BASE}${endpoint}`, {
+							method,
+							headers: retryHeaders,
+							body: body ? JSON.stringify(body) : undefined,
+							signal,
+							credentials: 'include'
+						});
+						if (retryResponse.ok) {
+							if (retryResponse.status === 204) return undefined as T;
+							return retryResponse.json();
+						}
+					}
 					handleSessionExpired();
 					throw new ApiError('Session expired', 401);
 				}

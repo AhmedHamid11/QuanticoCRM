@@ -21,14 +21,69 @@ const STORAGE_KEY = 'quantico_auth';
 // Mutex to prevent concurrent refresh attempts (causes token reuse detection)
 let refreshPromise: Promise<boolean> | null = null;
 
+// Cross-tab refresh coordination via localStorage lock.
+// Prevents two browser tabs from refreshing simultaneously, which causes
+// the backend to detect "token reuse" and revoke the entire session family.
+const REFRESH_LOCK_KEY = 'quantico_refresh_lock';
+const LOCK_TTL_MS = 10000; // 10s max lock hold time
+
+function isRefreshLockedByOtherTab(): boolean {
+	if (typeof window === 'undefined') return false;
+	try {
+		const lock = localStorage.getItem(REFRESH_LOCK_KEY);
+		if (!lock) return false;
+		return Date.now() - parseInt(lock, 10) < LOCK_TTL_MS;
+	} catch {
+		return false;
+	}
+}
+
+function setRefreshLock(): void {
+	try {
+		localStorage.setItem(REFRESH_LOCK_KEY, Date.now().toString());
+	} catch {}
+}
+
+function clearRefreshLock(): void {
+	try {
+		localStorage.removeItem(REFRESH_LOCK_KEY);
+	} catch {}
+}
+
+function waitForRefreshLock(): Promise<void> {
+	return new Promise((resolve) => {
+		const maxWait = setTimeout(resolve, LOCK_TTL_MS);
+		const interval = setInterval(() => {
+			if (!isRefreshLockedByOtherTab()) {
+				clearInterval(interval);
+				clearTimeout(maxWait);
+				resolve();
+			}
+		}, 100);
+	});
+}
+
 // Silent refresh function - declared here so it can be used before definition
 async function silentRefresh(): Promise<boolean> {
-	// If a refresh is already in progress, wait for it instead of starting another
+	// In-tab mutex: if this tab is already refreshing, wait for the same promise
 	if (refreshPromise) {
 		return refreshPromise;
 	}
 
-	refreshPromise = doSilentRefresh();
+	// Cross-tab mutex: if another tab is refreshing, wait for it to finish
+	// then refresh ourselves (each tab needs its own access token in memory)
+	if (isRefreshLockedByOtherTab()) {
+		await waitForRefreshLock();
+	}
+
+	refreshPromise = (async () => {
+		setRefreshLock();
+		try {
+			return await doSilentRefresh();
+		} finally {
+			clearRefreshLock();
+		}
+	})();
 	try {
 		return await refreshPromise;
 	} finally {
