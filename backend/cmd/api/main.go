@@ -135,6 +135,7 @@ func main() {
 	auditRepo := repo.NewAuditRepo(masterDBConn)
 	matchingRuleRepo := repo.NewMatchingRuleRepo(masterDBConn)
 	pendingAlertRepo := repo.NewPendingAlertRepo(masterDBConn)
+	mergeRepo := repo.NewMergeRepo(masterDBConn)
 
 	// Initialize dedup services
 	defaultRegion := "US" // Default region for phone normalization
@@ -142,8 +143,13 @@ func main() {
 	realtimeChecker := dedup.NewRealtimeChecker(detector, pendingAlertRepo, matchingRuleRepo)
 
 	// Initialize services
+	auditLogger := service.NewAuditLogger(auditRepo)
 	tripwireService := service.NewTripwireService(masterDB, tripwireRepo)
 	validationService := service.NewValidationService(masterDB, validationRepo)
+
+	// Initialize merge services (requires auditLogger)
+	mergeDiscoveryService := service.NewMergeDiscoveryService(metadataRepo)
+	mergeService := service.NewMergeService(mergeRepo, metadataRepo, mergeDiscoveryService, auditLogger)
 	// Use masterDBConn (with retry logic) for provisioning to handle connection errors
 	provisioningService := service.NewProvisioningService(masterDBConn)
 	authConfig := service.DefaultAuthConfig(jwtSecret)
@@ -219,7 +225,6 @@ func main() {
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
-	auditLogger := service.NewAuditLogger(auditRepo)
 	cookieConfig := middleware.CookieConfig{
 		IsProduction: cfg.IsProduction(),
 		Domain:       cfg.CookieDomain, // e.g., ".quanticocrm.com" for subdomain sharing
@@ -239,6 +244,7 @@ func main() {
 	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo, auditLogger)
 	auditHandler := handler.NewAuditHandler(auditRepo)
 	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
+	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -414,6 +420,7 @@ func main() {
 	relatedHandler.RegisterRelatedRoutes(protected)
 	genericEntityHandler.RegisterRoutes(protected)
 	bulkHandler.RegisterRoutes(protected)
+	mergeHandler.RegisterRoutes(protected)
 
 	// Import routes need larger body limit for file uploads (10MB)
 	// Create separate group without the 1MB body limit restriction
