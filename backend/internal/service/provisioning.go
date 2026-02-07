@@ -90,31 +90,40 @@ func (s *ProvisioningService) ProvisionDefaultMetadata(ctx context.Context, orgI
 
 // ensureMetadataTables checks if metadata tables (entity_defs, field_defs, layout_defs) exist
 // and creates them if they don't. This handles migration gaps like when migration 002 was added
-// after an organization was provisioned.
+// after an organization was provisioned. For existing tables with wrong schema, it recreates them.
 func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
-	log.Printf("[Provisioning] Checking if entity_defs table exists...")
+	log.Printf("[Provisioning] Checking metadata table schema...")
 
 	// Check if entity_defs table exists
 	var tableName string
 	err := s.db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='entity_defs' LIMIT 1").Scan(&tableName)
 
-	// If table exists, we're done
-	if err == nil {
-		log.Printf("[Provisioning] entity_defs table already exists, skipping creation")
-		return nil
-	}
+	tableExists := err == nil
+	if tableExists {
+		// Verify the schema is correct by checking for UNIQUE constraint on (org_id, name)
+		var uniqueConstraintExists int
+		err := s.db.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM sqlite_master
+			WHERE type='unique' AND tbl_name='entity_defs'
+			AND sql LIKE '%org_id%name%'
+		`).Scan(&uniqueConstraintExists)
 
-	// If error is not "no rows", there's a real problem
-	errStr := err.Error()
-	log.Printf("[Provisioning] Table check error: %s", errStr)
-	if errStr != "sql: no rows in result set" {
-		log.Printf("[Provisioning] ERROR: failed to check entity_defs table: %v", err)
-		return fmt.Errorf("failed to check entity_defs table: %w", err)
+		if err == nil && uniqueConstraintExists > 0 {
+			log.Printf("[Provisioning] entity_defs table exists with correct schema, skipping creation")
+			return nil
+		}
+
+		// Schema is wrong or missing constraints - recreate it
+		log.Printf("[Provisioning] entity_defs exists but schema is incorrect, recreating...")
+		if err := s.dropAndRecreateMetadataTables(ctx); err != nil {
+			return fmt.Errorf("failed to fix metadata tables: %w", err)
+		}
+		return nil
 	}
 
 	// Table doesn't exist, create all metadata tables with full schema
 	// This includes all columns from migrations 002, 019, and 039
-	log.Printf("[Provisioning] entity_defs table missing, creating metadata tables with full schema")
+	log.Printf("[Provisioning] Creating metadata tables with full schema...")
 
 	// Create entity_defs table with all columns (migration 002 + 019 + 039)
 	_, err = s.db.ExecContext(ctx, `
@@ -240,6 +249,155 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 			return fmt.Errorf("failed to create navigation_tabs org index: %w", err)
 		}
 		log.Printf("[Provisioning] Created metadata table indexes")
+
+	return nil
+}
+
+// dropAndRecreateMetadataTables safely drops and recreates metadata tables with correct schema
+// This fixes schema mismatches in existing databases
+func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context) error {
+	log.Printf("[Provisioning] Safely dropping and recreating metadata tables...")
+
+	// Disable foreign key constraints temporarily
+	if _, err := s.db.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("failed to disable foreign keys: %w", err)
+	}
+	defer func() {
+		s.db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+	}()
+
+	// Drop tables in reverse dependency order
+	tables := []string{"layout_defs", "field_defs", "entity_defs"}
+	for _, table := range tables {
+		if _, err := s.db.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", table)); err != nil {
+			return fmt.Errorf("failed to drop table %s: %w", table, err)
+		}
+		log.Printf("[Provisioning] Dropped table %s", table)
+	}
+
+	// Recreate entity_defs table with correct schema
+	_, err := s.db.ExecContext(ctx, `
+		CREATE TABLE entity_defs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			label TEXT NOT NULL,
+			label_plural TEXT NOT NULL,
+			icon TEXT DEFAULT 'folder',
+			color TEXT DEFAULT '#6366f1',
+			is_custom INTEGER DEFAULT 0,
+			is_customizable INTEGER DEFAULT 1,
+			has_stream INTEGER DEFAULT 0,
+			has_activities INTEGER DEFAULT 0,
+			display_field TEXT DEFAULT 'name',
+			search_fields TEXT DEFAULT '["name"]',
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(org_id, name)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to recreate entity_defs: %w", err)
+	}
+	log.Printf("[Provisioning] Recreated entity_defs table")
+
+	// Recreate field_defs table
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE field_defs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			entity_name TEXT NOT NULL,
+			name TEXT NOT NULL,
+			label TEXT NOT NULL,
+			type TEXT NOT NULL,
+			is_required INTEGER DEFAULT 0,
+			is_read_only INTEGER DEFAULT 0,
+			is_audited INTEGER DEFAULT 0,
+			is_custom INTEGER DEFAULT 0,
+			default_value TEXT,
+			options TEXT,
+			max_length INTEGER,
+			min_value REAL,
+			max_value REAL,
+			pattern TEXT,
+			tooltip TEXT,
+			link_entity TEXT,
+			link_type TEXT,
+			link_foreign_key TEXT,
+			link_display_field TEXT,
+			sort_order INTEGER DEFAULT 0,
+			rollup_query TEXT,
+			rollup_result_type TEXT,
+			rollup_decimal_places INTEGER DEFAULT 2,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(org_id, entity_name, name),
+			FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to recreate field_defs: %w", err)
+	}
+	log.Printf("[Provisioning] Recreated field_defs table")
+
+	// Recreate layout_defs table
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE layout_defs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			entity_name TEXT NOT NULL,
+			layout_type TEXT NOT NULL,
+			layout_data TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(org_id, entity_name, layout_type),
+			FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to recreate layout_defs: %w", err)
+	}
+	log.Printf("[Provisioning] Recreated layout_defs table")
+
+	// Recreate navigation_tabs table
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS navigation_tabs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			label TEXT NOT NULL,
+			href TEXT NOT NULL,
+			icon TEXT DEFAULT '',
+			entity_name TEXT,
+			sort_order INTEGER DEFAULT 0,
+			is_visible INTEGER DEFAULT 1,
+			is_system INTEGER DEFAULT 0,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, href)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to recreate navigation_tabs: %w", err)
+	}
+	log.Printf("[Provisioning] Recreated navigation_tabs table")
+
+	// Recreate indexes
+	indexes := []struct {
+		name string
+		stmt string
+	}{
+		{"idx_entity_defs_org", "CREATE INDEX idx_entity_defs_org ON entity_defs(org_id)"},
+		{"idx_field_defs_org_entity", "CREATE INDEX idx_field_defs_org_entity ON field_defs(org_id, entity_name)"},
+		{"idx_layout_defs_org_entity", "CREATE INDEX idx_layout_defs_org_entity ON layout_defs(org_id, entity_name)"},
+		{"idx_navigation_org", "CREATE INDEX idx_navigation_org ON navigation_tabs(org_id)"},
+	}
+
+	for _, idx := range indexes {
+		if _, err := s.db.ExecContext(ctx, idx.stmt); err != nil {
+			return fmt.Errorf("failed to create index %s: %w", idx.name, err)
+		}
+	}
+	log.Printf("[Provisioning] Recreated all metadata indexes")
 
 	return nil
 }
