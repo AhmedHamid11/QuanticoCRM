@@ -44,16 +44,24 @@ func (s *ProvisioningService) ProvisionSampleData(ctx context.Context, orgID str
 
 // ProvisionNavigation creates default navigation tabs for a new org
 // This should be called against the tenant DB where navigation_tabs are queried from
-func (s *ProvisioningService) ProvisionNavigation(ctx context.Context, orgID string) {
+func (s *ProvisioningService) ProvisionNavigation(ctx context.Context, orgID string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	log.Printf("[Provisioning] Creating navigation tabs for org %s", orgID)
 	// Create navigation tabs (order: Home, Account, Contact, Quotes, Tasks)
 	// isSystem=true for standard tabs that shouldn't be deleted
-	s.createNavTab(ctx, orgID, "Home", "/", "", 0, true, now)
-	s.createNavTab(ctx, orgID, "Accounts", "/accounts", "Account", 1, true, now)
-	s.createNavTab(ctx, orgID, "Contacts", "/contacts", "Contact", 2, true, now)
-	s.createNavTab(ctx, orgID, "Quotes", "/quotes", "Quote", 3, true, now)
-	s.createNavTab(ctx, orgID, "Tasks", "/tasks", "Task", 4, true, now)
+	tabs := []struct{ label, href, entity string; order int }{
+		{"Home", "/", "", 0},
+		{"Accounts", "/accounts", "Account", 1},
+		{"Contacts", "/contacts", "Contact", 2},
+		{"Quotes", "/quotes", "Quote", 3},
+		{"Tasks", "/tasks", "Task", 4},
+	}
+	for _, tab := range tabs {
+		if err := s.createNavTabWithError(ctx, orgID, tab.label, tab.href, tab.entity, tab.order, true, now); err != nil {
+			return fmt.Errorf("failed to create navigation tab %s: %w", tab.label, err)
+		}
+	}
+	return nil
 }
 
 // ProvisionDefaultMetadata creates default entities, fields, layouts, navigation, and sample data for a new org
@@ -67,7 +75,9 @@ func (s *ProvisioningService) ProvisionDefaultMetadata(ctx context.Context, orgI
 	}
 
 	// Create navigation tabs (in local mode, same DB as metadata)
-	s.ProvisionNavigation(ctx, orgID)
+	if err := s.ProvisionNavigation(ctx, orgID); err != nil {
+		return err
+	}
 
 	// Create sample data (unless skipped for tests)
 	if !s.SkipSampleData {
@@ -361,8 +371,11 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "QuoteLineItem", "createdAt", "Created At", "datetime", false, 100, now)
 	s.createField(ctx, orgID, "QuoteLineItem", "modifiedAt", "Modified At", "datetime", false, 101, now)
 
-	// NOTE: Navigation tabs are now provisioned separately to tenant DB via ProvisionNavigation()
-	// This ensures they're in the same database the handler queries
+	// Create navigation tabs (in metadata provisioning for tenant DB)
+	// This ensures navigation tabs are always available when metadata is provisioned
+	if err := s.ProvisionNavigation(c.Context(), orgID); err != nil {
+		return fmt.Errorf("failed to provision navigation: %w", err)
+	}
 
 	// Create list layouts (all relevant fields)
 	// Field names must match JSON keys from API
@@ -857,7 +870,7 @@ func (s *ProvisioningService) createLinkField(ctx context.Context, orgID, entity
 	}
 }
 
-func (s *ProvisioningService) createNavTab(ctx context.Context, orgID, label, href, entity string, order int, isSystem bool, now string) {
+func (s *ProvisioningService) createNavTabWithError(ctx context.Context, orgID, label, href, entity string, order int, isSystem bool, now string) error {
 	id := sfid.New("0Nt")
 	isSystemVal := 0
 	if isSystem {
@@ -869,7 +882,14 @@ func (s *ProvisioningService) createNavTab(ctx context.Context, orgID, label, hr
 		VALUES (?, ?, ?, ?, '', ?, ?, 1, ?, ?, ?)
 	`, id, orgID, label, href, entity, order, isSystemVal, now, now)
 	if err != nil {
-		log.Printf("[Provisioning] Warning: failed to create nav tab %s (org=%s): %v", label, orgID, err)
+		return fmt.Errorf("failed to create nav tab %s for org %s: %w", label, orgID, err)
+	}
+	return nil
+}
+
+func (s *ProvisioningService) createNavTab(ctx context.Context, orgID, label, href, entity string, order int, isSystem bool, now string) {
+	if err := s.createNavTabWithError(ctx, orgID, label, href, entity, order, isSystem, now); err != nil {
+		log.Printf("[Provisioning] Warning: %v", err)
 	}
 }
 
