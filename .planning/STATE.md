@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 13 of 16 (Manual Merge Engine)
-**Plan:** 2 of 4 in current phase
+**Plan:** 3 of 4 in current phase
 **Status:** In progress
 
-**Last activity:** 2026-02-07 - Completed 13-02-PLAN.md (Merge persistence & discovery)
+**Last activity:** 2026-02-07 - Completed 13-03-PLAN.md (Merge execution service)
 
-Progress: [███░░░░░░░] 43% (9/21 plans)
+Progress: [███░░░░░░░] 48% (10/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 40 (9 v1.0 + 22 v2.0 + 9 v3.0)
+- Total plans completed: 41 (9 v1.0 + 22 v2.0 + 10 v3.0)
 - Average duration: 3.7 min
-- Total execution time: ~156 min
+- Total execution time: ~159 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 43% (9/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 9/21 | ~25 min |
+| v3.0 Deduplication | 11-16 | 10/21 | ~28 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,8 @@ Progress: [███░░░░░░░] 43% (9/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 13-03 | FK transfer happens BEFORE archiving duplicates | Per research Pitfall #2, archived records may cause FK constraint errors in some configurations | 2026-02-07 |
+| 13-03 | Audit events consolidated in audit.go | Consistency with existing pattern where ALL audit event types live in entity/audit.go | 2026-02-07 |
 | 13-02 | Related record discovery is metadata-driven (no hardcoded entity lists) | New entities automatically work, supports custom entities, single source of truth | 2026-02-07 |
 | 13-02 | Simple completeness scoring (filled/total ratio) | Transparent and understandable, no hidden weighting, system fields excluded | 2026-02-07 |
 | 13-01 | Archive columns added dynamically at merge time | Entity tables are dynamically created per-org, custom entities exist, not all will be merged | 2026-02-07 |
@@ -94,10 +96,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-07 22:57:35
-Stopped at: Completed 13-02-PLAN.md - Merge persistence & discovery
+Last session: 2026-02-07 23:03:00
+Stopped at: Completed 13-03-PLAN.md - Merge execution service
 Resume file: None
 
 ---
 
-*Updated: 2026-02-07 - Phase 13 Plan 02 complete, ready for 13-03 (Merge Execution)*
+*Updated: 2026-02-07 - Phase 13 Plan 03 complete, ready for 13-04 (Merge API)*
