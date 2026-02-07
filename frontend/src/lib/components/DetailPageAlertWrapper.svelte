@@ -42,6 +42,20 @@
         }
     }
 
+    async function handleCreateAnyway(overrideText?: string) {
+        if (!pendingAlert) return;
+
+        try {
+            await resolveAlert(entityType, recordId, 'created_anyway', overrideText);
+            pendingAlert = null;
+            showModal = false;
+            toast.success('Record kept, alert resolved');
+        } catch (error: any) {
+            console.error('Failed to resolve alert:', error);
+            toast.error('Failed to resolve alert');
+        }
+    }
+
     function handleViewMatches() {
         showModal = true;
     }
@@ -84,6 +98,7 @@
             isBlockMode={pendingAlert.isBlockMode}
             onClose={handleCloseModal}
             onDismiss={handleDismiss}
+            onCreateAnyway={handleCreateAnyway}
             onMergeComplete={handleMergeComplete}
         />
     {/if}

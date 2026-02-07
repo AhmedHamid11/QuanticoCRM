@@ -12,6 +12,7 @@
 		isBlockMode?: boolean;
 		onClose: () => void;
 		onDismiss: () => void;
+		onCreateAnyway?: (overrideText?: string) => void;
 		onMergeComplete?: () => void;
 	}
 
@@ -22,6 +23,7 @@
 		isBlockMode = false,
 		onClose,
 		onDismiss,
+		onCreateAnyway,
 		onMergeComplete
 	}: Props = $props();
 
@@ -469,7 +471,7 @@
 							Merge Records
 						</button>
 						<button
-							onclick={onDismiss}
+							onclick={() => onCreateAnyway ? onCreateAnyway(overrideText) : onDismiss()}
 							disabled={!canProceed}
 							class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
 						>
