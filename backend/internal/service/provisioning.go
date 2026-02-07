@@ -181,8 +181,7 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 				rollup_decimal_places INTEGER DEFAULT 2,
 				created_at TEXT NOT NULL DEFAULT (datetime('now')),
 				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
-				UNIQUE(org_id, entity_name, name),
-				FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+				UNIQUE(org_id, entity_name, name)
 			)
 		`)
 		if err != nil {
@@ -200,8 +199,7 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 				layout_data TEXT NOT NULL,
 				created_at TEXT NOT NULL DEFAULT (datetime('now')),
 				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
-				UNIQUE(org_id, entity_name, layout_type),
-				FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+				UNIQUE(org_id, entity_name, layout_type)
 			)
 		`)
 		if err != nil {
@@ -331,8 +329,7 @@ func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context)
 			rollup_decimal_places INTEGER DEFAULT 2,
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			modified_at TEXT NOT NULL DEFAULT (datetime('now')),
-			UNIQUE(org_id, entity_name, name),
-			FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+			UNIQUE(org_id, entity_name, name)
 		)
 	`)
 	if err != nil {
@@ -350,8 +347,7 @@ func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context)
 			layout_data TEXT NOT NULL,
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			modified_at TEXT NOT NULL DEFAULT (datetime('now')),
-			UNIQUE(org_id, entity_name, layout_type),
-			FOREIGN KEY (entity_name) REFERENCES entity_defs(name) ON DELETE CASCADE
+			UNIQUE(org_id, entity_name, layout_type)
 		)
 	`)
 	if err != nil {
