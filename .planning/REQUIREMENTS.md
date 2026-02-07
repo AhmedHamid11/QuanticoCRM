@@ -78,43 +78,43 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 
 ### Merge Capabilities
 
-- [ ] **MERGE-01**: User can merge two or more duplicate records into one
+- [x] **MERGE-01**: User can merge two or more duplicate records into one
 
-- [ ] **MERGE-02**: User selects survivor record (which record ID to keep)
+- [x] **MERGE-02**: User selects survivor record (which record ID to keep)
 
-- [ ] **MERGE-03**: User selects field values to keep via side-by-side UI
+- [x] **MERGE-03**: User selects field values to keep via side-by-side UI
   - Radio buttons per field
   - Default selection based on rules (most complete, most recent)
 
-- [ ] **MERGE-04**: Merge transfers all related records to survivor
+- [x] **MERGE-04**: Merge transfers all related records to survivor
   - Tasks, Activities, Notes
   - Any record with lookup field pointing to source
 
-- [ ] **MERGE-05**: System discovers related records dynamically from entity metadata
+- [x] **MERGE-05**: System discovers related records dynamically from entity metadata
   - Uses existing lookup field definitions
   - Updates all foreign keys before delete
 
-- [ ] **MERGE-06**: Merge executes as atomic transaction (all or nothing)
+- [x] **MERGE-06**: Merge executes as atomic transaction (all or nothing)
 
-- [ ] **MERGE-07**: Merge creates audit log entry with:
+- [x] **MERGE-07**: Merge creates audit log entry with:
   - Who merged
   - When merged
   - Which records merged
   - Which field values chosen
 
-- [ ] **MERGE-08**: System stores pre-merge snapshots for undo capability
+- [x] **MERGE-08**: System stores pre-merge snapshots for undo capability
   - Full source record data
   - Master record pre-merge state
   - Related record FK changes
 
-- [ ] **MERGE-09**: User can undo merge within 30 days
+- [x] **MERGE-09**: User can undo merge within 30 days
   - Restores source record
   - Restores master to pre-merge state
   - Re-points related records
 
-- [ ] **MERGE-10**: Multi-record merge (3+) executes as sequential pair merges with grouped undo
+- [x] **MERGE-10**: Multi-record merge (3+) executes as sequential pair merges with grouped undo
 
-- [ ] **MERGE-11**: Merge preview shows:
+- [x] **MERGE-11**: Merge preview shows:
   - Before/after comparison
   - Related record counts that will transfer
   - Warnings for any data loss
@@ -217,17 +217,17 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 | IMPORT-03 | Phase 14 | Pending |
 | IMPORT-04 | Phase 14 | Pending |
 | IMPORT-05 | Phase 14 | Pending |
-| MERGE-01 | Phase 13 | Pending |
-| MERGE-02 | Phase 13 | Pending |
-| MERGE-03 | Phase 13 | Pending |
-| MERGE-04 | Phase 13 | Pending |
-| MERGE-05 | Phase 13 | Pending |
-| MERGE-06 | Phase 13 | Pending |
-| MERGE-07 | Phase 13 | Pending |
-| MERGE-08 | Phase 13 | Pending |
-| MERGE-09 | Phase 13 | Pending |
-| MERGE-10 | Phase 13 | Pending |
-| MERGE-11 | Phase 13 | Pending |
+| MERGE-01 | Phase 13 | Complete |
+| MERGE-02 | Phase 13 | Complete |
+| MERGE-03 | Phase 13 | Complete |
+| MERGE-04 | Phase 13 | Complete |
+| MERGE-05 | Phase 13 | Complete |
+| MERGE-06 | Phase 13 | Complete |
+| MERGE-07 | Phase 13 | Complete |
+| MERGE-08 | Phase 13 | Complete |
+| MERGE-09 | Phase 13 | Complete |
+| MERGE-10 | Phase 13 | Complete |
+| MERGE-11 | Phase 13 | Complete |
 | BACKGROUND-01 | Phase 15 | Pending |
 | BACKGROUND-02 | Phase 15 | Pending |
 | BACKGROUND-03 | Phase 15 | Pending |

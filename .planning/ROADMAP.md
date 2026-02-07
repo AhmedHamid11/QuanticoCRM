@@ -58,10 +58,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 13-01-PLAN.md -- Database schema, migrations, Go entity types, SFID prefix
-- [ ] 13-02-PLAN.md -- Merge snapshot repository, related record discovery service
-- [ ] 13-03-PLAN.md -- Atomic merge execution service, undo, audit logging
-- [ ] 13-04-PLAN.md -- HTTP API handlers (preview, execute, undo, history) and route registration
+- [x] 13-01-PLAN.md - Database schema, migrations, Go entity types, SFID prefix ✓
+- [x] 13-02-PLAN.md - Merge snapshot repository, related record discovery service ✓
+- [x] 13-03-PLAN.md - Atomic merge execution service, undo, audit logging ✓
+- [x] 13-04-PLAN.md - HTTP API handlers (preview, execute, undo, history) and route registration ✓
 
 ### Phase 14: Import Integration
 **Goal**: Extend CSV import to detect and handle duplicates during import
@@ -126,13 +126,13 @@ Plans:
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
 | 11. Detection Foundation | v3.0 | 3/3 | Complete | 2026-02-06 |
 | 12. Real-Time Detection | v3.0 | 4/4 | Complete | 2026-02-07 |
-| 13. Merge Engine | v3.0 | 0/4 | Not started | - |
+| 13. Merge Engine | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 14. Import Integration | v3.0 | 0/3 | Not started | - |
 | 15. Background Scanning | v3.0 | 0/3 | Not started | - |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
-**v3.0 Total:** 7/22 plans
+**v3.0 Total:** 11/22 plans
 
 ---
 
-*Last updated: 2026-02-07 - Phase 12 complete (Real-Time Detection)*
+*Last updated: 2026-02-07 - Phase 13 complete (Merge Engine)*

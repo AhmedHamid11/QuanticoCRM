@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Core value:** Fast, secure multi-tenant CRM where customer data is protected
-**Current focus:** Phase 13 - Manual Merge Engine
+**Current focus:** Phase 13 - Merge Engine (complete)
 
 ## Current Position
 
