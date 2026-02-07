@@ -39,6 +39,10 @@ const (
 
 	// Organization settings events
 	AuditEventOrgSettingsChange AuditEventType = "ORG_SETTINGS_CHANGE"
+
+	// Merge events
+	AuditEventRecordMerge AuditEventType = "RECORD_MERGE"
+	AuditEventMergeUndo   AuditEventType = "MERGE_UNDO"
 )
 
 // AuditEvent represents a security audit event (input format)

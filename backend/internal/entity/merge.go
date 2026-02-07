@@ -91,9 +91,3 @@ type MergeHistoryEntry struct {
 	CreatedAt    time.Time `json:"createdAt"`
 	ExpiresAt    time.Time `json:"expiresAt"`
 }
-
-// Merge-related audit event types
-const (
-	AuditEventRecordMerge AuditEventType = "RECORD_MERGE"
-	AuditEventMergeUndo   AuditEventType = "MERGE_UNDO"
-)

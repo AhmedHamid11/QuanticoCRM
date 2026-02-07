@@ -32,6 +32,8 @@ const (
 	AuditEventAPITokenRevoke      = entity.AuditEventAPITokenRevoke
 	AuditEventAuthorizationDenied = entity.AuditEventAuthorizationDenied
 	AuditEventOrgSettingsChange   = entity.AuditEventOrgSettingsChange
+	AuditEventRecordMerge         = entity.AuditEventRecordMerge
+	AuditEventMergeUndo           = entity.AuditEventMergeUndo
 )
 
 // Re-export AuditEvent from entity package
@@ -305,6 +307,38 @@ func (a *AuditLogger) LogAuthorizationDenied(ctx context.Context, actorID, actor
 		Details: map[string]interface{}{
 			"path":   path,
 			"method": method,
+		},
+	})
+}
+
+// LogRecordMerge logs a successful merge operation
+func (a *AuditLogger) LogRecordMerge(ctx context.Context, actorID, orgID, entityType, survivorID, snapshotID string, duplicateIDs []string) {
+	a.Log(ctx, AuditEvent{
+		EventType: AuditEventRecordMerge,
+		ActorID:   actorID,
+		TargetID:  survivorID,
+		OrgID:     orgID,
+		Success:   true,
+		Details: map[string]interface{}{
+			"entityType":   entityType,
+			"survivorId":   survivorID,
+			"duplicateIds": duplicateIDs,
+			"snapshotId":   snapshotID,
+		},
+	})
+}
+
+// LogMergeUndo logs a merge undo operation
+func (a *AuditLogger) LogMergeUndo(ctx context.Context, actorID, orgID, snapshotID, survivorID string) {
+	a.Log(ctx, AuditEvent{
+		EventType: AuditEventMergeUndo,
+		ActorID:   actorID,
+		TargetID:  survivorID,
+		OrgID:     orgID,
+		Success:   true,
+		Details: map[string]interface{}{
+			"snapshotId": snapshotID,
+			"survivorId": survivorID,
 		},
 	})
 }
