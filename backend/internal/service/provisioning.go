@@ -104,7 +104,7 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 		var uniqueConstraintExists int
 		err := s.db.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM sqlite_master
-			WHERE type='unique' AND tbl_name='entity_defs'
+			WHERE type='index' AND tbl_name='entity_defs'
 			AND sql LIKE '%org_id%name%'
 		`).Scan(&uniqueConstraintExists)
 
@@ -382,10 +382,10 @@ func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context)
 		name string
 		stmt string
 	}{
-		{"idx_entity_defs_org", "CREATE INDEX idx_entity_defs_org ON entity_defs(org_id)"},
-		{"idx_field_defs_org_entity", "CREATE INDEX idx_field_defs_org_entity ON field_defs(org_id, entity_name)"},
-		{"idx_layout_defs_org_entity", "CREATE INDEX idx_layout_defs_org_entity ON layout_defs(org_id, entity_name)"},
-		{"idx_navigation_org", "CREATE INDEX idx_navigation_org ON navigation_tabs(org_id)"},
+		{"idx_entity_defs_org", "CREATE INDEX IF NOT EXISTS idx_entity_defs_org ON entity_defs(org_id)"},
+		{"idx_field_defs_org_entity", "CREATE INDEX IF NOT EXISTS idx_field_defs_org_entity ON field_defs(org_id, entity_name)"},
+		{"idx_layout_defs_org_entity", "CREATE INDEX IF NOT EXISTS idx_layout_defs_org_entity ON layout_defs(org_id, entity_name)"},
+		{"idx_navigation_org", "CREATE INDEX IF NOT EXISTS idx_navigation_org ON navigation_tabs(org_id)"},
 	}
 
 	for _, idx := range indexes {
