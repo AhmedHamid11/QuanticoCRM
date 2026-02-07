@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 13 of 16 (Manual Merge Engine)
-**Plan:** 3 of 4 in current phase
-**Status:** In progress
+**Plan:** 4 of 4 in current phase
+**Status:** Phase complete
 
-**Last activity:** 2026-02-07 - Completed 13-03-PLAN.md (Merge execution service)
+**Last activity:** 2026-02-07 - Completed 13-04-PLAN.md (Merge API handlers)
 
-Progress: [███░░░░░░░] 48% (10/21 plans)
+Progress: [███░░░░░░░] 52% (11/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41 (9 v1.0 + 22 v2.0 + 10 v3.0)
+- Total plans completed: 42 (9 v1.0 + 22 v2.0 + 11 v3.0)
 - Average duration: 3.7 min
-- Total execution time: ~159 min
+- Total execution time: ~162 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 48% (10/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 10/21 | ~28 min |
+| v3.0 Deduplication | 11-16 | 11/21 | ~31 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [███░░░░░░░] 48% (10/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 13-04 | In-memory entityType filtering in History endpoint | MergeRepo.ListByOrg doesn't support entityType parameter, in-memory filtering simpler for low-traffic API | 2026-02-07 |
+| 13-04 | Merge endpoints on protected (not admin) route group | Any authenticated user should merge records they access, consistent with bulk operations | 2026-02-07 |
+| 13-04 | Audit logger early initialization in services section | MergeService constructor requires auditLogger, moved before handlers for clean dependency injection | 2026-02-07 |
 | 13-03 | FK transfer happens BEFORE archiving duplicates | Per research Pitfall #2, archived records may cause FK constraint errors in some configurations | 2026-02-07 |
 | 13-03 | Audit events consolidated in audit.go | Consistency with existing pattern where ALL audit event types live in entity/audit.go | 2026-02-07 |
 | 13-02 | Related record discovery is metadata-driven (no hardcoded entity lists) | New entities automatically work, supports custom entities, single source of truth | 2026-02-07 |
@@ -96,10 +99,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-07 23:03:00
-Stopped at: Completed 13-03-PLAN.md - Merge execution service
+Last session: 2026-02-07 23:09:00
+Stopped at: Completed 13-04-PLAN.md - Phase 13 complete
 Resume file: None
 
 ---
 
-*Updated: 2026-02-07 - Phase 13 Plan 03 complete, ready for 13-04 (Merge API)*
+*Updated: 2026-02-07 - Phase 13 complete (Manual Merge Engine), ready for Phase 14*
