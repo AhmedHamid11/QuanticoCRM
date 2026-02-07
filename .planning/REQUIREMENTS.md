@@ -28,7 +28,7 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
   - Fuzzy vs exact matching per field
   - Enable/disable rules
 
-- [ ] **DETECT-02**: System detects duplicates on record creation with configurable response
+- [x] **DETECT-02**: System detects duplicates on record creation with configurable response
   - Warn mode: Show duplicate warning, allow save
   - Block mode: Prevent save until duplicates resolved
 
@@ -54,7 +54,7 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
   - Email domain blocking
   - First 3 characters of last name
 
-- [ ] **DETECT-09**: User sees tiered confidence levels in duplicate review
+- [x] **DETECT-09**: User sees tiered confidence levels in duplicate review
   - High confidence: >= 95%
   - Medium confidence: >= 85%
   - Low confidence: >= 70%
@@ -204,14 +204,14 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DETECT-01 | Phase 11 | Complete |
-| DETECT-02 | Phase 12 | Pending |
+| DETECT-02 | Phase 12 | Complete |
 | DETECT-03 | Phase 11 | Complete |
 | DETECT-04 | Phase 11 | Complete |
 | DETECT-05 | Phase 11 | Complete |
 | DETECT-06 | Phase 11 | Complete |
 | DETECT-07 | Phase 11 | Partial |
 | DETECT-08 | Phase 11 | Complete |
-| DETECT-09 | Phase 12 | Pending |
+| DETECT-09 | Phase 12 | Complete |
 | IMPORT-01 | Phase 14 | Pending |
 | IMPORT-02 | Phase 14 | Pending |
 | IMPORT-03 | Phase 14 | Pending |
