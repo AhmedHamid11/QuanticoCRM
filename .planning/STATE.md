@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 13 of 16 (Manual Merge Engine)
-**Plan:** 1 of 4 in current phase
+**Plan:** 2 of 4 in current phase
 **Status:** In progress
 
-**Last activity:** 2026-02-07 - Completed 13-01-PLAN.md (Merge foundation: schema & types)
+**Last activity:** 2026-02-07 - Completed 13-02-PLAN.md (Merge persistence & discovery)
 
-Progress: [███░░░░░░░] 38% (8/21 plans)
+Progress: [███░░░░░░░] 43% (9/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 39 (9 v1.0 + 22 v2.0 + 8 v3.0)
-- Average duration: 3.8 min
-- Total execution time: ~154 min
+- Total plans completed: 40 (9 v1.0 + 22 v2.0 + 9 v3.0)
+- Average duration: 3.7 min
+- Total execution time: ~156 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 38% (8/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 8/21 | ~23 min |
+| v3.0 Deduplication | 11-16 | 9/21 | ~25 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,8 @@ Progress: [███░░░░░░░] 38% (8/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 13-02 | Related record discovery is metadata-driven (no hardcoded entity lists) | New entities automatically work, supports custom entities, single source of truth | 2026-02-07 |
+| 13-02 | Simple completeness scoring (filled/total ratio) | Transparent and understandable, no hidden weighting, system fields excluded | 2026-02-07 |
 | 13-01 | Archive columns added dynamically at merge time | Entity tables are dynamically created per-org, custom entities exist, not all will be merged | 2026-02-07 |
 | 13-01 | Merge snapshots use JSON fields for flexibility | Supports any entity structure without type coupling | 2026-02-07 |
 | 13-01 | 30-day undo window with expiration and consumed_at | Balance between data retention and undo capability, prevent double-undo | 2026-02-07 |
@@ -92,10 +94,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-07 22:53:19
-Stopped at: Completed 13-01-PLAN.md - Merge foundation (schema & types)
+Last session: 2026-02-07 22:57:35
+Stopped at: Completed 13-02-PLAN.md - Merge persistence & discovery
 Resume file: None
 
 ---
 
-*Updated: 2026-02-07 - Phase 13 Plan 01 complete, ready for 13-02 (Merge Service)*
+*Updated: 2026-02-07 - Phase 13 Plan 02 complete, ready for 13-03 (Merge Execution)*
