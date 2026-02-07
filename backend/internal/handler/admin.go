@@ -26,6 +26,7 @@ type ProvisioningServiceInterface interface {
 // AdminHandler handles HTTP requests for admin panel
 type AdminHandler struct {
 	db                  *sql.DB
+	dbManager           *db.Manager
 	metadataRepo        *repo.MetadataRepo
 	navigationRepo      *repo.NavigationRepo
 	layoutService       *service.LayoutService
@@ -33,9 +34,20 @@ type AdminHandler struct {
 }
 
 // NewAdminHandler creates a new AdminHandler
-func NewAdminHandler(db *sql.DB, metadataRepo *repo.MetadataRepo, navigationRepo *repo.NavigationRepo) *AdminHandler {
+func NewAdminHandler(masterDB *sql.DB, metadataRepo *repo.MetadataRepo, navigationRepo *repo.NavigationRepo) *AdminHandler {
 	return &AdminHandler{
-		db:             db,
+		db:             masterDB,
+		metadataRepo:   metadataRepo,
+		navigationRepo: navigationRepo,
+		layoutService:  service.NewLayoutService(),
+	}
+}
+
+// NewAdminHandlerWithManager creates a new AdminHandler with database manager support
+func NewAdminHandlerWithManager(masterDB *sql.DB, dbManager *db.Manager, metadataRepo *repo.MetadataRepo, navigationRepo *repo.NavigationRepo) *AdminHandler {
+	return &AdminHandler{
+		db:        masterDB,
+		dbManager: dbManager,
 		metadataRepo:   metadataRepo,
 		navigationRepo: navigationRepo,
 		layoutService:  service.NewLayoutService(),
@@ -726,6 +738,135 @@ func (h *AdminHandler) ReprovisionMetadata(c *fiber.Ctx) error {
 	})
 }
 
+// RepairAllOrgsMetadata repairs metadata tables for all organizations (admin-only bulk operation)
+// This is used to fix corrupted metadata schemas across multiple organizations
+// POST /admin/repair-all-orgs
+func (h *AdminHandler) RepairAllOrgsMetadata(c *fiber.Ctx) error {
+	if h.provisioningService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Provisioning service not configured",
+		})
+	}
+
+	if h.dbManager == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Database manager not configured",
+		})
+	}
+
+	ctx := c.Context()
+
+	// Query all active organizations from master database
+	query := `
+		SELECT id, name, COALESCE(database_url, ''), COALESCE(database_token, '')
+		FROM organizations
+		WHERE is_active = 1
+		ORDER BY created_at ASC
+	`
+
+	rows, err := h.db.QueryContext(ctx, query)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to query organizations: %v", err),
+		})
+	}
+	defer rows.Close()
+
+	type orgInfo struct {
+		ID           string
+		Name         string
+		DatabaseURL  string
+		DatabaseToken string
+	}
+
+	var orgs []orgInfo
+	for rows.Next() {
+		var org orgInfo
+		if err := rows.Scan(&org.ID, &org.Name, &org.DatabaseURL, &org.DatabaseToken); err != nil {
+			log.Printf("Failed to scan org: %v", err)
+			continue
+		}
+		orgs = append(orgs, org)
+	}
+
+	if err = rows.Err(); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Error reading organizations: %v", err),
+		})
+	}
+
+	// Repair each org
+	type repairResult struct {
+		OrgID   string `json:"orgId"`
+		OrgName string `json:"orgName"`
+		Success bool   `json:"success"`
+		Error   string `json:"error,omitempty"`
+	}
+
+	var results []repairResult
+
+	for _, org := range orgs {
+		result := repairResult{
+			OrgID:   org.ID,
+			OrgName: org.Name,
+		}
+
+		// Skip orgs without database URL (shouldn't happen for active orgs, but safety check)
+		if org.DatabaseURL == "" {
+			result.Success = false
+			result.Error = "No database URL configured"
+			results = append(results, result)
+			continue
+		}
+
+		// Get tenant database connection using manager
+		tenantDB, err := h.dbManager.GetTenantDB(ctx, org.ID, org.DatabaseURL, org.DatabaseToken)
+		if err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("Failed to connect to database: %v", err)
+			results = append(results, result)
+			log.Printf("Failed to connect to org %s (%s) database: %v", org.ID, org.Name, err)
+			continue
+		}
+
+		// Set provisioning service to use tenant database
+		h.provisioningService.SetDB(tenantDB)
+
+		// Run provisioning (will check and fix schema as needed)
+		if err := h.provisioningService.ProvisionDefaultMetadata(ctx, org.ID); err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("Provisioning failed: %v", err)
+			results = append(results, result)
+			log.Printf("Failed to provision metadata for org %s (%s): %v", org.ID, org.Name, err)
+			continue
+		}
+
+		result.Success = true
+		results = append(results, result)
+		log.Printf("Successfully repaired metadata for org %s (%s)", org.ID, org.Name)
+	}
+
+	// Count successes and failures
+	successCount := 0
+	failureCount := 0
+	for _, r := range results {
+		if r.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success":      failureCount == 0,
+		"total":        len(results),
+		"repaired":     successCount,
+		"failed":       failureCount,
+		"results":      results,
+		"message":      fmt.Sprintf("Repaired %d orgs, %d failed", successCount, failureCount),
+	})
+}
+
 // RegisterRoutes registers admin routes on the Fiber app
 func (h *AdminHandler) RegisterRoutes(app fiber.Router) {
 	admin := app.Group("/admin")
@@ -735,6 +876,7 @@ func (h *AdminHandler) RegisterRoutes(app fiber.Router) {
 
 	// Re-provisioning (for orgs that may have failed initial provisioning)
 	admin.Post("/reprovision", h.ReprovisionMetadata)
+	admin.Post("/repair-all-orgs", h.RepairAllOrgsMetadata)
 
 	// Entities
 	admin.Get("/entities", h.ListEntities)

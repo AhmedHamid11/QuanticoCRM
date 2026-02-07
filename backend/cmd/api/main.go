@@ -208,7 +208,7 @@ func main() {
 	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, authRepo, tripwireService, validationService, realtimeChecker, masterDBConn)
 	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, masterDB, metadataRepo, authRepo, tripwireService, validationService)
 	taskHandler := handler.NewTaskHandler(taskRepo, authRepo, tripwireService, validationService)
-	adminHandler := handler.NewAdminHandler(masterDB, metadataRepo, navigationRepo)
+	adminHandler := handler.NewAdminHandlerWithManager(masterDB, dbManager, metadataRepo, navigationRepo)
 	adminHandler.SetProvisioningService(provisioningService) // Enable re-provisioning endpoint
 	navigationHandler := handler.NewNavigationHandler(navigationRepo)
 	lookupHandler := handler.NewLookupHandler(masterDB, metadataRepo)
