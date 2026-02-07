@@ -40,6 +40,7 @@ const (
 	PrefixMigrationRun       = "0Mr" // Migration run
 	PrefixTokenFamily        = "0Tf" // Token family (for refresh token rotation)
 	PrefixAuditLog           = "0Ad" // Audit log entry
+	PrefixMergeSnapshot      = "0Ms" // Merge snapshot (for undo capability)
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -266,4 +267,9 @@ func NewTokenFamily() string {
 // NewAuditLog generates a new Audit Log Entry ID (prefix: 0Ad)
 func NewAuditLog() string {
 	return New(PrefixAuditLog)
+}
+
+// NewMergeSnapshot generates a new Merge Snapshot ID (prefix: 0Ms)
+func NewMergeSnapshot() string {
+	return New(PrefixMergeSnapshot)
 }
