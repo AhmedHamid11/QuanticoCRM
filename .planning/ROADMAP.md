@@ -55,14 +55,13 @@ Plans:
   3. Merge executes atomically (all or nothing) with full audit log of who/when/what
   4. Merge preview shows before/after comparison, related record counts, and data loss warnings
   5. User can undo merge within 30 days, restoring source records and re-pointing related records
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 13-01: Merge execution with atomic transactions
-- [ ] 13-02: Related record discovery and transfer
-- [ ] 13-03: Merge audit logging and snapshots
-- [ ] 13-04: Undo capability with restoration
-- [ ] 13-05: Multi-record merge (3+ records)
+- [ ] 13-01-PLAN.md -- Database schema, migrations, Go entity types, SFID prefix
+- [ ] 13-02-PLAN.md -- Merge snapshot repository, related record discovery service
+- [ ] 13-03-PLAN.md -- Atomic merge execution service, undo, audit logging
+- [ ] 13-04-PLAN.md -- HTTP API handlers (preview, execute, undo, history) and route registration
 
 ### Phase 14: Import Integration
 **Goal**: Extend CSV import to detect and handle duplicates during import
@@ -127,12 +126,12 @@ Plans:
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
 | 11. Detection Foundation | v3.0 | 3/3 | Complete | 2026-02-06 |
 | 12. Real-Time Detection | v3.0 | 4/4 | Complete | 2026-02-07 |
-| 13. Merge Engine | v3.0 | 0/5 | Not started | - |
+| 13. Merge Engine | v3.0 | 0/4 | Not started | - |
 | 14. Import Integration | v3.0 | 0/3 | Not started | - |
 | 15. Background Scanning | v3.0 | 0/3 | Not started | - |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
-**v3.0 Total:** 7/23 plans
+**v3.0 Total:** 7/22 plans
 
 ---
 
