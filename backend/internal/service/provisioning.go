@@ -100,24 +100,11 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 
 	tableExists := err == nil
 
-	// Always ensure navigation_tabs exists, regardless of entity_defs status
-	// This fixes the case where entity_defs exists but navigation_tabs doesn't
-	_, _ = s.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS navigation_tabs (
-			id TEXT PRIMARY KEY,
-			org_id TEXT NOT NULL,
-			label TEXT NOT NULL,
-			href TEXT NOT NULL,
-			icon TEXT DEFAULT '',
-			entity_name TEXT,
-			sort_order INTEGER DEFAULT 0,
-			is_visible INTEGER DEFAULT 1,
-			is_system INTEGER DEFAULT 0,
-			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(org_id, href)
-		)
-	`)
+	// Always ensure navigation_tabs exists with correct schema, regardless of entity_defs status
+	// This fixes: (1) table doesn't exist, (2) table exists but has wrong schema (missing href/org_id columns)
+	if err := s.ensureNavigationTabsTable(ctx); err != nil {
+		log.Printf("[Provisioning] Warning: failed to ensure navigation_tabs table: %v", err)
+	}
 
 	if tableExists {
 		// Verify the schema is correct by checking for UNIQUE constraint on (org_id, name)
@@ -268,6 +255,70 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 		}
 		log.Printf("[Provisioning] Created metadata table indexes")
 
+	return nil
+}
+
+// ensureNavigationTabsTable ensures navigation_tabs table exists with the correct schema.
+// If the table exists but has wrong columns (e.g., missing href or org_id), it drops and recreates it.
+func (s *ProvisioningService) ensureNavigationTabsTable(ctx context.Context) error {
+	// Check if navigation_tabs table exists
+	var tblName string
+	err := s.db.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type='table' AND name='navigation_tabs' LIMIT 1").Scan(&tblName)
+	tableExists := err == nil
+
+	if tableExists {
+		// Verify schema has required columns (href, org_id) by checking table info
+		var hrefExists bool
+		rows, err := s.db.QueryContext(ctx, "PRAGMA table_info(navigation_tabs)")
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var cid int
+				var name, colType string
+				var notNull, pk int
+				var dfltValue *string
+				if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err == nil {
+					if name == "href" {
+						hrefExists = true
+					}
+				}
+			}
+		}
+
+		if hrefExists {
+			log.Printf("[Provisioning] navigation_tabs table exists with correct schema")
+			return nil
+		}
+
+		// Schema is wrong - drop and recreate
+		log.Printf("[Provisioning] navigation_tabs table has wrong schema (missing href), recreating...")
+		if _, err := s.db.ExecContext(ctx, "DROP TABLE IF EXISTS navigation_tabs"); err != nil {
+			return fmt.Errorf("failed to drop old navigation_tabs: %w", err)
+		}
+	}
+
+	// Create navigation_tabs with correct schema
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS navigation_tabs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			label TEXT NOT NULL,
+			href TEXT NOT NULL,
+			icon TEXT DEFAULT '',
+			entity_name TEXT,
+			sort_order INTEGER DEFAULT 0,
+			is_visible INTEGER DEFAULT 1,
+			is_system INTEGER DEFAULT 0,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, href)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create navigation_tabs table: %w", err)
+	}
+	_, _ = s.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_navigation_org ON navigation_tabs(org_id)`)
+	log.Printf("[Provisioning] Created navigation_tabs table with correct schema")
 	return nil
 }
 
