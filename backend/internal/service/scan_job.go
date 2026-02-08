@@ -17,11 +17,12 @@ import (
 
 // ScanJobService orchestrates background duplicate scanning with chunked processing
 type ScanJobService struct {
-	detector         *dedup.Detector
-	scanJobRepo      *repo.ScanJobRepo
-	pendingAlertRepo *repo.PendingAlertRepo
-	matchingRuleRepo *repo.MatchingRuleRepo
-	authRepo         *repo.AuthRepo
+	detector            *dedup.Detector
+	scanJobRepo         *repo.ScanJobRepo
+	pendingAlertRepo    *repo.PendingAlertRepo
+	matchingRuleRepo    *repo.MatchingRuleRepo
+	authRepo            *repo.AuthRepo
+	notificationService *NotificationService
 
 	// Per-tenant rate limiting (max 2 concurrent jobs per org)
 	runningJobs map[string]int // orgID -> count of running jobs
@@ -66,6 +67,11 @@ func (s *ScanJobService) SetProgressCallback(fn func(event ProgressEvent)) {
 	s.progressMu.Lock()
 	defer s.progressMu.Unlock()
 	s.onProgress = fn
+}
+
+// SetNotificationService sets the notification service (avoid circular dependency)
+func (s *ScanJobService) SetNotificationService(ns *NotificationService) {
+	s.notificationService = ns
 }
 
 // CanRunJob checks if org can start a new job (per-tenant rate limit: max 2 concurrent)
@@ -241,6 +247,13 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	// Delete checkpoint (job completed successfully)
 	_ = s.scanJobRepo.WithDB(tenantDB).DeleteCheckpoint(ctx, jobID)
 
+	// Create scan complete notification for admin users
+	if s.notificationService != nil {
+		if err := s.notificationService.CreateScanCompleteNotification(ctx, tenantDB, orgID, jobID, entityType); err != nil {
+			log.Printf("Warning: Failed to create scan complete notification for job %s: %v", jobID, err)
+		}
+	}
+
 	log.Printf("Scan job %s completed: %d records scanned, %d duplicates found", jobID, offset, totalDuplicates)
 
 	return nil
@@ -407,6 +420,17 @@ func (s *ScanJobService) handleChunkFailure(ctx context.Context, tenantDB *sql.D
 		DuplicatesFound:  totalDuplicates,
 		Status:           entity.ScanStatusFailed,
 	})
+
+	// Create scan failure notification with progress percentage
+	progressPercent := 0
+	if totalRecords > 0 {
+		progressPercent = (offset * 100) / totalRecords
+	}
+	if s.notificationService != nil {
+		if err := s.notificationService.CreateScanFailureNotification(ctx, tenantDB, orgID, jobID, entityType, progressPercent); err != nil {
+			log.Printf("Warning: Failed to create scan failure notification for job %s: %v", jobID, err)
+		}
+	}
 
 	return chunkErr
 }

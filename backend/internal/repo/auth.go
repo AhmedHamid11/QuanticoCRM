@@ -23,6 +23,11 @@ func NewAuthRepo(conn db.DBConn) *AuthRepo {
 	return &AuthRepo{db: conn}
 }
 
+// WithDB returns a new AuthRepo instance with the specified database connection
+func (r *AuthRepo) WithDB(conn db.DBConn) *AuthRepo {
+	return &AuthRepo{db: conn}
+}
+
 // parseTimestamp parses SQLite TEXT timestamps into time.Time
 func parseTimestamp(s sql.NullString) time.Time {
 	if !s.Valid {
