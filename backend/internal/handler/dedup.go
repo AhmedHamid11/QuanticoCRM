@@ -282,6 +282,38 @@ func (h *DedupHandler) ResolveAlert(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// ListPendingAlerts returns all pending alerts for an org with optional filtering and pagination
+func (h *DedupHandler) ListPendingAlerts(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityType := c.Query("entityType", "")
+
+	// Parse pagination params
+	page := c.QueryInt("page", 1)
+	if page < 1 {
+		page = 1
+	}
+
+	pageSize := c.QueryInt("pageSize", 20)
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	offset := (page - 1) * pageSize
+
+	// Fetch alerts
+	alerts, total, err := h.getAlertRepo(c).ListAllPending(c.Context(), orgID, entityType, pageSize, offset)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"data":     alerts,
+		"total":    total,
+		"page":     page,
+		"pageSize": pageSize,
+	})
+}
+
 // BackfillBlockingKeys populates blocking key columns for all existing records
 // This is needed for records created before blocking keys were being populated
 func (h *DedupHandler) BackfillBlockingKeys(c *fiber.Ctx) error {
@@ -369,7 +401,8 @@ func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 	// Duplicate detection
 	app.Post("/dedup/:entity/check", h.CheckDuplicates)
 
-	// Pending alert endpoints (not admin-only - regular users need these)
+	// Pending alert endpoints
+	app.Get("/dedup/pending-alerts", h.ListPendingAlerts)
 	app.Get("/dedup/:entity/:id/pending-alert", h.GetPendingAlert)
 	app.Post("/dedup/:entity/:id/resolve-alert", h.ResolveAlert)
 }

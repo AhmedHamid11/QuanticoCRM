@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
@@ -166,4 +167,93 @@ func (r *PendingAlertRepo) DeleteOldResolved(ctx context.Context, orgID string, 
 	}
 
 	return result.RowsAffected()
+}
+
+// ListAllPending returns all pending alerts for an org with optional entity type filter and pagination
+func (r *PendingAlertRepo) ListAllPending(ctx context.Context, orgID string, entityType string, limit, offset int) ([]entity.PendingDuplicateAlert, int, error) {
+	// Build WHERE clause with optional entity type filter
+	whereClause := "org_id = ? AND status = 'pending'"
+	args := []interface{}{orgID}
+
+	if entityType != "" {
+		whereClause += " AND entity_type = ?"
+		args = append(args, entityType)
+	}
+
+	// Get total count for pagination
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM pending_duplicate_alerts WHERE %s", whereClause)
+	var total int
+	err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated results
+	query := fmt.Sprintf(`
+		SELECT id, org_id, entity_type, record_id, matches_json, total_match_count,
+		       highest_confidence, is_block_mode, merge_display_fields, detected_at, status,
+		       resolved_at, resolved_by_id, override_text
+		FROM pending_duplicate_alerts
+		WHERE %s
+		ORDER BY highest_confidence DESC, detected_at DESC
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	args = append(args, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var alerts []entity.PendingDuplicateAlert
+	for rows.Next() {
+		var alert entity.PendingDuplicateAlert
+		var detectedAt string
+		var resolvedAt *string
+		var isBlockModeInt int
+		var resolvedByID, overrideText, mergeDisplayFieldsJSON *string
+
+		err = rows.Scan(
+			&alert.ID, &alert.OrgID, &alert.EntityType, &alert.RecordID,
+			&alert.MatchesJSON, &alert.TotalMatchCount, &alert.HighestConfidence,
+			&isBlockModeInt, &mergeDisplayFieldsJSON, &detectedAt, &alert.Status,
+			&resolvedAt, &resolvedByID, &overrideText,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		// Convert int to bool for IsBlockMode
+		alert.IsBlockMode = isBlockModeInt == 1
+
+		// Parse detected_at
+		alert.DetectedAt, _ = time.Parse(time.RFC3339, detectedAt)
+
+		// Parse resolved_at if set
+		if resolvedAt != nil && *resolvedAt != "" {
+			t, _ := time.Parse(time.RFC3339, *resolvedAt)
+			alert.ResolvedAt = &t
+		}
+		alert.ResolvedByID = resolvedByID
+		alert.OverrideText = overrideText
+
+		// Unmarshal matches
+		if alert.MatchesJSON != "" {
+			json.Unmarshal([]byte(alert.MatchesJSON), &alert.Matches)
+		}
+
+		// Unmarshal merge display fields
+		if mergeDisplayFieldsJSON != nil && *mergeDisplayFieldsJSON != "" {
+			json.Unmarshal([]byte(*mergeDisplayFieldsJSON), &alert.MergeDisplayFields)
+		}
+
+		alerts = append(alerts, alert)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return alerts, total, nil
 }
