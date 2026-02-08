@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 14 of 16 (Import Integration)
-**Plan:** 2 of 3 in current phase
-**Status:** In progress
+**Plan:** 3 of 3 in current phase
+**Status:** Phase complete
 
-**Last activity:** 2026-02-08 - Completed 14-02-PLAN.md (Import duplicate review UI)
+**Last activity:** 2026-02-08 - Completed 14-03-PLAN.md (Import resolution execution)
 
-Progress: [███░░░░░░░] 62% (13/21 plans)
+Progress: [███░░░░░░░] 67% (14/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44 (9 v1.0 + 22 v2.0 + 13 v3.0)
-- Average duration: 3.7 min
-- Total execution time: ~168 min
+- Total plans completed: 45 (9 v1.0 + 22 v2.0 + 14 v3.0)
+- Average duration: 3.6 min
+- Total execution time: ~172 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 62% (13/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 13/21 | ~37 min |
+| v3.0 Deduplication | 11-16 | 14/21 | ~41 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [███░░░░░░░] 62% (13/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 14-03 | 'update' resolution overwrites existing record with import row values | Allows user to replace outdated database records with newer CSV data while preserving system fields | 2026-02-08 |
+| 14-03 | Audit report tracks every resolution action | Compliance and debugging: shows what happened to each flagged row with reason | 2026-02-08 |
+| 14-03 | Within-file skip indices calculated from group selections | All non-keeper rows in duplicate groups are excluded from import automatically | 2026-02-08 |
 | 14-02 | High confidence (>=95%) defaults to Skip, medium defaults to Import Anyway | Prevents accidental duplicates while preserving data from uncertain matches | 2026-02-08 |
 | 14-02 | Bulk actions don't override user decisions | Skip All/Import All only affect unresolved rows, respecting manual selections | 2026-02-08 |
 | 14-02 | All clear message auto-proceeds after 2 seconds | Zero-duplicate case shows brief green toast then advances to import | 2026-02-08 |
@@ -106,10 +109,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 02:11:05
-Stopped at: Completed 14-02-PLAN.md - Import duplicate review UI
+Last session: 2026-02-08 02:18:42
+Stopped at: Completed 14-03-PLAN.md - Import resolution execution
 Resume file: None
 
 ---
 
-*Updated: 2026-02-08 - Phase 14 in progress (Import Integration), Plan 14-01 complete*
+*Updated: 2026-02-08 - Phase 14 complete (Import Integration)*
