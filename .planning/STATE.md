@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 16 of 16 (Admin UI)
-**Plan:** 1 of 4 complete
+**Plan:** 3 of 5 complete
 **Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 16-01-PLAN.md (Foundation & API Client)
+**Last activity:** 2026-02-08 - Completed 16-05-PLAN.md (Scan Job Dashboard)
 
-Progress: [█████░░░░░] 86% (18/21 plans)
+Progress: [█████░░░░░] 95% (20/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 49 (9 v1.0 + 22 v2.0 + 18 v3.0)
+- Total plans completed: 51 (9 v1.0 + 22 v2.0 + 20 v3.0)
 - Average duration: 3.9 min
-- Total execution time: ~210 min
+- Total execution time: ~216 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [█████░░░░░] 86% (18/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 18/21 | ~79 min |
+| v3.0 Deduplication | 11-16 | 20/21 | ~85 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,10 @@ Progress: [█████░░░░░] 86% (18/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 16-05 | EventSource SSE connection cleaned up in onMount return | Prevents memory leaks when navigating away, browser has 6 connection limit per domain | 2026-02-08 |
+| 16-05 | Schedule table sorted by next run time | Admin priority visibility - shows which scans run soonest | 2026-02-08 |
+| 16-05 | Running scans show inline progress bar in Status column | Saves horizontal space, groups related information in one column | 2026-02-08 |
+| 16-05 | Schedule configuration via frequency presets (Daily/Weekly/Monthly) | Simpler than cron expressions, covers 95% of use cases | 2026-02-08 |
 | 16-01 | ListAllPending sorts by highest_confidence DESC, detected_at DESC | Highest confidence alerts first per user decisions from Phase 12 context | 2026-02-08 |
 | 16-01 | data-quality.ts re-exports utilities from dedup.ts | Avoid duplication of getBannerClass, formatConfidence functions | 2026-02-08 |
 | 16-01 | PaginatedResponse generic type for all paginated endpoints | Consistent pagination interface across rules, alerts, merge history, scan jobs | 2026-02-08 |
@@ -124,8 +128,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 22:10:39
-Stopped at: Completed 16-01-PLAN.md - Foundation & API Client
+Last session: 2026-02-08 22:11:55
+Stopped at: Completed 16-05-PLAN.md - Scan Job Dashboard
 Resume file: None
 
 ---
