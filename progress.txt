@@ -1,25 +1,29 @@
-# Last Updated: 2026-01-31
+# Last Updated: 2026-02-08T22:13:00Z
 
 ## Just Completed
-Fixed critical multi-tenant database routing bug in BearingHandler
+Created scan job dashboard at /admin/data-quality/scan-jobs with:
+- Schedule table (entity type, schedule, last run, status, next run)
+- Inline progress bars for running scans with SSE
+- Schedule CRUD with preset dropdowns (Daily/Weekly/Monthly)
+- Run Now modal to trigger manual scans
+- Job history table with retry for failed jobs
+- Real-time SSE progress updates (EventSource properly cleaned up)
 
 ## Current State
-- BearingHandler now uses tenant database routing (matching pattern from ContactHandler)
-- BearingRepo.WithDB now properly propagates DB connection to metadataRepo
-- All bearing endpoints (list, create, update, delete, picklist-fields) will now query the correct tenant database
-
-## What Was Wrong
-1. BearingHandler was calling h.bearingRepo directly instead of using tenant-routed repo
-2. BearingRepo.WithDB was not updating metadataRepo with new DB connection
-3. Result: All bearing queries went to master DB instead of tenant DB
-
-## Files Changed
-- /backend/internal/handler/bearing.go - Added getRepo() method and updated all handlers to use it
-- /backend/internal/repo/bearing.go - Fixed WithDB() to also update metadataRepo
+- Scan job dashboard page complete
+- Type-checks pass (no errors specific to scan-jobs)
+- All required features implemented per plan
+- SSE connection with cleanup on unmount
 
 ## Next Step
-Deploy to production - this should fix Taxrise's bearing issue
+Verify in browser and create SUMMARY.md
+
+## Files Changed
+- frontend/src/routes/admin/data-quality/scan-jobs/+page.svelte (created, 860 lines)
 
 ## Notes
-- Root cause: Missing tenant DB routing pattern that other handlers have
-- Both issues (missing bearings AND missing picklist fields) were caused by same bug
+- Used inline type definitions (data-quality.ts may not exist from Plan 01 yet)
+- SSE EventSource properly cleaned up in onMount return
+- Running scans show inline progress bar in status column
+- Schedule configuration uses frequency preset dropdowns as specified
+- Failed jobs show error on hover and retry button
