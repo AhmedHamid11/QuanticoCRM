@@ -136,6 +136,8 @@ func main() {
 	matchingRuleRepo := repo.NewMatchingRuleRepo(masterDBConn)
 	pendingAlertRepo := repo.NewPendingAlertRepo(masterDBConn)
 	mergeRepo := repo.NewMergeRepo(masterDBConn)
+	scanJobRepo := repo.NewScanJobRepo(masterDBConn)
+	notificationRepo := repo.NewNotificationRepo(masterDBConn)
 
 	// Initialize dedup services
 	defaultRegion := "US" // Default region for phone normalization
@@ -151,6 +153,14 @@ func main() {
 	// Initialize merge services (requires auditLogger)
 	mergeDiscoveryService := service.NewMergeDiscoveryService(metadataRepo)
 	mergeService := service.NewMergeService(mergeRepo, metadataRepo, mergeDiscoveryService, auditLogger)
+
+	// Initialize notification service
+	notificationService := service.NewNotificationService(notificationRepo, authRepo)
+
+	// Initialize scan job service
+	scanJobService := service.NewScanJobService(detector, scanJobRepo, pendingAlertRepo, matchingRuleRepo, authRepo)
+	scanJobService.SetNotificationService(notificationService)
+
 	// Use masterDBConn (with retry logic) for provisioning to handle connection errors
 	provisioningService := service.NewProvisioningService(masterDBConn)
 	authConfig := service.DefaultAuthConfig(jwtSecret)
@@ -197,6 +207,25 @@ func main() {
 	propagationResult := migrationPropagator.PropagateAll(context.Background())
 	log.Printf("[STARTUP] Migration propagation complete: %d success, %d failed, %d skipped",
 		propagationResult.SuccessCount, propagationResult.FailedCount, propagationResult.SkippedCount)
+
+	// Initialize scan scheduler
+	scanScheduler, err := service.NewScanScheduler(scanJobService, scanJobRepo)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize scan scheduler: %v", err)
+	} else {
+		// Start scheduler (loads all enabled schedules, begins gocron)
+		if err := scanScheduler.Start(context.Background()); err != nil {
+			log.Printf("Warning: Failed to start scan scheduler: %v", err)
+		} else {
+			log.Println("Scan scheduler started")
+		}
+		defer func() {
+			if err := scanScheduler.Shutdown(); err != nil {
+				log.Printf("Warning: Scan scheduler shutdown error: %v", err)
+			}
+			log.Println("Scan scheduler stopped")
+		}()
+	}
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
@@ -246,6 +275,7 @@ func main() {
 	auditHandler := handler.NewAuditHandler(auditRepo)
 	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
+	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -520,8 +550,14 @@ func main() {
 	// Deduplication - admin can manage rules and check for duplicates
 	dedupHandler.RegisterRoutes(adminProtected)
 
+	// Background scanning - admin can manage schedules and jobs
+	scanJobHandler.RegisterAdminRoutes(adminProtected)
+
 	// PDF Template public routes (read-only for all authenticated users)
 	pdfTemplateHandler.RegisterPublicRoutes(protected)
+
+	// Notifications - all authenticated users can view their notifications
+	scanJobHandler.RegisterPublicRoutes(protected)
 
 	// ==========================================
 	// Platform Admin routes (SUPER ADMIN ONLY)
