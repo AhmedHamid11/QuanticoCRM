@@ -11,12 +11,12 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 16 of 16 (Admin UI)
-**Plan:** 3 of 5 complete
+**Plan:** 3 of 5 complete (16-01, 16-02, 16-03 done)
 **Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 16-05-PLAN.md (Scan Job Dashboard)
+**Last activity:** 2026-02-08 - Completed 16-03-PLAN.md (Review Queue)
 
-Progress: [█████░░░░░] 95% (20/21 plans)
+Progress: [█████░░░░░] 96% (20/21 plans)
 
 ## Performance Metrics
 
@@ -31,7 +31,7 @@ Progress: [█████░░░░░] 95% (20/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 20/21 | ~85 min |
+| v3.0 Deduplication | 11-16 | 20/21 | ~87 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [█████░░░░░] 95% (20/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 16-03 | Quick Merge uses merge preview's suggestedSurvivorId for auto-selection | Leverages backend completeness scoring to pick best survivor automatically | 2026-02-08 |
+| 16-03 | Bulk operations process sequentially with progress tracking | Prevents overwhelming backend, provides user feedback during long operations | 2026-02-08 |
+| 16-03 | Select All checkbox at top of list rather than in header | More visible, easier to interact with when list is long | 2026-02-08 |
 | 16-05 | EventSource SSE connection cleaned up in onMount return | Prevents memory leaks when navigating away, browser has 6 connection limit per domain | 2026-02-08 |
 | 16-05 | Schedule table sorted by next run time | Admin priority visibility - shows which scans run soonest | 2026-02-08 |
 | 16-05 | Running scans show inline progress bar in Status column | Saves horizontal space, groups related information in one column | 2026-02-08 |
@@ -128,8 +131,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 22:11:55
-Stopped at: Completed 16-05-PLAN.md - Scan Job Dashboard
+Last session: 2026-02-08 22:17:48
+Stopped at: Completed 16-03-PLAN.md - Review Queue
 Resume file: None
 
 ---
