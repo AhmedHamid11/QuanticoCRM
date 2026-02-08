@@ -41,6 +41,9 @@ const (
 	PrefixTokenFamily        = "0Tf" // Token family (for refresh token rotation)
 	PrefixAuditLog           = "0Ad" // Audit log entry
 	PrefixMergeSnapshot      = "0Ms" // Merge snapshot (for undo capability)
+	PrefixScanSchedule       = "0Sc" // Scan schedule
+	PrefixScanJob            = "0Sj" // Scan job execution
+	PrefixNotification       = "0Nt" // In-app notification
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -272,4 +275,19 @@ func NewAuditLog() string {
 // NewMergeSnapshot generates a new Merge Snapshot ID (prefix: 0Ms)
 func NewMergeSnapshot() string {
 	return New(PrefixMergeSnapshot)
+}
+
+// NewScanSchedule generates a new Scan Schedule ID (prefix: 0Sc)
+func NewScanSchedule() string {
+	return New(PrefixScanSchedule)
+}
+
+// NewScanJob generates a new Scan Job ID (prefix: 0Sj)
+func NewScanJob() string {
+	return New(PrefixScanJob)
+}
+
+// NewNotification generates a new Notification ID (prefix: 0Nt)
+func NewNotification() string {
+	return New(PrefixNotification)
 }
