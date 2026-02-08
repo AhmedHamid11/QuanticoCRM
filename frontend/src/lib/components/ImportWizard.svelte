@@ -452,6 +452,144 @@
 		}
 		return true;
 	}
+
+	// Duplicate check and resolution functions
+	async function checkDuplicates() {
+		if (!file) return;
+
+		checkingDuplicates = true;
+		duplicateCheckError = '';
+		duplicateResult = null;
+		showAllClear = false;
+
+		try {
+			const formData = new FormData();
+			formData.append('file', file);
+
+			// Include column mapping if set
+			if (Object.keys(columnMapping).length > 0) {
+				formData.append('options', JSON.stringify({ columnMapping }));
+			}
+
+			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv/check-duplicates`, {
+				method: 'POST',
+				body: formData,
+				credentials: 'include',
+				headers: {
+					'Authorization': `Bearer ${auth.accessToken || ''}`,
+					'X-CSRF-Token': getCsrfToken()
+				}
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || 'Duplicate check failed');
+			}
+
+			duplicateResult = await response.json();
+
+			const hasDbMatches = duplicateResult!.databaseMatches && duplicateResult!.databaseMatches.length > 0;
+			const hasFileGroups = duplicateResult!.withinFileGroups && duplicateResult!.withinFileGroups.length > 0;
+
+			if (hasDbMatches || hasFileGroups) {
+				// Initialize default resolutions based on confidence
+				resolutions = new Map();
+				for (const match of (duplicateResult!.databaseMatches || [])) {
+					const defaultAction = match.confidenceScore >= 0.95 ? 'skip' : 'import';
+					resolutions.set(match.importRowIndex, {
+						action: defaultAction,
+						selectedMatchId: match.matchedRecordId,
+					});
+				}
+
+				// Initialize within-file selections (default to first row in each group)
+				withinFileSelections = new Map();
+				for (const group of (duplicateResult!.withinFileGroups || [])) {
+					withinFileSelections.set(group.groupId, group.keepIndex);
+				}
+
+				step = 2.75; // Show review step
+			} else {
+				// No duplicates - show brief "all clear" and proceed
+				showAllClear = true;
+				setTimeout(() => {
+					showAllClear = false;
+					step = 3;
+				}, 2000);
+			}
+		} catch (err) {
+			duplicateCheckError = err instanceof Error ? err.message : 'Failed to check duplicates';
+		} finally {
+			checkingDuplicates = false;
+		}
+	}
+
+	function setResolution(rowIndex: number, action: ImportResolution['action'], matchId?: string) {
+		const newMap = new Map(resolutions);
+		newMap.set(rowIndex, { action, selectedMatchId: matchId });
+		resolutions = newMap;
+	}
+
+	function setWithinFileSelection(groupId: string, keepIndex: number) {
+		const newMap = new Map(withinFileSelections);
+		newMap.set(groupId, keepIndex);
+		withinFileSelections = newMap;
+	}
+
+	function bulkResolve(action: 'skip' | 'import') {
+		const newMap = new Map(resolutions);
+		for (const match of (duplicateResult?.databaseMatches || [])) {
+			// Only set resolution if not already resolved
+			if (!newMap.has(match.importRowIndex)) {
+				newMap.set(match.importRowIndex, {
+					action,
+					selectedMatchId: match.matchedRecordId,
+				});
+			}
+		}
+		resolutions = newMap;
+	}
+
+	function getResolvedCount(): number {
+		return resolutions.size;
+	}
+
+	function getTotalFlaggedCount(): number {
+		return (duplicateResult?.databaseMatches?.length || 0);
+	}
+
+	function allResolved(): boolean {
+		const dbMatchCount = duplicateResult?.databaseMatches?.length || 0;
+		const fileGroupCount = duplicateResult?.withinFileGroups?.length || 0;
+
+		// All database matches must have resolutions
+		const allDbResolved = resolutions.size >= dbMatchCount;
+
+		// All within-file groups must have selections
+		const allFileResolved = withinFileSelections.size >= fileGroupCount;
+
+		return allDbResolved && allFileResolved;
+	}
+
+	function proceedToImport() {
+		if (!allResolved()) return;
+		step = 3;
+	}
+
+	function getConfidenceColor(tier: string): string {
+		switch (tier) {
+			case 'high': return 'text-red-600 bg-red-50';
+			case 'medium': return 'text-yellow-600 bg-yellow-50';
+			case 'low': return 'text-blue-600 bg-blue-50';
+			default: return 'text-gray-600 bg-gray-50';
+		}
+	}
+
+	function skipDuplicateCheck() {
+		// Allow user to skip duplicate check if it failed
+		duplicateCheckError = '';
+		step = 3;
+	}
 </script>
 
 <div class="max-w-6xl mx-auto">
