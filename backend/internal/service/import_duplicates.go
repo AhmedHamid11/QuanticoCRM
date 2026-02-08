@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"fmt"
 	"sort"
 	"strings"
@@ -18,6 +20,14 @@ import (
 type ImportDuplicateService struct {
 	detector         *dedup.Detector
 	matchingRuleRepo *repo.MatchingRuleRepo
+}
+
+// AuditEntry represents a single row's resolution for the audit report
+type AuditEntry struct {
+	RowIndex  int
+	Action    string
+	MatchedID string
+	Reason    string
 }
 
 // NewImportDuplicateService creates a new ImportDuplicateService
@@ -283,4 +293,26 @@ func (s *ImportDuplicateService) extractRecordName(record map[string]interface{}
 	}
 
 	return "Unknown"
+}
+
+// GenerateAuditReport creates a CSV report of all import resolution actions
+func (s *ImportDuplicateService) GenerateAuditReport(entries []AuditEntry) []byte {
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	// Write header
+	writer.Write([]string{"Row Number", "Action", "Matched Record ID", "Reason"})
+
+	// Write entries
+	for _, entry := range entries {
+		writer.Write([]string{
+			fmt.Sprintf("%d", entry.RowIndex+1), // Convert to 1-based for user display
+			entry.Action,
+			entry.MatchedID,
+			entry.Reason,
+		})
+	}
+
+	writer.Flush()
+	return buf.Bytes()
 }

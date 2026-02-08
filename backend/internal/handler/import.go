@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -84,13 +85,15 @@ type LookupResolution struct {
 
 // ImportCSVRequest represents optional parameters for CSV import
 type ImportCSVRequest struct {
-	Mode             ImportMode                  `json:"mode"`             // create, update, upsert, delete (default: create)
-	MatchField       string                      `json:"matchField"`       // Field to match on for upsert/update/delete (e.g., "email")
-	ColumnMapping    map[string]string           `json:"columnMapping"`    // CSV header -> field name
-	LookupResolution map[string]LookupResolution `json:"lookupResolution"` // fieldName -> resolution config
-	SkipErrors       bool                        `json:"skipErrors"`
-	FireTripwires    bool                        `json:"fireTripwires"`
-	ValidateOnly     bool                        `json:"validateOnly"`
+	Mode                   ImportMode                         `json:"mode"`                   // create, update, upsert, delete (default: create)
+	MatchField             string                             `json:"matchField"`             // Field to match on for upsert/update/delete (e.g., "email")
+	ColumnMapping          map[string]string                  `json:"columnMapping"`          // CSV header -> field name
+	LookupResolution       map[string]LookupResolution        `json:"lookupResolution"`       // fieldName -> resolution config
+	DuplicateResolutions   map[int]entity.ImportResolution    `json:"duplicateResolutions"`   // rowIndex -> resolution decision
+	WithinFileSkipIndices  []int                              `json:"withinFileSkipIndices"`  // Row indices to skip from within-file duplicates
+	SkipErrors             bool                               `json:"skipErrors"`
+	FireTripwires          bool                               `json:"fireTripwires"`
+	ValidateOnly           bool                               `json:"validateOnly"`
 }
 
 // ImportCSVResponse represents the response from a CSV import
@@ -99,7 +102,8 @@ type ImportCSVResponse struct {
 	Created       int                      `json:"created,omitempty"`
 	Updated       int                      `json:"updated,omitempty"`
 	Deleted       int                      `json:"deleted,omitempty"`
-	Skipped       int                      `json:"skipped,omitempty"` // Records skipped (not found for update/delete)
+	Skipped       int                      `json:"skipped,omitempty"` // Records skipped (not found for update/delete or by duplicate resolution)
+	Merged        int                      `json:"merged,omitempty"`  // Records sent to merge (resolution action = merge)
 	Failed        int                      `json:"failed"`
 	Validated     int                      `json:"validated,omitempty"`
 	TotalRows     int                      `json:"totalRows"`
@@ -107,6 +111,7 @@ type ImportCSVResponse struct {
 	MappedHeaders []string                 `json:"mappedHeaders,omitempty"`
 	Errors        []BulkError              `json:"errors,omitempty"`
 	IDs           []string                 `json:"ids,omitempty"`
+	AuditReport   string                   `json:"auditReport,omitempty"` // Base64-encoded CSV audit report
 }
 
 // PreviewCSVResponse represents a preview of CSV data before import
@@ -388,37 +393,148 @@ func (h *ImportHandler) processCreateMode(
 	errors []BulkError,
 ) error {
 	var createdIDs []string
+	var updatedIDs []string
+	var auditEntries []service.AuditEntry
 
-	batchSize := DefaultBatchSize
-	for batchStart := 0; batchStart < len(records); batchStart += batchSize {
-		batchEnd := batchStart + batchSize
-		if batchEnd > len(records) {
-			batchEnd = len(records)
+	// Build skip map from within-file indices
+	withinFileSkipMap := make(map[int]bool)
+	for _, idx := range options.WithinFileSkipIndices {
+		withinFileSkipMap[idx] = true
+	}
+
+	// Categorize records based on resolutions
+	recordsToCreate := make(map[int]map[string]interface{})
+	recordsToUpdate := make(map[int]string) // rowIndex -> recordID
+
+	for i := range records {
+		if failedIndices[i] {
+			continue
 		}
 
-		batch := records[batchStart:batchEnd]
-		batchIDs, batchErrors := h.processBatch(c.Context(), h.getDB(c), orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
+		// Check within-file skip
+		if withinFileSkipMap[i] {
+			response.Skipped++
+			auditEntries = append(auditEntries, service.AuditEntry{
+				RowIndex:  i,
+				Action:    "Skipped",
+				MatchedID: "",
+				Reason:    "Within-file duplicate (not selected as keeper)",
+			})
+			continue
+		}
 
-		createdIDs = append(createdIDs, batchIDs...)
-		errors = append(errors, batchErrors...)
+		// Check duplicate resolution
+		if resolution, ok := options.DuplicateResolutions[i]; ok {
+			switch resolution.Action {
+			case "skip":
+				response.Skipped++
+				auditEntries = append(auditEntries, service.AuditEntry{
+					RowIndex:  i,
+					Action:    "Skipped",
+					MatchedID: resolution.SelectedMatchID,
+					Reason:    "User chose to skip (duplicate of existing record)",
+				})
+				continue
+			case "update":
+				recordsToUpdate[i] = resolution.SelectedMatchID
+				auditEntries = append(auditEntries, service.AuditEntry{
+					RowIndex:  i,
+					Action:    "Updated",
+					MatchedID: resolution.SelectedMatchID,
+					Reason:    "User chose to update existing record",
+				})
+				continue
+			case "merge":
+				response.Merged++
+				auditEntries = append(auditEntries, service.AuditEntry{
+					RowIndex:  i,
+					Action:    "Sent to Merge",
+					MatchedID: resolution.SelectedMatchID,
+					Reason:    "User chose to merge via merge wizard",
+				})
+				continue
+			case "import":
+				// Fall through to create normally
+				auditEntries = append(auditEntries, service.AuditEntry{
+					RowIndex:  i,
+					Action:    "Imported",
+					MatchedID: "",
+					Reason:    "User chose to import as new record",
+				})
+			}
+		}
 
-		// Fire tripwires
+		// Default: create normally
+		recordsToCreate[i] = records[i]
+	}
+
+	// Process updates
+	for rowIdx, recordID := range recordsToUpdate {
+		err := h.updateExistingRecord(c.Context(), h.getDB(c), orgID, userID, entityName, recordID, records[rowIdx], now)
+		if err != nil {
+			if options.SkipErrors {
+				errors = append(errors, BulkError{Index: rowIdx, Error: err.Error()})
+				continue
+			}
+			response.Failed = len(errors) + 1
+			response.Errors = append(errors, BulkError{Index: rowIdx, Error: err.Error()})
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
+		}
+		updatedIDs = append(updatedIDs, recordID)
+
+		// Fire tripwires for update
 		if options.FireTripwires && h.tripwireService != nil {
-			for i, id := range batchIDs {
-				recordIdx := batchStart + i
-				if failedIndices[recordIdx] {
-					continue
+			go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, recordID, "UPDATE", nil, records[rowIdx])
+		}
+	}
+
+	// Process creates in batches
+	if len(recordsToCreate) > 0 {
+		// Build sequential list from map
+		var createList []map[string]interface{}
+		var createIndices []int
+		for idx := 0; idx < len(records); idx++ {
+			if rec, ok := recordsToCreate[idx]; ok {
+				createList = append(createList, rec)
+				createIndices = append(createIndices, idx)
+			}
+		}
+
+		batchSize := DefaultBatchSize
+		for batchStart := 0; batchStart < len(createList); batchStart += batchSize {
+			batchEnd := batchStart + batchSize
+			if batchEnd > len(createList) {
+				batchEnd = len(createList)
+			}
+
+			batch := createList[batchStart:batchEnd]
+			batchIDs, batchErrors := h.processBatch(c.Context(), h.getDB(c), orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
+
+			createdIDs = append(createdIDs, batchIDs...)
+			errors = append(errors, batchErrors...)
+
+			// Fire tripwires
+			if options.FireTripwires && h.tripwireService != nil {
+				for i, id := range batchIDs {
+					recordIdx := createIndices[batchStart+i]
+					go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, id, "CREATE", nil, records[recordIdx])
 				}
-				go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, id, "CREATE", nil, records[recordIdx])
 			}
 		}
 	}
 
 	response.Created = len(createdIDs)
+	response.Updated = len(updatedIDs)
 	response.Failed = len(errors)
-	response.IDs = createdIDs
+	response.IDs = append(createdIDs, updatedIDs...)
 	if len(errors) > 0 {
 		response.Errors = errors
+	}
+
+	// Generate audit report if we have audit entries
+	if len(auditEntries) > 0 && h.duplicateService != nil {
+		reportCSV := h.duplicateService.GenerateAuditReport(auditEntries)
+		response.AuditReport = base64.StdEncoding.EncodeToString(reportCSV)
 	}
 
 	if response.Failed > 0 && !options.SkipErrors {
@@ -426,6 +542,91 @@ func (h *ImportHandler) processCreateMode(
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(response)
+}
+
+// updateExistingRecord updates an existing record with import row values
+func (h *ImportHandler) updateExistingRecord(
+	ctx context.Context,
+	dbConn *sql.DB,
+	orgID, userID, entityName, recordID string,
+	importRow map[string]interface{},
+	now string,
+) error {
+	tableName := util.CamelToSnake(entityName)
+
+	// Get field definitions to properly handle the update
+	fields, err := h.metadataRepo.ListFields(ctx, orgID, entityName)
+	if err != nil {
+		return fmt.Errorf("failed to get fields: %w", err)
+	}
+
+	// Build SET clause from import row
+	var setClauses []string
+	var args []interface{}
+
+	for _, field := range fields {
+		if field.Name == "id" || field.Name == "createdAt" || field.Name == "createdById" {
+			continue // Don't overwrite system fields
+		}
+
+		// Handle lookup fields
+		if field.Type == entity.FieldTypeLink {
+			baseName := strings.TrimSuffix(field.Name, "Id")
+			snakeName := util.CamelToSnake(baseName)
+			idKey := baseName + "Id"
+			nameKey := baseName + "Name"
+
+			if idVal, ok := importRow[idKey]; ok {
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_id")))
+				args = append(args, idVal)
+			}
+			if nameVal, ok := importRow[nameKey]; ok {
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_name")))
+				args = append(args, nameVal)
+			}
+			continue
+		}
+
+		// Handle multi-lookup fields
+		if field.Type == entity.FieldTypeLinkMultiple {
+			snakeName := util.CamelToSnake(field.Name)
+			idsKey := field.Name + "Ids"
+			namesKey := field.Name + "Names"
+
+			if idsVal, ok := importRow[idsKey]; ok {
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_ids")))
+				args = append(args, idsVal)
+			}
+			if namesVal, ok := importRow[namesKey]; ok {
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_names")))
+				args = append(args, namesVal)
+			}
+			continue
+		}
+
+		// Regular fields
+		if val, ok := importRow[field.Name]; ok {
+			setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(util.CamelToSnake(field.Name))))
+			args = append(args, val)
+		}
+	}
+
+	if len(setClauses) == 0 {
+		return nil // Nothing to update
+	}
+
+	// Add modified timestamp
+	setClauses = append(setClauses, "modified_at = ?", "modified_by_id = ?")
+	args = append(args, now, userID)
+
+	// Add WHERE clause values
+	args = append(args, recordID, orgID)
+
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE id = ? AND org_id = ?",
+		tableName, strings.Join(setClauses, ", "))
+
+	_, err = dbConn.ExecContext(ctx, query, args...)
+	return err
 }
 
 // processUpdateMode handles update operations
