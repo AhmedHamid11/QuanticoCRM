@@ -89,7 +89,44 @@
 		ids?: string[];
 	}
 
-	let step = $state(1); // 1=Upload, 2=Validate, 2.5=CreateLookups, 3=Import
+	interface ImportMatchCandidate {
+		recordId: string;
+		name: string;
+		score: number;
+	}
+
+	interface ImportDuplicateMatch {
+		importRowIndex: number;
+		importRow: Record<string, any>;
+		matchedRecordId: string;
+		matchedRecord: Record<string, any>;
+		confidenceScore: number;
+		confidenceTier: string; // "high", "medium", "low"
+		matchedFields: string[];
+		ruleName: string;
+		otherMatches?: ImportMatchCandidate[];
+	}
+
+	interface ImportDuplicateGroup {
+		groupId: string;
+		rowIndices: number[];
+		rows: Record<string, any>[];
+		keepIndex: number;
+	}
+
+	interface DuplicateCheckResult {
+		databaseMatches: ImportDuplicateMatch[];
+		withinFileGroups: ImportDuplicateGroup[];
+		totalRows: number;
+		flaggedRows: number;
+	}
+
+	interface ImportResolution {
+		action: 'skip' | 'update' | 'import' | 'merge';
+		selectedMatchId?: string;
+	}
+
+	let step = $state(1); // 1=Upload, 2=Validate, 2.5=CreateLookups, 2.75=DuplicateReview, 3=Import
 	let file: File | null = $state(null);
 	let previewData: PreviewResponse | null = $state(null);
 	let columnMapping: Record<string, string> = $state({});
@@ -105,6 +142,14 @@
 	// Import mode settings
 	let importMode: ImportMode = $state('create');
 	let matchField: string = $state(''); // For update/upsert/delete - which field identifies records
+
+	// Duplicate detection state
+	let duplicateResult: DuplicateCheckResult | null = $state(null);
+	let resolutions: Map<number, ImportResolution> = $state(new Map());
+	let withinFileSelections: Map<string, number> = $state(new Map()); // groupId -> keepIndex
+	let checkingDuplicates = $state(false);
+	let duplicateCheckError = $state('');
+	let showAllClear = $state(false);
 
 	// Handle file selection
 	async function handleFileSelect(event: Event) {
