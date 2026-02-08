@@ -84,9 +84,12 @@
 		created: number;
 		updated: number;
 		failed: number;
+		skipped?: number;
+		merged?: number;
 		totalRows: number;
 		errors?: Array<{ index: number; error: string }>;
 		ids?: string[];
+		auditReport?: string; // Base64-encoded CSV
 	}
 
 	interface ImportMatchCandidate {
@@ -294,15 +297,43 @@
 				};
 			}
 
-			const formData = new FormData();
-			formData.append('file', file);
-			formData.append('options', JSON.stringify({
+			// Build options object
+			const options: any = {
 				columnMapping,
 				lookupResolution: Object.keys(finalLookupResolution).length > 0 ? finalLookupResolution : undefined,
 				mode: importMode,
 				matchField: (importMode !== 'create' && matchField) ? matchField : undefined,
 				skipErrors: false
-			}));
+			};
+
+			// Add duplicate resolutions if any were made
+			if (resolutions.size > 0) {
+				const resolutionObj: Record<number, ImportResolution> = {};
+				resolutions.forEach((value, key) => {
+					resolutionObj[key] = value;
+				});
+				options.duplicateResolutions = resolutionObj;
+			}
+
+			// Add within-file skip indices
+			if (withinFileSelections.size > 0 && duplicateResult?.withinFileGroups) {
+				const skipIndices: number[] = [];
+				for (const group of duplicateResult.withinFileGroups) {
+					const keepIdx = withinFileSelections.get(group.groupId) ?? group.keepIndex;
+					for (const rowIdx of group.rowIndices) {
+						if (rowIdx !== keepIdx) {
+							skipIndices.push(rowIdx);
+						}
+					}
+				}
+				if (skipIndices.length > 0) {
+					options.withinFileSkipIndices = skipIndices;
+				}
+			}
+
+			const formData = new FormData();
+			formData.append('file', file);
+			formData.append('options', JSON.stringify(options));
 
 			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv`, {
 				method: 'POST',
@@ -326,6 +357,8 @@
 			if (importResult.created > 0) messages.push(`${importResult.created} created`);
 			if (importResult.updated > 0) messages.push(`${importResult.updated} updated`);
 			if ((importResult as any).deleted > 0) messages.push(`${(importResult as any).deleted} deleted`);
+			if (importResult.skipped && importResult.skipped > 0) messages.push(`${importResult.skipped} skipped`);
+			if (importResult.merged && importResult.merged > 0) messages.push(`${importResult.merged} sent to merge`);
 			addToast('success', `Import complete: ${messages.join(', ') || 'No changes'}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Import failed';
@@ -589,6 +622,23 @@
 		// Allow user to skip duplicate check if it failed
 		duplicateCheckError = '';
 		step = 3;
+	}
+
+	function downloadAuditReport(base64Data: string) {
+		const binaryString = atob(base64Data);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+		const blob = new Blob([bytes], { type: 'text/csv' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `import-audit-${entityName}-${new Date().toISOString().split('T')[0]}.csv`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
 	}
 </script>
 
@@ -1157,34 +1207,75 @@
 			<h2 class="text-xl font-semibold mb-4">Step 3: Import Complete</h2>
 
 			<div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-				<h3 class="font-semibold text-green-800 mb-2">Import Successful</h3>
-				<div class="text-green-700 space-y-1">
+				<h3 class="font-semibold text-green-800 mb-3">Import Summary</h3>
+
+				<!-- Action counts grid -->
+				<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
 					{#if importResult.created > 0}
-						<p>Created: {importResult.created} records</p>
+						<div class="bg-white rounded-md p-3 border border-green-200">
+							<div class="text-sm text-gray-600">Imported</div>
+							<div class="text-2xl font-bold text-green-700">{importResult.created}</div>
+						</div>
 					{/if}
 					{#if importResult.updated > 0}
-						<p>Updated: {importResult.updated} records</p>
+						<div class="bg-white rounded-md p-3 border border-blue-200">
+							<div class="text-sm text-gray-600">Updated</div>
+							<div class="text-2xl font-bold text-blue-700">{importResult.updated}</div>
+						</div>
+					{/if}
+					{#if importResult.skipped && importResult.skipped > 0}
+						<div class="bg-white rounded-md p-3 border border-gray-200">
+							<div class="text-sm text-gray-600">Skipped</div>
+							<div class="text-2xl font-bold text-gray-700">{importResult.skipped}</div>
+						</div>
+					{/if}
+					{#if importResult.merged && importResult.merged > 0}
+						<div class="bg-white rounded-md p-3 border border-purple-200">
+							<div class="text-sm text-gray-600">Sent to Merge</div>
+							<div class="text-2xl font-bold text-purple-700">{importResult.merged}</div>
+						</div>
 					{/if}
 					{#if (importResult as any).deleted > 0}
-						<p>Deleted: {(importResult as any).deleted} records</p>
+						<div class="bg-white rounded-md p-3 border border-red-200">
+							<div class="text-sm text-gray-600">Deleted</div>
+							<div class="text-2xl font-bold text-red-700">{(importResult as any).deleted}</div>
+						</div>
 					{/if}
-					{#if (importResult as any).skipped > 0}
-						<p>Skipped: {(importResult as any).skipped} records (not found)</p>
+					{#if importResult.failed > 0}
+						<div class="bg-white rounded-md p-3 border border-red-300">
+							<div class="text-sm text-gray-600">Failed</div>
+							<div class="text-2xl font-bold text-red-700">{importResult.failed}</div>
+						</div>
 					{/if}
-					<p class="text-gray-600 text-sm mt-2">Total rows processed: {importResult.totalRows}</p>
 				</div>
+
+				<p class="text-gray-600 text-sm mt-2">Total rows processed: {importResult.totalRows}</p>
+
+				<!-- Audit report download button -->
+				{#if importResult.auditReport}
+					<div class="mt-4">
+						<button
+							onclick={() => downloadAuditReport(importResult.auditReport!)}
+							class="inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-white hover:bg-green-50"
+						>
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+							</svg>
+							Download Audit Report
+						</button>
+						<p class="text-xs text-gray-500 mt-1">CSV file showing what happened to each flagged row</p>
+					</div>
+				{/if}
 			</div>
 
-			{#if importResult.failed > 0}
+			{#if importResult.failed > 0 && importResult.errors}
 				<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
 					<h3 class="font-semibold text-red-800 mb-2">Failed Records: {importResult.failed}</h3>
-					{#if importResult.errors}
-						<ul class="list-disc list-inside text-red-700">
-							{#each importResult.errors as err}
-								<li>Row {err.index}: {err.error}</li>
-							{/each}
-						</ul>
-					{/if}
+					<ul class="list-disc list-inside text-red-700 max-h-48 overflow-y-auto">
+						{#each importResult.errors as err}
+							<li>Row {err.index}: {err.error}</li>
+						{/each}
+					</ul>
 				</div>
 			{/if}
 
