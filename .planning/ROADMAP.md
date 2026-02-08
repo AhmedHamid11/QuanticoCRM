@@ -107,14 +107,14 @@ Plans:
   4. Admin can bulk merge multiple duplicate groups with progress indicator
   5. Merge history shows recent merges with undo option (if within 30 days)
   6. Admin can view and manage scheduled scan jobs
-**Plans**: TBD
+**Plans**: 5 plans
 
 Plans:
-- [ ] 16-01: Duplicate rule management UI
-- [ ] 16-02: Duplicate review queue
-- [ ] 16-03: Merge wizard
-- [ ] 16-04: Bulk merge and merge history UI
-- [ ] 16-05: Scan job management UI
+- [ ] 16-01-PLAN.md -- Backend ListAllPending endpoint, frontend API client, admin hub Data Quality link
+- [ ] 16-02-PLAN.md -- Duplicate rule management page with inline editing and Test Rule
+- [ ] 16-03-PLAN.md -- Review queue with card-based groups, Quick Merge, and bulk actions
+- [ ] 16-04-PLAN.md -- Merge wizard (single-page) and merge history with undo
+- [ ] 16-05-PLAN.md -- Scan job dashboard with SSE progress and schedule management
 
 ---
 
@@ -135,4 +135,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-08 - Phase 15 complete (Background Scanning)*
+*Last updated: 2026-02-08 - Phase 16 planned (Admin UI)*
