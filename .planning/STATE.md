@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 ## Current Position
 
 **Milestone:** v3.0 Deduplication System
-**Phase:** 15 of 16 (Background Scanning)
-**Plan:** 3 of 3 complete
-**Status:** Phase complete
+**Phase:** 16 of 16 (Admin UI)
+**Plan:** 1 of 4 complete
+**Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 15-03-PLAN.md (API & Wiring)
+**Last activity:** 2026-02-08 - Completed 16-01-PLAN.md (Foundation & API Client)
 
-Progress: [████░░░░░░] 81% (17/21 plans)
+Progress: [█████░░░░░] 86% (18/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 48 (9 v1.0 + 22 v2.0 + 17 v3.0)
+- Total plans completed: 49 (9 v1.0 + 22 v2.0 + 18 v3.0)
 - Average duration: 3.9 min
-- Total execution time: ~207 min
+- Total execution time: ~210 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [████░░░░░░] 81% (17/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 17/21 | ~76 min |
+| v3.0 Deduplication | 11-16 | 18/21 | ~79 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [████░░░░░░] 81% (17/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 16-01 | ListAllPending sorts by highest_confidence DESC, detected_at DESC | Highest confidence alerts first per user decisions from Phase 12 context | 2026-02-08 |
+| 16-01 | data-quality.ts re-exports utilities from dedup.ts | Avoid duplication of getBannerClass, formatConfidence functions | 2026-02-08 |
+| 16-01 | PaginatedResponse generic type for all paginated endpoints | Consistent pagination interface across rules, alerts, merge history, scan jobs | 2026-02-08 |
 | 15-03 | Notification message: "{Entity} scan complete" with NO duplicate count | Simplicity and consistency per CONTEXT.md locked decisions | 2026-02-08 |
 | 15-03 | Failure notification: "{Entity} scan failed at X% -- click to retry" | Shows progress percentage at failure point for context | 2026-02-08 |
 | 15-03 | SSE uses Fiber StreamWriter with fasthttp, 30s keepalive pings | Per RESEARCH.md pattern, prevents timeout on idle connections | 2026-02-08 |
@@ -121,10 +124,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 14:03:47
-Stopped at: Completed 15-03-PLAN.md - API & Wiring (Phase 15 complete)
+Last session: 2026-02-08 22:10:39
+Stopped at: Completed 16-01-PLAN.md - Foundation & API Client
 Resume file: None
 
 ---
 
-*Updated: 2026-02-08 - Phase 15 complete (Background Scanning)*
+*Updated: 2026-02-08 - Phase 16 in progress (Admin UI)*
