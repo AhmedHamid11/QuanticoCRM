@@ -27,6 +27,7 @@ type ImportHandler struct {
 	csvValidator      *service.CSVValidatorService
 	tripwireService   TripwireServiceInterface
 	validationService ValidationServiceInterface
+	duplicateService  *service.ImportDuplicateService
 }
 
 // NewImportHandler creates a new ImportHandler
@@ -35,6 +36,7 @@ func NewImportHandler(
 	metadataRepo *repo.MetadataRepo,
 	tripwireService TripwireServiceInterface,
 	validationService ValidationServiceInterface,
+	duplicateService *service.ImportDuplicateService,
 ) *ImportHandler {
 	return &ImportHandler{
 		db:                db,
@@ -43,6 +45,7 @@ func NewImportHandler(
 		csvValidator:      service.NewCSVValidatorService(),
 		tripwireService:   tripwireService,
 		validationService: validationService,
+		duplicateService:  duplicateService,
 	}
 }
 
@@ -1690,10 +1693,101 @@ func (h *ImportHandler) ensureTableExists(ctx context.Context, db *sql.DB, orgID
 	return err
 }
 
+// CheckDuplicates handles POST /api/v1/entities/:entity/import/csv/check-duplicates
+func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+
+	// Verify entity exists
+	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	if ent == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+	}
+
+	// Get the uploaded file
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No file uploaded. Use 'file' field in multipart form."})
+	}
+
+	// Validate file size (max 50MB)
+	if fileHeader.Size > 50*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "File too large. Maximum size is 50MB."})
+	}
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".csv") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid file type. Only CSV files are accepted."})
+	}
+
+	// Open the file
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
+	}
+	defer file.Close()
+
+	// Read file content into buffer
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read file content"})
+	}
+
+	// Parse options from form data (column mapping)
+	var options ImportCSVRequest
+	if optionsStr := c.FormValue("options"); optionsStr != "" {
+		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid options JSON"})
+		}
+	}
+
+	// Get field definitions
+	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Parse CSV
+	var parseResult *service.CSVParseResult
+	if len(options.ColumnMapping) > 0 {
+		parseResult, err = h.csvParser.ParseWithMapping(bytes.NewReader(fileContent), options.ColumnMapping)
+	} else {
+		parseResult, err = h.csvParser.Parse(bytes.NewReader(fileContent), fields)
+	}
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if len(parseResult.Records) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No valid records found in CSV"})
+	}
+
+	// Get tenant database connection
+	tenantDB := middleware.GetTenantDB(c)
+	if tenantDB == nil {
+		tenantDB = h.db
+	}
+
+	// Check for duplicates
+	result, err := h.duplicateService.CheckDuplicates(c.Context(), tenantDB, orgID, entityName, parseResult.Records)
+	if err != nil {
+		// If detection fails, return error with suggestion to skip
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Duplicate detection failed: %v. You can skip duplicate checking and proceed with import.", err),
+		})
+	}
+
+	return c.JSON(result)
+}
+
 // RegisterRoutes registers import routes
 func (h *ImportHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/entities/:entity/import/csv", h.ImportCSV)
 	app.Post("/entities/:entity/import/csv/preview", h.PreviewCSV)
 	app.Post("/entities/:entity/import/csv/analyze", h.AnalyzeCSV)
 	app.Post("/entities/:entity/import/csv/analyze-lookups", h.AnalyzeLookups)
+	app.Post("/entities/:entity/import/csv/check-duplicates", h.CheckDuplicates)
 }

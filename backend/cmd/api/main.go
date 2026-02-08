@@ -141,6 +141,7 @@ func main() {
 	defaultRegion := "US" // Default region for phone normalization
 	detector := dedup.NewDetector(matchingRuleRepo, defaultRegion)
 	realtimeChecker := dedup.NewRealtimeChecker(detector, pendingAlertRepo, matchingRuleRepo)
+	importDuplicateService := service.NewImportDuplicateService(detector, matchingRuleRepo)
 
 	// Initialize services
 	auditLogger := service.NewAuditLogger(auditRepo)
@@ -233,7 +234,7 @@ func main() {
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
-	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService)
+	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService, importDuplicateService)
 	metadataHandler := handler.NewMetadataHandler(metadataRepo)
 	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
 	listViewHandler := handler.NewListViewHandler(listViewRepo)
