@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 14 of 16 (Import Integration)
-**Plan:** 1 of 3 in current phase
+**Plan:** 2 of 3 in current phase
 **Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 14-01-PLAN.md (Import duplicate detection service)
+**Last activity:** 2026-02-08 - Completed 14-02-PLAN.md (Import duplicate review UI)
 
-Progress: [███░░░░░░░] 57% (12/21 plans)
+Progress: [███░░░░░░░] 62% (13/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43 (9 v1.0 + 22 v2.0 + 12 v3.0)
+- Total plans completed: 44 (9 v1.0 + 22 v2.0 + 13 v3.0)
 - Average duration: 3.7 min
-- Total execution time: ~165 min
+- Total execution time: ~168 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 57% (12/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 12/21 | ~34 min |
+| v3.0 Deduplication | 11-16 | 13/21 | ~37 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,10 @@ Progress: [███░░░░░░░] 57% (12/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 14-02 | High confidence (>=95%) defaults to Skip, medium defaults to Import Anyway | Prevents accidental duplicates while preserving data from uncertain matches | 2026-02-08 |
+| 14-02 | Bulk actions don't override user decisions | Skip All/Import All only affect unresolved rows, respecting manual selections | 2026-02-08 |
+| 14-02 | All clear message auto-proceeds after 2 seconds | Zero-duplicate case shows brief green toast then advances to import | 2026-02-08 |
+| 14-02 | Merge button opens merge wizard in new tab | Preserves import wizard state while allowing merge workflow | 2026-02-08 |
 | 14-01 | Reuse Phase 11 Detector for database duplicate detection | Ensures consistent matching behavior between real-time and import detection | 2026-02-08 |
 | 14-01 | SHA-256 hash of normalized match field values for within-file grouping | Fast exact-duplicate detection within CSV; groups rows with identical normalized values | 2026-02-08 |
 | 14-01 | Return empty results (not error) when no matching rules exist | Import can proceed without duplicate checking if rules aren't configured | 2026-02-08 |
@@ -102,8 +106,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 02:04:00
-Stopped at: Completed 14-01-PLAN.md - Import duplicate detection service
+Last session: 2026-02-08 02:11:05
+Stopped at: Completed 14-02-PLAN.md - Import duplicate review UI
 Resume file: None
 
 ---
