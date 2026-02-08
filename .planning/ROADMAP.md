@@ -80,21 +80,21 @@ Plans:
 - [x] 14-03-PLAN.md -- Import execution with resolutions + post-import audit report ✓
 
 ### Phase 15: Background Scanning
-**Goal**: Scheduled duplicate scans with job management and notifications
+**Goal**: Scheduled duplicate scans with job management, chunked processing, checkpoint recovery, and in-app notifications
 **Depends on**: Phase 11, Phase 13
 **Requirements**: BACKGROUND-01, BACKGROUND-02, BACKGROUND-03, BACKGROUND-04, BACKGROUND-05, BACKGROUND-06
 **Success Criteria** (what must be TRUE):
   1. Admin can schedule duplicate scans per entity type (daily/weekly/monthly)
   2. Scans use cursor-based chunking with checkpoint progress to avoid timeouts
   3. Job status shows pending/running/completed/failed with progress percentage
-  4. Admin receives email notification when scan completes with summary and link to review queue
+  4. In-app notification when scan completes with link to review queue
   5. Failed jobs can be retried from last checkpoint
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 15-01: Job infrastructure with scheduling
-- [ ] 15-02: Chunked scanning with checkpoints
-- [ ] 15-03: Job notifications and retry logic
+- [ ] 15-01-PLAN.md -- Database schema, entity types, SFID prefixes, and repository layer
+- [ ] 15-02-PLAN.md -- Scan job execution service (chunked, checkpointed) and gocron scheduler
+- [ ] 15-03-PLAN.md -- Notification service, HTTP handlers, SSE progress, and main.go wiring
 
 ### Phase 16: Admin UI
 **Goal**: Complete admin interface for duplicate rule management, review queue, and merge wizard
@@ -128,11 +128,11 @@ Plans:
 | 12. Real-Time Detection | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 13. Merge Engine | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 14. Import Integration | v3.0 | 3/3 | Complete | 2026-02-08 |
-| 15. Background Scanning | v3.0 | 0/3 | Not started | - |
+| 15. Background Scanning | v3.0 | 0/3 | Planned | - |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
 **v3.0 Total:** 14/22 plans
 
 ---
 
-*Last updated: 2026-02-08 - Phase 14 complete (Import Integration)*
+*Last updated: 2026-02-08 - Phase 15 planned (Background Scanning)*
