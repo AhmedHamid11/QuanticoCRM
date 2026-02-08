@@ -927,13 +927,225 @@
 				>
 					Back
 				</button>
+				<div class="flex gap-2">
+					<button
+						onclick={skipDuplicateCheck}
+						disabled={!analyzeResult.valid}
+						class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+						title={!analyzeResult.valid ? 'Fix validation issues first' : ''}
+					>
+						Skip Duplicate Check
+					</button>
+					<button
+						onclick={checkDuplicates}
+						disabled={loading || !analyzeResult.valid}
+						class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+						title={!analyzeResult.valid ? 'Fix validation issues before continuing' : ''}
+					>
+						{loading ? 'Checking...' : 'Check for Duplicates'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- All Clear Message -->
+	{#if showAllClear}
+		<div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+			<svg class="w-8 h-8 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+			</svg>
+			<p class="text-sm font-medium text-green-800">No duplicates detected</p>
+			<p class="text-xs text-green-600 mt-1">All rows are unique. Proceeding to import...</p>
+		</div>
+	{/if}
+
+	<!-- Duplicate Check Loading/Error States -->
+	{#if checkingDuplicates}
+		<div class="text-center py-8">
+			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+			<p class="text-sm text-gray-500 mt-3">Checking for duplicates...</p>
+		</div>
+	{/if}
+
+	{#if duplicateCheckError}
+		<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+			<p class="text-sm text-yellow-800 font-medium">Duplicate check failed</p>
+			<p class="text-xs text-yellow-600 mt-1">{duplicateCheckError}</p>
+			<div class="flex gap-2 mt-3">
 				<button
-					onclick={executeImport}
-					disabled={loading || !analyzeResult.valid}
-					class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-					title={!analyzeResult.valid ? 'Fix validation issues before importing' : ''}
+					onclick={checkDuplicates}
+					class="px-3 py-1.5 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200"
+				>Retry</button>
+				<button
+					onclick={skipDuplicateCheck}
+					class="px-3 py-1.5 text-xs text-yellow-700 underline hover:text-yellow-900"
+				>Skip and import anyway</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Step 2.75: Duplicate Review -->
+	{#if step === 2.75 && duplicateResult}
+		<div class="space-y-6">
+			<!-- Header with resolved count and bulk actions -->
+			<div class="flex items-center justify-between">
+				<div>
+					<h3 class="text-lg font-semibold text-gray-900">Review Duplicates</h3>
+					<p class="text-sm text-gray-500 mt-1">
+						{getResolvedCount()} of {getTotalFlaggedCount()} rows resolved
+						{#if duplicateResult.withinFileGroups?.length > 0}
+							&middot; {duplicateResult.withinFileGroups.length} group{duplicateResult.withinFileGroups.length > 1 ? 's' : ''} of duplicate rows within file
+						{/if}
+					</p>
+				</div>
+				<div class="flex gap-2">
+					<button
+						onclick={() => bulkResolve('skip')}
+						class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+					>
+						Skip All Remaining
+					</button>
+					<button
+						onclick={() => bulkResolve('import')}
+						class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+					>
+						Import All Remaining
+					</button>
+				</div>
+			</div>
+
+			<!-- Database matches - side-by-side -->
+			{#each duplicateResult.databaseMatches || [] as match, idx}
+				<div class="border rounded-lg overflow-hidden">
+					<!-- Match header -->
+					<div class="bg-gray-50 px-4 py-3 flex items-center justify-between border-b">
+						<div class="flex items-center gap-3">
+							<span class="text-sm font-medium text-gray-700">Row {match.importRowIndex + 1}</span>
+							<span class="px-2 py-0.5 rounded text-xs font-medium {getConfidenceColor(match.confidenceTier)}">
+								{Math.round(match.confidenceScore * 100)}% match
+							</span>
+							<span class="text-xs text-gray-400">via {match.ruleName}</span>
+						</div>
+						<div class="flex gap-1">
+							<button
+								class="px-2.5 py-1 text-xs rounded {resolutions.get(match.importRowIndex)?.action === 'skip' ? 'bg-gray-700 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}"
+								onclick={() => setResolution(match.importRowIndex, 'skip', match.matchedRecordId)}
+							>Skip</button>
+							<button
+								class="px-2.5 py-1 text-xs rounded {resolutions.get(match.importRowIndex)?.action === 'update' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}"
+								onclick={() => setResolution(match.importRowIndex, 'update', match.matchedRecordId)}
+							>Update Existing</button>
+							<button
+								class="px-2.5 py-1 text-xs rounded {resolutions.get(match.importRowIndex)?.action === 'import' ? 'bg-green-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}"
+								onclick={() => setResolution(match.importRowIndex, 'import')}
+							>Import Anyway</button>
+							<button
+								class="px-2.5 py-1 text-xs rounded bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+								onclick={() => {
+									window.open(`/merge?entity=${entityName}&targetId=${match.matchedRecordId}`, '_blank');
+									setResolution(match.importRowIndex, 'merge', match.matchedRecordId);
+								}}
+							>Merge &rarr;</button>
+						</div>
+					</div>
+
+					<!-- Side-by-side comparison table -->
+					<div class="grid grid-cols-2 divide-x">
+						<!-- Import Row (Left) -->
+						<div>
+							<div class="bg-blue-50 px-4 py-2 text-xs font-medium text-blue-700 uppercase tracking-wider">Import Row</div>
+							<div class="divide-y">
+								{#each Object.entries(match.importRow) as [field, value]}
+									<div class="px-4 py-2 flex justify-between text-sm {match.matchedFields?.includes(field) ? 'bg-yellow-50 border-l-3 border-l-yellow-400' : ''}">
+										<span class="text-gray-500 font-medium">{field}</span>
+										<span class="text-gray-900">{value ?? '(empty)'}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Existing Record (Right) -->
+						<div>
+							<div class="bg-green-50 px-4 py-2 text-xs font-medium text-green-700 uppercase tracking-wider">Existing Record</div>
+							<div class="divide-y">
+								{#each Object.entries(match.matchedRecord) as [field, value]}
+									<div class="px-4 py-2 flex justify-between text-sm {match.matchedFields?.includes(field) ? 'bg-yellow-50 border-l-3 border-l-yellow-400' : ''}">
+										<span class="text-gray-500 font-medium">{field}</span>
+										<span class="text-gray-900">{value ?? '(empty)'}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+
+					<!-- Other matches (expandable) -->
+					{#if match.otherMatches && match.otherMatches.length > 0}
+						<details class="border-t px-4 py-2">
+							<summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+								{match.otherMatches.length} other potential match{match.otherMatches.length > 1 ? 'es' : ''}
+							</summary>
+							<ul class="mt-2 space-y-1">
+								{#each match.otherMatches as other}
+									<li class="flex items-center justify-between text-sm">
+										<span class="text-gray-700">{other.name} ({Math.round(other.score * 100)}%)</span>
+										<button
+											class="text-xs text-blue-600 hover:underline"
+											onclick={() => setResolution(match.importRowIndex, resolutions.get(match.importRowIndex)?.action || 'skip', other.recordId)}
+										>
+											Select this match
+										</button>
+									</li>
+								{/each}
+							</ul>
+						</details>
+					{/if}
+				</div>
+			{/each}
+
+			<!-- Within-file duplicate groups -->
+			{#each duplicateResult.withinFileGroups || [] as group}
+				<div class="border rounded-lg overflow-hidden">
+					<div class="bg-orange-50 px-4 py-3 border-b">
+						<h4 class="text-sm font-medium text-orange-800">Duplicate Rows Within File</h4>
+						<p class="text-xs text-orange-600 mt-1">These rows appear to be duplicates of each other. Select which one to keep:</p>
+					</div>
+					<div class="divide-y">
+						{#each group.rows as row, rowIdx}
+							<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 {withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx] ? 'bg-blue-50' : ''}">
+								<input
+									type="radio"
+									name="group-{group.groupId}"
+									checked={withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx]}
+									onchange={() => setWithinFileSelection(group.groupId, group.rowIndices[rowIdx])}
+									class="mt-1"
+								/>
+								<div class="flex-1 min-w-0">
+									<span class="text-sm font-medium text-gray-900">Row {group.rowIndices[rowIdx] + 1}</span>
+									<div class="text-xs text-gray-500 mt-0.5 truncate">
+										{Object.entries(row).slice(0, 4).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+									</div>
+								</div>
+							</label>
+						{/each}
+					</div>
+				</div>
+			{/each}
+
+			<!-- Navigation -->
+			<div class="flex justify-between items-center pt-4 border-t">
+				<button
+					onclick={() => { step = 2; duplicateResult = null; }}
+					class="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
 				>
-					{loading ? 'Importing...' : 'Import Data'}
+					Back
+				</button>
+				<button
+					onclick={proceedToImport}
+					disabled={!allResolved()}
+					class="px-4 py-2 text-sm font-medium rounded-md {allResolved() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}"
+				>
+					Proceed to Import ({getResolvedCount()} of {getTotalFlaggedCount()} resolved)
 				</button>
 			</div>
 		</div>
