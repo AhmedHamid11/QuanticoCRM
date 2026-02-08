@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 ## Current Position
 
 **Milestone:** v3.0 Deduplication System
-**Phase:** 14 of 16 (Import Integration)
-**Plan:** 3 of 3 in current phase
-**Status:** Phase complete
+**Phase:** 15 of 16 (Background Scanning)
+**Plan:** 1 of 4 in current phase
+**Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 14-03-PLAN.md (Import resolution execution)
+**Last activity:** 2026-02-08 - Completed 15-01-PLAN.md (Foundation schema & repositories)
 
-Progress: [███░░░░░░░] 67% (14/21 plans)
+Progress: [███░░░░░░░] 71% (15/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45 (9 v1.0 + 22 v2.0 + 14 v3.0)
+- Total plans completed: 46 (9 v1.0 + 22 v2.0 + 15 v3.0)
 - Average duration: 3.6 min
-- Total execution time: ~172 min
+- Total execution time: ~177 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 67% (14/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 14/21 | ~41 min |
+| v3.0 Deduplication | 11-16 | 15/21 | ~46 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [███░░░░░░░] 67% (14/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 15-01 | Scan schedules stored in master DB, jobs/checkpoints in tenant DB | Scheduler needs cross-org visibility to configure gocron jobs, but job data is org-specific | 2026-02-08 |
+| 15-01 | One checkpoint per job with UNIQUE(job_id) constraint | Resume logic only needs latest checkpoint, reduces table size and query complexity | 2026-02-08 |
+| 15-01 | Notifications auto-expire after 30 days | Prevents unbounded growth while supporting recent history checks, aligns with merge snapshot retention | 2026-02-08 |
 | 14-03 | 'update' resolution overwrites existing record with import row values | Allows user to replace outdated database records with newer CSV data while preserving system fields | 2026-02-08 |
 | 14-03 | Audit report tracks every resolution action | Compliance and debugging: shows what happened to each flagged row with reason | 2026-02-08 |
 | 14-03 | Within-file skip indices calculated from group selections | All non-keeper rows in duplicate groups are excluded from import automatically | 2026-02-08 |
@@ -109,10 +112,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 02:18:42
-Stopped at: Completed 14-03-PLAN.md - Import resolution execution
+Last session: 2026-02-08 13:26:00
+Stopped at: Completed 15-01-PLAN.md - Foundation schema & repositories
 Resume file: None
 
 ---
 
-*Updated: 2026-02-08 - Phase 14 complete (Import Integration)*
+*Updated: 2026-02-08 - Phase 15 in progress (Background Scanning)*
