@@ -29,14 +29,20 @@
 	let bulkProcessing = $state(false);
 	let bulkProgress = $state({ current: 0, total: 0 });
 
-	// Load alerts on mount and when filter/page changes
+	// Load alerts on mount
 	onMount(() => {
 		loadAlerts();
 	});
 
+	// Reload when filter or page changes
+	let prevFilter = $state('');
+	let prevPage = $state(1);
 	$effect(() => {
-		// Reload when filter or page changes
-		if (!loading) {
+		const filter = entityFilter;
+		const pg = currentPage;
+		if (filter !== prevFilter || pg !== prevPage) {
+			prevFilter = filter;
+			prevPage = pg;
 			loadAlerts();
 		}
 	});
@@ -111,9 +117,8 @@
 			// Step 1: Get merge preview to determine survivor
 			const recordIds = [alert.recordId, ...alert.matches.map((m) => m.recordId)];
 			const preview: MergePreview = await mergePreview({
-				entityType: alert.entityType,
-				survivorId: alert.recordId, // Initial survivor (will use suggestedSurvivorId)
-				duplicateIds: alert.matches.map((m) => m.recordId)
+				recordIds,
+				entityType: alert.entityType
 			});
 
 			// Step 2: Auto-select fields from survivor (most complete record)
@@ -124,25 +129,17 @@
 			const result = await mergeExecute({
 				entityType: alert.entityType,
 				survivorId,
-				duplicateIds
-				// fieldSelections omitted - backend will use survivor's values by default
+				duplicateIds,
+				mergedFields: {}
 			});
 
 			// Optimistic UI: remove card
-			const backup = [...alerts];
 			alerts = alerts.filter((a) => a.id !== alert.id);
 			selectedIds.delete(alert.id);
 			selectedIds = new Set(selectedIds);
 			total--;
 
-			// Show success toast with undo option
-			const undoId = setTimeout(() => {}, 5000); // Placeholder for toast duration
-			const message = `Records merged. ${result.relatedRecordsTransferred} related records transferred.`;
-
-			// Create custom toast with undo link
-			toast.success(message);
-			// Note: For full undo functionality, we'd need to enhance the toast component
-			// to support action buttons. For now, just show success message.
+			toast.success('Records merged successfully.');
 
 			// Mark alert as merged
 			await resolveAlert(alert.entityType, alert.recordId, 'merged');

@@ -88,11 +88,11 @@
 	async function loadData() {
 		try {
 			loading = true;
-			const [rulesData, entitiesData] = await Promise.all([
-				get<MatchingRule[]>('/dedup/rules'),
+			const [rulesResponse, entitiesData] = await Promise.all([
+				get<{ data: MatchingRule[] }>('/dedup/rules'),
 				get<EntityDef[]>('/admin/entities')
 			]);
-			rules = rulesData;
+			rules = rulesResponse.data || [];
 			entities = entitiesData;
 		} catch (e) {
 			toast.error(e instanceof Error ? e.message : 'Failed to load data');

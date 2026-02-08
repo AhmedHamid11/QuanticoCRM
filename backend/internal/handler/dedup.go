@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
@@ -111,6 +112,9 @@ func (h *DedupHandler) CreateRule(c *fiber.Ctx) error {
 
 	rule, err := h.getRuleRepo(c).CreateRule(c.Context(), orgID, input)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "A rule with this name already exists for this entity type"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -129,6 +133,9 @@ func (h *DedupHandler) UpdateRule(c *fiber.Ctx) error {
 
 	rule, err := h.getRuleRepo(c).UpdateRule(c.Context(), orgID, ruleID, input)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "A rule with this name already exists for this entity type"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	if rule == nil {

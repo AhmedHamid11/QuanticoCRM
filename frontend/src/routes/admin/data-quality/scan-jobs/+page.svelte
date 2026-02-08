@@ -235,14 +235,14 @@
 			error = null;
 
 			const [schedulesData, jobsData, entitiesData] = await Promise.all([
-				get<ScanSchedule[]>('/admin/scan-jobs/schedules'),
-				get<{ jobs: ScanJob[], total: number }>(`/admin/scan-jobs?page=${jobPage}&pageSize=${jobPageSize}`),
+				get<ScanSchedule[]>('/scan-jobs/schedules'),
+				get<{ data: ScanJob[], total: number }>(`/scan-jobs?page=${jobPage}&pageSize=${jobPageSize}`),
 				get<EntityDef[]>('/admin/entities')
 			]);
 
-			schedules = schedulesData;
-			jobs = jobsData.jobs;
-			jobTotal = jobsData.total;
+			schedules = schedulesData || [];
+			jobs = jobsData.data || [];
+			jobTotal = jobsData.total || 0;
 			entities = entitiesData;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load scan jobs';
@@ -287,7 +287,7 @@
 				payload.dayOfMonth = editForm.dayOfMonth;
 			}
 
-			await put(`/admin/scan-jobs/schedules/${entityType}`, payload);
+			await put(`/scan-jobs/schedules/${entityType}`, payload);
 			addToast('Schedule saved successfully', 'success');
 			editingScheduleEntity = null;
 			await loadData();
@@ -300,7 +300,7 @@
 		if (!confirm(`Delete scan schedule for ${entityType}?`)) return;
 
 		try {
-			await del(`/admin/scan-jobs/schedules/${entityType}`);
+			await del(`/scan-jobs/schedules/${entityType}`);
 			addToast('Schedule deleted', 'success');
 			await loadData();
 		} catch (e) {
@@ -313,7 +313,7 @@
 		if (!schedule) return;
 
 		try {
-			await put(`/admin/scan-jobs/schedules/${entityType}`, {
+			await put(`/scan-jobs/schedules/${entityType}`, {
 				...schedule,
 				isEnabled: !schedule.isEnabled
 			});
@@ -371,7 +371,7 @@
 
 		try {
 			isRunning = true;
-			const result = await post<{ jobId: string }>('/admin/scan-jobs/run', { entityType: runEntityType });
+			const result = await post<{ jobId: string }>('/scan-jobs/run', { entityType: runEntityType });
 			addToast(`Scan started for ${runEntityType}`, 'success');
 			closeRunModal();
 			await loadData();
@@ -384,7 +384,7 @@
 
 	async function retryJob(jobId: string) {
 		try {
-			await post(`/admin/scan-jobs/${jobId}/retry`, {});
+			await post(`/scan-jobs/${jobId}/retry`, {});
 			addToast('Scan retry started', 'success');
 			await loadData();
 		} catch (e) {
@@ -397,7 +397,7 @@
 		loadData();
 
 		// Connect to SSE for real-time progress
-		const eventSource = new EventSource(`${API_BASE}/admin/scan-jobs/progress/stream`, {
+		const eventSource = new EventSource(`${API_BASE}/scan-jobs/progress/stream`, {
 			withCredentials: true
 		});
 

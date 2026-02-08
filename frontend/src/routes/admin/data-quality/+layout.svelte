@@ -4,7 +4,7 @@
 	const tabs = [
 		{ id: 'rules', label: 'Duplicate Rules', href: '/admin/data-quality/duplicate-rules' },
 		{ id: 'queue', label: 'Review Queue', href: '/admin/data-quality/review-queue' },
-		{ id: 'history', label: 'Merge History', href: '/admin/data-quality/merge-history' },
+		{ id: 'history', label: 'Merge History', href: '/admin/data-quality/merge/history' },
 		{ id: 'scans', label: 'Scan Jobs', href: '/admin/data-quality/scan-jobs' }
 	];
 
