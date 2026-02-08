@@ -72,12 +72,12 @@ Plans:
   2. User can choose skip/update/import/merge for each duplicate row
   3. Import detects duplicates within the file (rows duplicating each other)
   4. Import blocks proceeding until all duplicate decisions are made
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 14-01: Duplicate detection during import analyze
-- [ ] 14-02: Within-file duplicate detection
-- [ ] 14-03: Import duplicate resolution UI
+- [ ] 14-01-PLAN.md -- Backend duplicate detection service + API endpoint (database + within-file)
+- [ ] 14-02-PLAN.md -- Frontend duplicate review step in ImportWizard (side-by-side comparison, resolution actions)
+- [ ] 14-03-PLAN.md -- Import execution with resolutions + post-import audit report
 
 ### Phase 15: Background Scanning
 **Goal**: Scheduled duplicate scans with job management and notifications
