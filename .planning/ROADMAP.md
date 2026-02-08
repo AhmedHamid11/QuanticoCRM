@@ -75,9 +75,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 14-01-PLAN.md -- Backend duplicate detection service + API endpoint (database + within-file)
-- [ ] 14-02-PLAN.md -- Frontend duplicate review step in ImportWizard (side-by-side comparison, resolution actions)
-- [ ] 14-03-PLAN.md -- Import execution with resolutions + post-import audit report
+- [x] 14-01-PLAN.md -- Backend duplicate detection service + API endpoint (database + within-file) ✓
+- [x] 14-02-PLAN.md -- Frontend duplicate review step in ImportWizard (side-by-side comparison, resolution actions) ✓
+- [x] 14-03-PLAN.md -- Import execution with resolutions + post-import audit report ✓
 
 ### Phase 15: Background Scanning
 **Goal**: Scheduled duplicate scans with job management and notifications
@@ -127,12 +127,12 @@ Plans:
 | 11. Detection Foundation | v3.0 | 3/3 | Complete | 2026-02-06 |
 | 12. Real-Time Detection | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 13. Merge Engine | v3.0 | 4/4 | Complete | 2026-02-07 |
-| 14. Import Integration | v3.0 | 0/3 | Not started | - |
+| 14. Import Integration | v3.0 | 3/3 | Complete | 2026-02-08 |
 | 15. Background Scanning | v3.0 | 0/3 | Not started | - |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
-**v3.0 Total:** 11/22 plans
+**v3.0 Total:** 14/22 plans
 
 ---
 
-*Last updated: 2026-02-07 - Phase 13 complete (Merge Engine)*
+*Last updated: 2026-02-08 - Phase 14 complete (Import Integration)*

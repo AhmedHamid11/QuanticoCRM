@@ -62,19 +62,19 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 
 ### Import Integration
 
-- [ ] **IMPORT-01**: CSV import runs duplicate detection during analyze step
+- [x] **IMPORT-01**: CSV import runs duplicate detection during analyze step
 
-- [ ] **IMPORT-02**: Import preview shows potential duplicates with match scores
+- [x] **IMPORT-02**: Import preview shows potential duplicates with match scores
 
-- [ ] **IMPORT-03**: User can choose action for each duplicate row:
+- [x] **IMPORT-03**: User can choose action for each duplicate row:
   - Skip (don't import)
   - Update existing (upsert)
   - Import anyway (create duplicate)
   - Merge with existing
 
-- [ ] **IMPORT-04**: Import detects duplicates within the file (rows that duplicate each other)
+- [x] **IMPORT-04**: Import detects duplicates within the file (rows that duplicate each other)
 
-- [ ] **IMPORT-05**: Import blocks proceeding until duplicate decisions are made
+- [x] **IMPORT-05**: Import blocks proceeding until duplicate decisions are made
 
 ### Merge Capabilities
 
@@ -212,11 +212,11 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 | DETECT-07 | Phase 11 | Partial |
 | DETECT-08 | Phase 11 | Complete |
 | DETECT-09 | Phase 12 | Complete |
-| IMPORT-01 | Phase 14 | Pending |
-| IMPORT-02 | Phase 14 | Pending |
-| IMPORT-03 | Phase 14 | Pending |
-| IMPORT-04 | Phase 14 | Pending |
-| IMPORT-05 | Phase 14 | Pending |
+| IMPORT-01 | Phase 14 | Complete |
+| IMPORT-02 | Phase 14 | Complete |
+| IMPORT-03 | Phase 14 | Complete |
+| IMPORT-04 | Phase 14 | Complete |
+| IMPORT-05 | Phase 14 | Complete |
 | MERGE-01 | Phase 13 | Complete |
 | MERGE-02 | Phase 13 | Complete |
 | MERGE-03 | Phase 13 | Complete |
@@ -244,4 +244,4 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 ---
 
 *37 requirements across 5 categories*
-*Last updated: 2026-02-06 - Phase 11 requirements complete*
+*Last updated: 2026-02-08 - Phase 14 requirements complete*
