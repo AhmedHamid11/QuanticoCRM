@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getConfidenceBadgeClass, formatConfidence, type PendingAlert, type DuplicateMatch } from '$lib/api/dedup';
+	import { getConfidenceBadgeClass, formatConfidence, resolveAlert, type PendingAlert, type DuplicateMatch } from '$lib/api/dedup';
 	import { goto } from '$app/navigation';
 	import { get, put, del } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
@@ -206,6 +206,13 @@
 
 			// Delete the secondary record
 			await del(`/${entityPlural}/${secondaryId}`);
+
+			// Resolve the pending alert so it doesn't persist after merge
+			try {
+				await resolveAlert(entityType, currentRecordId, 'merged');
+			} catch {
+				// Non-critical - alert may already be resolved
+			}
 
 			toast.success(`Records merged. ${getRecordName(secondaryRecord)} was deleted.`);
 
