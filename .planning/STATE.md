@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 15 of 16 (Background Scanning)
-**Plan:** 1 of 4 in current phase
+**Plan:** 2 of 4 in current phase
 **Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 15-01-PLAN.md (Foundation schema & repositories)
+**Last activity:** 2026-02-08 - Completed 15-02-PLAN.md (Service & Scheduler)
 
-Progress: [███░░░░░░░] 71% (15/21 plans)
+Progress: [███░░░░░░░] 76% (16/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46 (9 v1.0 + 22 v2.0 + 15 v3.0)
+- Total plans completed: 47 (9 v1.0 + 22 v2.0 + 16 v3.0)
 - Average duration: 3.6 min
-- Total execution time: ~177 min
+- Total execution time: ~181 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 71% (15/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 15/21 | ~46 min |
+| v3.0 Deduplication | 11-16 | 16/21 | ~50 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,10 @@ Progress: [███░░░░░░░] 71% (15/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 15-02 | Service receives tenantDB from caller, doesn't manage DB connections | Handler/middleware already has tenant DB, avoids service needing org credentials | 2026-02-08 |
+| 15-02 | Goroutine async execution for ExecuteScan | API returns immediately with jobID, scan runs in background | 2026-02-08 |
+| 15-02 | 100ms sleep between chunks for WAL checkpoint window | Prevents WAL checkpoint starvation on long-running scans per RESEARCH.md | 2026-02-08 |
+| 15-02 | RegisterOrgDB pattern for scheduler | Scheduled jobs run outside HTTP context, need cached tenant DB connection | 2026-02-08 |
 | 15-01 | Scan schedules stored in master DB, jobs/checkpoints in tenant DB | Scheduler needs cross-org visibility to configure gocron jobs, but job data is org-specific | 2026-02-08 |
 | 15-01 | One checkpoint per job with UNIQUE(job_id) constraint | Resume logic only needs latest checkpoint, reduces table size and query complexity | 2026-02-08 |
 | 15-01 | Notifications auto-expire after 30 days | Prevents unbounded growth while supporting recent history checks, aligns with merge snapshot retention | 2026-02-08 |
@@ -112,8 +116,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 13:26:00
-Stopped at: Completed 15-01-PLAN.md - Foundation schema & repositories
+Last session: 2026-02-08 13:32:47
+Stopped at: Completed 15-02-PLAN.md - Service & Scheduler
 Resume file: None
 
 ---
