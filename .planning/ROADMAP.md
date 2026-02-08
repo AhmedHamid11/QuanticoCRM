@@ -92,9 +92,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 15-01-PLAN.md -- Database schema, entity types, SFID prefixes, and repository layer
-- [ ] 15-02-PLAN.md -- Scan job execution service (chunked, checkpointed) and gocron scheduler
-- [ ] 15-03-PLAN.md -- Notification service, HTTP handlers, SSE progress, and main.go wiring
+- [x] 15-01-PLAN.md -- Database schema, entity types, SFID prefixes, and repository layer ✓
+- [x] 15-02-PLAN.md -- Scan job execution service (chunked, checkpointed) and gocron scheduler ✓
+- [x] 15-03-PLAN.md -- Notification service, HTTP handlers, SSE progress, and main.go wiring ✓
 
 ### Phase 16: Admin UI
 **Goal**: Complete admin interface for duplicate rule management, review queue, and merge wizard
@@ -128,11 +128,11 @@ Plans:
 | 12. Real-Time Detection | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 13. Merge Engine | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 14. Import Integration | v3.0 | 3/3 | Complete | 2026-02-08 |
-| 15. Background Scanning | v3.0 | 0/3 | Planned | - |
+| 15. Background Scanning | v3.0 | 3/3 | Complete | 2026-02-08 |
 | 16. Admin UI | v3.0 | 0/5 | Not started | - |
 
-**v3.0 Total:** 14/22 plans
+**v3.0 Total:** 17/22 plans
 
 ---
 
-*Last updated: 2026-02-08 - Phase 15 planned (Background Scanning)*
+*Last updated: 2026-02-08 - Phase 15 complete (Background Scanning)*

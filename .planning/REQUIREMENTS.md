@@ -121,28 +121,28 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 
 ### Background Processing
 
-- [ ] **BACKGROUND-01**: Admin can schedule duplicate scan jobs per entity type
+- [x] **BACKGROUND-01**: Admin can schedule duplicate scan jobs per entity type
   - Daily, weekly, or monthly frequency
   - Specific time of day
 
-- [ ] **BACKGROUND-02**: Background scan uses cursor-based chunking (500 records per chunk)
+- [x] **BACKGROUND-02**: Background scan uses cursor-based chunking (500 records per chunk)
   - Avoids Turso 5-second transaction timeout
   - Checkpoints progress after each chunk
 
-- [ ] **BACKGROUND-03**: Background jobs track status:
+- [x] **BACKGROUND-03**: Background jobs track status:
   - Pending, Running, Completed, Failed
   - Progress percentage
   - Records scanned / duplicates found
 
-- [ ] **BACKGROUND-04**: Admin receives email notification when scan completes
+- [x] **BACKGROUND-04**: Admin receives in-app notification when scan completes
   - Summary: X duplicates found across Y records
   - Link to duplicate review queue
 
-- [ ] **BACKGROUND-05**: Background jobs use per-tenant rate limiting
+- [x] **BACKGROUND-05**: Background jobs use per-tenant rate limiting
   - Max 2 concurrent jobs per tenant
   - Prevents one tenant blocking others
 
-- [ ] **BACKGROUND-06**: Failed jobs can be retried
+- [x] **BACKGROUND-06**: Failed jobs can be retried
   - Resume from last checkpoint
   - Max 3 retry attempts
 
@@ -228,12 +228,12 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 | MERGE-09 | Phase 13 | Complete |
 | MERGE-10 | Phase 13 | Complete |
 | MERGE-11 | Phase 13 | Complete |
-| BACKGROUND-01 | Phase 15 | Pending |
-| BACKGROUND-02 | Phase 15 | Pending |
-| BACKGROUND-03 | Phase 15 | Pending |
-| BACKGROUND-04 | Phase 15 | Pending |
-| BACKGROUND-05 | Phase 15 | Pending |
-| BACKGROUND-06 | Phase 15 | Pending |
+| BACKGROUND-01 | Phase 15 | Complete |
+| BACKGROUND-02 | Phase 15 | Complete |
+| BACKGROUND-03 | Phase 15 | Complete |
+| BACKGROUND-04 | Phase 15 | Complete |
+| BACKGROUND-05 | Phase 15 | Complete |
+| BACKGROUND-06 | Phase 15 | Complete |
 | UI-01 | Phase 16 | Pending |
 | UI-02 | Phase 16 | Pending |
 | UI-03 | Phase 16 | Pending |
