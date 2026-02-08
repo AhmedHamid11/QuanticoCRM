@@ -5,25 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Core value:** Fast, secure multi-tenant CRM where customer data is protected
-**Current focus:** Phase 13 - Merge Engine (complete)
+**Current focus:** Phase 14 - Import Integration (in progress)
 
 ## Current Position
 
 **Milestone:** v3.0 Deduplication System
-**Phase:** 13 of 16 (Manual Merge Engine)
-**Plan:** 4 of 4 in current phase
-**Status:** Phase complete
+**Phase:** 14 of 16 (Import Integration)
+**Plan:** 1 of 3 in current phase
+**Status:** In progress
 
-**Last activity:** 2026-02-07 - Completed 13-04-PLAN.md (Merge API handlers)
+**Last activity:** 2026-02-08 - Completed 14-01-PLAN.md (Import duplicate detection service)
 
-Progress: [███░░░░░░░] 52% (11/21 plans)
+Progress: [███░░░░░░░] 57% (12/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42 (9 v1.0 + 22 v2.0 + 11 v3.0)
+- Total plans completed: 43 (9 v1.0 + 22 v2.0 + 12 v3.0)
 - Average duration: 3.7 min
-- Total execution time: ~162 min
+- Total execution time: ~165 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 52% (11/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 11/21 | ~31 min |
+| v3.0 Deduplication | 11-16 | 12/21 | ~34 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,9 @@ Progress: [███░░░░░░░] 52% (11/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 14-01 | Reuse Phase 11 Detector for database duplicate detection | Ensures consistent matching behavior between real-time and import detection | 2026-02-08 |
+| 14-01 | SHA-256 hash of normalized match field values for within-file grouping | Fast exact-duplicate detection within CSV; groups rows with identical normalized values | 2026-02-08 |
+| 14-01 | Return empty results (not error) when no matching rules exist | Import can proceed without duplicate checking if rules aren't configured | 2026-02-08 |
 | 13-04 | In-memory entityType filtering in History endpoint | MergeRepo.ListByOrg doesn't support entityType parameter, in-memory filtering simpler for low-traffic API | 2026-02-07 |
 | 13-04 | Merge endpoints on protected (not admin) route group | Any authenticated user should merge records they access, consistent with bulk operations | 2026-02-07 |
 | 13-04 | Audit logger early initialization in services section | MergeService constructor requires auditLogger, moved before handlers for clean dependency injection | 2026-02-07 |
@@ -99,10 +102,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-07 23:09:00
-Stopped at: Completed 13-04-PLAN.md - Phase 13 complete
+Last session: 2026-02-08 02:04:00
+Stopped at: Completed 14-01-PLAN.md - Import duplicate detection service
 Resume file: None
 
 ---
 
-*Updated: 2026-02-07 - Phase 13 complete (Manual Merge Engine), ready for Phase 14*
+*Updated: 2026-02-08 - Phase 14 in progress (Import Integration), Plan 14-01 complete*
