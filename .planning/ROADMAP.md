@@ -4,7 +4,7 @@
 
 - **v1.0 Platform Update System** - Phases 01-05 (shipped 2026-02-01) -> [archive](milestones/v1.0-ROADMAP.md)
 - **v2.0 Security Hardening** - Phases 06-10 (shipped 2026-02-04) -> [archive](milestones/v2.0-ROADMAP.md)
-- **v3.0 Deduplication System** - Phases 11-16 (in progress)
+- **v3.0 Deduplication System** - Phases 11-16 (shipped 2026-02-08)
 
 ---
 
@@ -110,11 +110,11 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
-- [ ] 16-01-PLAN.md -- Backend ListAllPending endpoint, frontend API client, admin hub Data Quality link
-- [ ] 16-02-PLAN.md -- Duplicate rule management page with inline editing and Test Rule
-- [ ] 16-03-PLAN.md -- Review queue with card-based groups, Quick Merge, and bulk actions
-- [ ] 16-04-PLAN.md -- Merge wizard (single-page) and merge history with undo
-- [ ] 16-05-PLAN.md -- Scan job dashboard with SSE progress and schedule management
+- [x] 16-01-PLAN.md -- Backend ListAllPending endpoint, frontend API client, admin hub Data Quality link ✓
+- [x] 16-02-PLAN.md -- Duplicate rule management page with inline editing and Test Rule ✓
+- [x] 16-03-PLAN.md -- Review queue with card-based groups, Quick Merge, and bulk actions ✓
+- [x] 16-04-PLAN.md -- Merge wizard (single-page) and merge history with undo ✓
+- [x] 16-05-PLAN.md -- Scan job dashboard with SSE progress and schedule management ✓
 
 ---
 
@@ -129,10 +129,10 @@ Plans:
 | 13. Merge Engine | v3.0 | 4/4 | Complete | 2026-02-07 |
 | 14. Import Integration | v3.0 | 3/3 | Complete | 2026-02-08 |
 | 15. Background Scanning | v3.0 | 3/3 | Complete | 2026-02-08 |
-| 16. Admin UI | v3.0 | 0/5 | Not started | - |
+| 16. Admin UI | v3.0 | 5/5 | Complete | 2026-02-08 |
 
-**v3.0 Total:** 17/22 plans
+**v3.0 Total:** 22/22 plans
 
 ---
 
-*Last updated: 2026-02-08 - Phase 16 planned (Admin UI)*
+*Last updated: 2026-02-08 - Phase 16 complete (Admin UI) - v3.0 milestone complete*

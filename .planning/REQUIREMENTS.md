@@ -148,29 +148,29 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 
 ### Admin UI
 
-- [ ] **UI-01**: Admin can manage matching rules in Settings > Data Quality > Duplicate Rules
+- [x] **UI-01**: Admin can manage matching rules in Settings > Data Quality > Duplicate Rules
 
-- [ ] **UI-02**: Admin can view duplicate review queue showing all detected duplicates
+- [x] **UI-02**: Admin can view duplicate review queue showing all detected duplicates
   - Grouped by entity type
   - Sorted by confidence score (highest first)
   - Filter by entity, confidence level
 
-- [ ] **UI-03**: Merge wizard guides user through:
+- [x] **UI-03**: Merge wizard guides user through:
   - Survivor selection
   - Field value selection
   - Related record preview
   - Confirmation
 
-- [ ] **UI-04**: Admin can bulk merge multiple duplicate groups
+- [x] **UI-04**: Admin can bulk merge multiple duplicate groups
   - Select groups to merge
   - Apply same rules to all
   - Progress indicator for batch
 
-- [ ] **UI-05**: Admin can view merge history with undo option
+- [x] **UI-05**: Admin can view merge history with undo option
   - List of recent merges
   - Undo button for each (if within 30 days)
 
-- [ ] **UI-06**: Admin can view and manage scheduled scan jobs
+- [x] **UI-06**: Admin can view and manage scheduled scan jobs
   - Create/edit/delete schedules
   - View job history
   - Trigger manual scan
@@ -234,12 +234,12 @@ Comprehensive, entity-agnostic deduplication system with scoring-based matching,
 | BACKGROUND-04 | Phase 15 | Complete |
 | BACKGROUND-05 | Phase 15 | Complete |
 | BACKGROUND-06 | Phase 15 | Complete |
-| UI-01 | Phase 16 | Pending |
-| UI-02 | Phase 16 | Pending |
-| UI-03 | Phase 16 | Pending |
-| UI-04 | Phase 16 | Pending |
-| UI-05 | Phase 16 | Pending |
-| UI-06 | Phase 16 | Pending |
+| UI-01 | Phase 16 | Complete |
+| UI-02 | Phase 16 | Complete |
+| UI-03 | Phase 16 | Complete |
+| UI-04 | Phase 16 | Complete |
+| UI-05 | Phase 16 | Complete |
+| UI-06 | Phase 16 | Complete |
 
 ---
 
