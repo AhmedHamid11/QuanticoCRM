@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 15 of 16 (Background Scanning)
-**Plan:** 2 of 4 in current phase
-**Status:** In progress
+**Plan:** 3 of 3 complete
+**Status:** Phase complete
 
-**Last activity:** 2026-02-08 - Completed 15-02-PLAN.md (Service & Scheduler)
+**Last activity:** 2026-02-08 - Completed 15-03-PLAN.md (API & Wiring)
 
-Progress: [███░░░░░░░] 76% (16/21 plans)
+Progress: [████░░░░░░] 81% (17/21 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47 (9 v1.0 + 22 v2.0 + 16 v3.0)
-- Average duration: 3.6 min
-- Total execution time: ~181 min
+- Total plans completed: 48 (9 v1.0 + 22 v2.0 + 17 v3.0)
+- Average duration: 3.9 min
+- Total execution time: ~207 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [███░░░░░░░] 76% (16/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 16/21 | ~50 min |
+| v3.0 Deduplication | 11-16 | 17/21 | ~76 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,11 @@ Progress: [███░░░░░░░] 76% (16/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 15-03 | Notification message: "{Entity} scan complete" with NO duplicate count | Simplicity and consistency per CONTEXT.md locked decisions | 2026-02-08 |
+| 15-03 | Failure notification: "{Entity} scan failed at X% -- click to retry" | Shows progress percentage at failure point for context | 2026-02-08 |
+| 15-03 | SSE uses Fiber StreamWriter with fasthttp, 30s keepalive pings | Per RESEARCH.md pattern, prevents timeout on idle connections | 2026-02-08 |
+| 15-03 | Non-blocking SSE broadcast (skip if channel full) | Prevents slow clients from blocking the broadcaster | 2026-02-08 |
+| 15-03 | Scheduler starts after migration propagation | Ensures all migrations complete before scheduled jobs can run | 2026-02-08 |
 | 15-02 | Service receives tenantDB from caller, doesn't manage DB connections | Handler/middleware already has tenant DB, avoids service needing org credentials | 2026-02-08 |
 | 15-02 | Goroutine async execution for ExecuteScan | API returns immediately with jobID, scan runs in background | 2026-02-08 |
 | 15-02 | 100ms sleep between chunks for WAL checkpoint window | Prevents WAL checkpoint starvation on long-running scans per RESEARCH.md | 2026-02-08 |
@@ -116,10 +121,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 13:32:47
-Stopped at: Completed 15-02-PLAN.md - Service & Scheduler
+Last session: 2026-02-08 14:03:47
+Stopped at: Completed 15-03-PLAN.md - API & Wiring (Phase 15 complete)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-08 - Phase 15 in progress (Background Scanning)*
+*Updated: 2026-02-08 - Phase 15 complete (Background Scanning)*
