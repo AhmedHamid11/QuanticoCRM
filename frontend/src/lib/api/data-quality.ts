@@ -80,51 +80,61 @@ export interface PaginatedResponse<T> {
 
 // ===== Merge Operations =====
 
+export interface FieldDef {
+	id: string;
+	orgId: string;
+	entityName: string;
+	name: string;
+	label: string;
+	type: string;
+	isRequired: boolean;
+	isReadOnly: boolean;
+	isAudited: boolean;
+	isCustom: boolean;
+}
+
 export interface RelatedRecordCount {
 	entityType: string;
+	entityLabel: string;
+	recordId: string;  // which record these belong to
 	count: number;
+	records?: Record<string, any>[];  // actual related records (for expandable preview)
 }
 
 export interface MergePreviewRequest {
+	recordIds: string[];  // backend expects recordIds (lowercase r)
 	entityType: string;
-	survivorId: string;
-	duplicateIds: string[];
 }
 
 export interface MergePreview {
-	survivorId: string;
-	suggestedSurvivorId: string;  // System recommendation based on completeness
-	duplicateIds: string[];
 	records: Record<string, any>[];  // Full record data for all records
+	suggestedSurvivorId: string;  // System recommendation based on completeness
+	completenessScores: Record<string, number>;  // recordID -> 0.0-1.0
 	relatedRecordCounts: RelatedRecordCount[];  // What will be transferred
-	completenessScores: Record<string, number>;  // Score per record (0-1)
+	fields: FieldDef[];  // Field definitions for display
 }
 
 export interface MergeRequest {
-	entityType: string;
 	survivorId: string;
 	duplicateIds: string[];
-	fieldSelections?: Record<string, string>;  // fieldName → recordId (which record's value to use)
+	mergedFields: Record<string, any>;  // backend expects mergedFields
+	entityType: string;
 }
 
 export interface MergeResult {
-	success: boolean;
-	snapshotId: string;  // For undo within 30 days
 	survivorId: string;
-	mergedIds: string[];
-	relatedRecordsTransferred: number;
+	snapshotId: string;  // For undo within 30 days
+	mergedAt: string;
 }
 
 export interface MergeHistoryEntry {
-	id: string;
-	orgId: string;
+	snapshotId: string;
 	entityType: string;
 	survivorId: string;
 	duplicateIds: string[];
-	performedBy: string;  // User ID
-	performedAt: string;
-	snapshotId: string;
-	isConsumed: boolean;  // True if already undone
+	mergedById: string;  // User ID
+	canUndo: boolean;
+	createdAt: string;
 	expiresAt: string;  // 30 days from merge
 }
 
