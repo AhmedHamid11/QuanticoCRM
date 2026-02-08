@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-05)
 
 **Milestone:** v3.0 Deduplication System
 **Phase:** 16 of 16 (Admin UI)
-**Plan:** 3 of 5 complete (16-01, 16-02, 16-03 done)
+**Plan:** 4 of 5 complete (16-01, 16-02, 16-03, 16-04 done)
 **Status:** In progress
 
-**Last activity:** 2026-02-08 - Completed 16-03-PLAN.md (Review Queue)
+**Last activity:** 2026-02-08 - Completed 16-04-PLAN.md (Merge Wizard & History)
 
-Progress: [█████░░░░░] 96% (20/21 plans)
+Progress: [█████░░░░░] 96% (21/22 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 51 (9 v1.0 + 22 v2.0 + 20 v3.0)
+- Total plans completed: 52 (9 v1.0 + 22 v2.0 + 21 v3.0)
 - Average duration: 3.9 min
-- Total execution time: ~216 min
+- Total execution time: ~221 min
 
 **By Milestone:**
 
@@ -31,7 +31,7 @@ Progress: [█████░░░░░] 96% (20/21 plans)
 |-----------|--------|-------|----------|
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
-| v3.0 Deduplication | 11-16 | 20/21 | ~87 min |
+| v3.0 Deduplication | 11-16 | 21/22 | ~92 min |
 
 *Updated after each plan completion*
 
@@ -41,6 +41,10 @@ Progress: [█████░░░░░] 96% (20/21 plans)
 
 | Phase | Decision | Rationale | Date |
 |-------|----------|-----------|------|
+| 16-04 | Single scrollable page instead of multi-step wizard | User decision from context - simpler UX, all decisions visible at once | 2026-02-08 |
+| 16-04 | Side-by-side columns for field comparison | User decision - easier to compare values across records | 2026-02-08 |
+| 16-04 | Auto-select survivor's field values or first non-empty | Reduces manual selection, smart defaults while allowing override | 2026-02-08 |
+| 16-04 | Undo via history page, not inline toast action | Toast system doesn't support action buttons - documented in success message | 2026-02-08 |
 | 16-03 | Quick Merge uses merge preview's suggestedSurvivorId for auto-selection | Leverages backend completeness scoring to pick best survivor automatically | 2026-02-08 |
 | 16-03 | Bulk operations process sequentially with progress tracking | Prevents overwhelming backend, provides user feedback during long operations | 2026-02-08 |
 | 16-03 | Select All checkbox at top of list rather than in header | More visible, easier to interact with when list is long | 2026-02-08 |
@@ -131,8 +135,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-08 22:17:48
-Stopped at: Completed 16-03-PLAN.md - Review Queue
+Last session: 2026-02-08 22:20:58
+Stopped at: Completed 16-04-PLAN.md - Merge Wizard & History
 Resume file: None
 
 ---
