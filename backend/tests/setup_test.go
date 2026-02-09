@@ -101,14 +101,14 @@ func SetupTestApp(t *testing.T) *TestApp {
 	lookupHandler := handler.NewLookupHandler(db, metadataRepo)
 	relatedHandler := handler.NewRelatedHandler(db)
 	relatedListHandler := handler.NewRelatedListHandler(relatedListRepo, metadataRepo, db)
-	genericEntityHandler := handler.NewGenericEntityHandler(db, metadataRepo, authRepo, tripwireService, validationService)
+	genericEntityHandler := handler.NewGenericEntityHandler(db, metadataRepo, authRepo, tripwireService, validationService, nil)
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
 	validationHandler := handler.NewValidationHandler(validationRepo, validationService)
-	authHandler := handler.NewAuthHandler(authService, auditLogger, false) // false = not production for tests
+	authHandler := handler.NewAuthHandler(authService, auditLogger, middleware.CookieConfig{IsProduction: false})
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	bulkHandler := handler.NewBulkHandler(db, metadataRepo, tripwireService, validationService)
-	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService)
+	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService, nil)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{

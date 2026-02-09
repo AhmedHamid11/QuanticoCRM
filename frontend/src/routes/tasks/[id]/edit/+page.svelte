@@ -90,7 +90,7 @@
 
 				const key = fieldNameToKey(field.name);
 				if (isSystemField(field.name)) {
-					data[field.name] = (taskData as Record<string, unknown>)[key] ?? '';
+					data[field.name] = (taskData as unknown as Record<string, unknown>)[key] ?? '';
 				} else {
 					data[field.name] = taskData.customFields?.[field.name] ?? '';
 				}
@@ -99,7 +99,7 @@
 				if (field.type === 'link') {
 					const nameKey = `${key}Name`;
 					const nameVal = isSystemField(field.name)
-						? (taskData as Record<string, unknown>)[nameKey]
+						? (taskData as unknown as Record<string, unknown>)[nameKey]
 						: taskData.customFields?.[`${field.name}Name`];
 					if (nameVal) {
 						lookupNames[field.name] = String(nameVal);
