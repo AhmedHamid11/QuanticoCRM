@@ -118,10 +118,18 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 			args = append(args, keys.EmailDomain)
 		}
 	default:
-		// Default to Soundex
+		// Default to multi (combine all strategies) for unknown/empty strategies
 		if keys.LastNameSoundex != "" {
 			conditions = append(conditions, "dedup_last_name_soundex = ?")
 			args = append(args, keys.LastNameSoundex)
+		}
+		if keys.LastNamePrefix != "" {
+			conditions = append(conditions, "dedup_last_name_prefix = ?")
+			args = append(args, keys.LastNamePrefix)
+		}
+		if keys.EmailDomain != "" {
+			conditions = append(conditions, "dedup_email_domain = ?")
+			args = append(args, keys.EmailDomain)
 		}
 	}
 

@@ -187,9 +187,9 @@ func ensureDedupSchema(ctx context.Context, conn db.DBConn) error {
 		}
 	}
 
-	// Upgrade existing rules from soundex-only to multi blocking strategy
-	// soundex only finds candidates by last name, missing email/phone-based duplicates
-	_, _ = conn.ExecContext(ctx, `UPDATE matching_rules SET blocking_strategy = 'multi' WHERE blocking_strategy = 'soundex'`)
+	// Upgrade existing rules to multi blocking strategy if they have an invalid or narrow strategy
+	// soundex-only misses email/phone-based duplicates; empty/none are invalid
+	_, _ = conn.ExecContext(ctx, `UPDATE matching_rules SET blocking_strategy = 'multi' WHERE blocking_strategy NOT IN ('multi', 'prefix', 'exact')`)
 
 	log.Printf("[DEDUP] Auto-provisioned dedup tables and blocking key columns on tenant DB")
 	return nil

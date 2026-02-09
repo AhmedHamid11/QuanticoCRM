@@ -142,6 +142,14 @@ func (h *DedupHandler) CreateRule(c *fiber.Ctx) error {
 		})
 	}
 
+	// Default blocking strategy to multi if not provided or invalid
+	switch input.BlockingStrategy {
+	case entity.BlockingMulti, entity.BlockingPrefix, entity.BlockingExact, entity.BlockingSoundex:
+		// Valid strategy, keep as-is
+	default:
+		input.BlockingStrategy = entity.BlockingMulti
+	}
+
 	rule, err := h.getRuleRepo(c).CreateRule(c.Context(), orgID, input)
 	if err != nil {
 		if isNoSuchTableError(err) {
