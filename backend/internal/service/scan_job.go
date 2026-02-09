@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
@@ -346,10 +347,18 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 			}
 
 			// Build alert matches (top 3)
+			// Look up the matched record's display name
+			matchRecordName := ""
+			tableName := util.GetTableName(entityType)
+			matchedRecord, fetchErr := util.FetchRecordAsMap(ctx, db.GetRawDB(tenantDB), tableName, match.RecordID, orgID)
+			if fetchErr == nil && matchedRecord != nil {
+				matchRecordName = util.GetRecordDisplayName(entityType, matchedRecord)
+			}
+
 			alertMatches := []entity.DuplicateAlertMatch{
 				{
 					RecordID:    match.RecordID,
-					RecordName:  s.getRecordName(record),
+					RecordName:  matchRecordName,
 					MatchResult: match.MatchResult,
 				},
 			}
