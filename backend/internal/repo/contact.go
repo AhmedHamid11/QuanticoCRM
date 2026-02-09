@@ -107,16 +107,18 @@ func (r *ContactRepo) Create(ctx context.Context, orgID string, input entity.Con
 // GetByID retrieves a contact by its ID
 func (r *ContactRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Contact, error) {
 	// Note: No user join - tenant DBs don't have users table
+	// LEFT JOIN accounts to resolve account display name dynamically
 	query := `
 		SELECT c.id, c.org_id, COALESCE(c.salutation_name, ''), COALESCE(c.first_name, ''), COALESCE(c.last_name, ''),
 			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), c.do_not_call,
 			COALESCE(c.description, ''), COALESCE(c.address_street, ''), COALESCE(c.address_city, ''), COALESCE(c.address_state, ''),
-			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(c.account_name, ''), COALESCE(c.assigned_user_id, ''),
+			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(a.name, c.account_name, ''), COALESCE(c.assigned_user_id, ''),
 			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, c.deleted,
 			COALESCE(c.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
 		FROM contacts c
+		LEFT JOIN accounts a ON a.id = c.account_id AND a.org_id = c.org_id AND a.deleted = 0
 		WHERE c.id = ? AND c.org_id = ? AND c.deleted = 0
 	`
 
@@ -177,9 +179,8 @@ func (r *ContactRepo) ListByOrg(ctx context.Context, orgID string, params entity
 		params.SortDir = "desc"
 	}
 
-	// Build query - note: we don't join with users table since tenant DBs don't have it
-	// User names should be stored directly in contacts when creating/updating
-	baseQuery := `FROM contacts c WHERE c.org_id = ? AND c.deleted = 0`
+	// Build query - LEFT JOIN accounts to resolve account display name dynamically
+	baseQuery := `FROM contacts c LEFT JOIN accounts a ON a.id = c.account_id AND a.org_id = c.org_id AND a.deleted = 0 WHERE c.org_id = ? AND c.deleted = 0`
 	args := []any{orgID}
 
 	if params.Search != "" {
@@ -227,7 +228,7 @@ func (r *ContactRepo) ListByOrg(ctx context.Context, orgID string, params entity
 		SELECT c.id, c.org_id, COALESCE(c.salutation_name, ''), COALESCE(c.first_name, ''), COALESCE(c.last_name, ''),
 			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), c.do_not_call,
 			COALESCE(c.description, ''), COALESCE(c.address_street, ''), COALESCE(c.address_city, ''), COALESCE(c.address_state, ''),
-			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(c.account_name, ''), COALESCE(c.assigned_user_id, ''),
+			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(a.name, c.account_name, ''), COALESCE(c.assigned_user_id, ''),
 			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, c.deleted,
 			COALESCE(c.custom_fields, '{}'),
 			'' AS created_by_name,
