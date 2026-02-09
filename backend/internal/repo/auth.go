@@ -987,95 +987,89 @@ func (r *AuthRepo) DeleteOrganization(ctx context.Context, orgID string) error {
 		return err
 	}
 
+	// Helper: tolerate "no such table" / "no such column" errors for org-specific
+	// tables that may not exist in the master DB (they live in per-org Turso DBs).
+	tryDelete := func(query string, args ...interface{}) error {
+		_, e := r.db.ExecContext(ctx, query, args...)
+		if e != nil {
+			msg := e.Error()
+			if strings.Contains(msg, "no such table") || strings.Contains(msg, "no such column") {
+				return nil
+			}
+			return e
+		}
+		return nil
+	}
+
 	// Delete CRM data (contacts, accounts, tasks, quotes)
-	_, err = r.db.ExecContext(ctx, `DELETE FROM quote_line_items WHERE org_id = ?`, orgID)
-	if err != nil {
+	// quote_line_items has ON DELETE CASCADE from quotes, but delete explicitly in case FK not enabled
+	if err = tryDelete(`DELETE FROM quote_line_items WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM quotes WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM quotes WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM contacts WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM contacts WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM accounts WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM accounts WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM tasks WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM tasks WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
 
 	// Delete data quality / dedup tables
-	_, err = r.db.ExecContext(ctx, `DELETE FROM scan_checkpoints WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM scan_checkpoints WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM scan_jobs WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM scan_jobs WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM scan_schedules WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM scan_schedules WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM pending_duplicate_alerts WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM pending_duplicate_alerts WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM matching_rule_fields WHERE rule_id IN (SELECT id FROM matching_rules WHERE org_id = ?)`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM matching_rule_fields WHERE rule_id IN (SELECT id FROM matching_rules WHERE org_id = ?)`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM matching_rules WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM matching_rules WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM merge_snapshots WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM merge_snapshots WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM notifications WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM notifications WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
 
 	// Delete other org-specific data
-	_, err = r.db.ExecContext(ctx, `DELETE FROM tripwires WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM tripwires WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM bearing_configs WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM bearing_configs WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM validation_rules WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM validation_rules WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM api_tokens WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM custom_pages WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM custom_pages WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM flow_executions WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM flow_executions WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `DELETE FROM flow_definitions WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM flow_definitions WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
 
 	// Delete migration tracking (has FK to organizations without CASCADE)
-	_, err = r.db.ExecContext(ctx, `DELETE FROM migration_runs WHERE org_id = ?`, orgID)
-	if err != nil {
+	if err = tryDelete(`DELETE FROM migration_runs WHERE org_id = ?`, orgID); err != nil {
 		return err
 	}
 
