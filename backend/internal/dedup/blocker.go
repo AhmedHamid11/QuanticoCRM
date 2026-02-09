@@ -3,6 +3,7 @@ package dedup
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
@@ -126,6 +127,8 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 
 	// If no blocking conditions, return empty (avoid full table scan)
 	if len(conditions) == 0 {
+		log.Printf("[BLOCKER] No blocking conditions for %s strategy (keys: soundex=%q prefix=%q domain=%q phone=%q)",
+			rule.BlockingStrategy, keys.LastNameSoundex, keys.LastNamePrefix, keys.EmailDomain, keys.PhoneE164)
 		return []string{}, nil
 	}
 
@@ -146,6 +149,9 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 	// Limit to prevent huge result sets (soft limit per CONTEXT.md)
 	query += " LIMIT 1000"
 
+	log.Printf("[BLOCKER] Strategy=%s, query conditions: %s, args: %v, excludeID=%s",
+		rule.BlockingStrategy, strings.Join(conditions, " OR "), args, excludeID)
+
 	rows, err := conn.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find candidates: %w", err)
@@ -161,6 +167,7 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 		candidates = append(candidates, id)
 	}
 
+	log.Printf("[BLOCKER] Found %d candidates for %s/%s", len(candidates), entityType, excludeID)
 	return candidates, nil
 }
 

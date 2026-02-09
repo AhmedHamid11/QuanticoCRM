@@ -3,6 +3,7 @@ package dedup
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
@@ -55,11 +56,16 @@ func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID
 
 	// Process rules in priority order (first match wins per CONTEXT.md)
 	for _, rule := range rules {
+		log.Printf("[DETECTOR] Processing rule %s (strategy=%s) for %s/%s, excludeID=%s",
+			rule.Name, rule.BlockingStrategy, entityType, getStringValue(record, "id"), excludeID)
+
 		// Find candidate records using blocking
 		candidates, err := d.blocker.FindCandidates(ctx, conn, orgID, entityType, record, excludeID, &rule)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find candidates: %w", err)
 		}
+
+		log.Printf("[DETECTOR] Rule %s found %d candidates", rule.Name, len(candidates))
 
 		// Score each candidate
 		for _, candidateID := range candidates {
@@ -70,11 +76,14 @@ func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID
 			// Fetch candidate record
 			candidateRecord, err := d.fetchRecord(ctx, conn, entityType, candidateID, orgID)
 			if err != nil {
+				log.Printf("[DETECTOR] Failed to fetch candidate %s: %v", candidateID, err)
 				continue // Skip on error
 			}
 
 			// Calculate score
 			result, isMatch := d.scorer.CompareRecords(record, candidateRecord, &rule)
+			log.Printf("[DETECTOR] Scored %s vs %s: score=%.2f, isMatch=%v",
+				excludeID, candidateID, result.Score, isMatch)
 			if isMatch {
 				allMatches = append(allMatches, DuplicateMatch{
 					RecordID:    candidateID,
