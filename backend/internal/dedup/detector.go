@@ -33,6 +33,7 @@ func NewDetector(ruleRepo *repo.MatchingRuleRepo, defaultRegion string) *Detecto
 // DuplicateMatch represents a detected duplicate
 type DuplicateMatch struct {
 	RecordID    string              `json:"recordId"`
+	RecordName  string              `json:"recordName,omitempty"`
 	MatchResult *entity.MatchResult `json:"matchResult"`
 }
 

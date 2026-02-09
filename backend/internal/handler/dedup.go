@@ -246,6 +246,19 @@ func (h *DedupHandler) CheckDuplicates(c *fiber.Ctx) error {
 		}
 	}
 
+	// Enrich match record names for display
+	conn := h.getDB(c)
+	rawDB := db.GetRawDB(conn)
+	tableName := util.GetTableName(entityType)
+	for i := range matches {
+		if matches[i].RecordName == "" {
+			record, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, matches[i].RecordID, orgID)
+			if fetchErr == nil && record != nil {
+				matches[i].RecordName = util.GetRecordDisplayName(entityType, record)
+			}
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"duplicates": matches,
 		"count":      len(matches),
