@@ -425,42 +425,6 @@ func (p *MigrationPropagator) RetryOrg(ctx context.Context, orgID string) (*enti
 	return &run, nil
 }
 
-// ForceRetryOrg re-applies all migrations for an org, regardless of version status
-// This is used when an org's version is up-to-date but tables are missing
-func (p *MigrationPropagator) ForceRetryOrg(ctx context.Context, orgID string) (*entity.MigrationRun, error) {
-	// Get platform version
-	platformVersion, err := p.versionRepo.GetPlatformVersion(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get platform version: %w", err)
-	}
-
-	// Get org info
-	query := `
-		SELECT id, name, COALESCE(current_version, 'v0.1.0'),
-		       COALESCE(database_url, ''), COALESCE(database_token, '')
-		FROM organizations
-		WHERE id = ? AND is_active = 1
-	`
-	var org orgInfo
-	err = p.masterDB.QueryRowContext(ctx, query, orgID).Scan(
-		&org.ID, &org.Name, &org.CurrentVersion, &org.DatabaseURL, &org.DatabaseToken,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("organization not found: %s", orgID)
-		}
-		return nil, fmt.Errorf("failed to get organization: %w", err)
-	}
-
-	org.CurrentVersion = p.versionService.Normalize(org.CurrentVersion)
-
-	log.Printf("[MIGRATION] Force re-applying migrations for org %s (%s)", org.Name, org.ID)
-
-	// Run migration without version check
-	run := p.migrateOrg(ctx, &org, platformVersion.Version)
-	return &run, nil
-}
-
 // isAddColumnError checks if error is about a column already existing
 func isAddColumnError(err error) bool {
 	errStr := strings.ToLower(err.Error())

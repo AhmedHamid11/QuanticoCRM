@@ -269,14 +269,7 @@ func (h *VersionHandler) RetryMigration(c *fiber.Ctx) error {
 		})
 	}
 
-	var run *entity.MigrationRun
-	var err error
-
-	if c.Query("force") == "true" {
-		run, err = h.migrationPropagator.ForceRetryOrg(c.Context(), orgID)
-	} else {
-		run, err = h.migrationPropagator.RetryOrg(c.Context(), orgID)
-	}
+	run, err := h.migrationPropagator.RetryOrg(c.Context(), orgID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
