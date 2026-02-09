@@ -96,6 +96,15 @@
 			}
 			matchDetails = details;
 			availableMatches = validMatches;
+
+			// Auto-resolve if all matched records are gone (deleted/merged)
+			if (validMatches.length === 0 && alert.matches.length > 0) {
+				try {
+					await resolveAlert(entityType, currentRecordId, 'dismissed');
+				} catch { /* best-effort */ }
+				onDismiss();
+				return;
+			}
 		} catch (error) {
 			console.error('Failed to load record details:', error);
 		} finally {
