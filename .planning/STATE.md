@@ -14,7 +14,7 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 **Plan:** Not started
 **Status:** Ready to plan next milestone
 
-**Last activity:** 2026-02-09 — v3.0 Deduplication System milestone archived
+**Last activity:** 2026-02-09 — Fix Review Queue record name display (quick task 17)
 
 Progress: [██████████] 100% (53/53 plans across v1.0-v3.0)
 
