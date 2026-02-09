@@ -40,12 +40,13 @@ var StructToMap = util.StructToMap
 
 // GenericEntityHandler handles HTTP requests for dynamic entities
 type GenericEntityHandler struct {
-	defaultDB         db.DBConn
-	metadataRepo      *repo.MetadataRepo
-	authRepo          *repo.AuthRepo // NEW: for user name lookups
-	tripwireService   TripwireServiceInterface
-	validationService ValidationServiceInterface
-	realtimeChecker   RealtimeCheckerInterface
+	defaultDB           db.DBConn
+	metadataRepo        *repo.MetadataRepo
+	authRepo            *repo.AuthRepo // NEW: for user name lookups
+	tripwireService     TripwireServiceInterface
+	validationService   ValidationServiceInterface
+	realtimeChecker     RealtimeCheckerInterface
+	provisioningService ProvisioningServiceInterface
 }
 
 // NewGenericEntityHandler creates a new GenericEntityHandler
@@ -80,6 +81,41 @@ func (h *GenericEntityHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo 
 		return h.metadataRepo.WithDB(tenantDB)
 	}
 	return h.metadataRepo
+}
+
+// SetProvisioningService injects the provisioning service for auto-provisioning
+func (h *GenericEntityHandler) SetProvisioningService(svc ProvisioningServiceInterface) {
+	h.provisioningService = svc
+}
+
+// autoProvisionIfEmpty checks whether metadata is completely missing for an org
+// and auto-provisions it. Returns true if provisioning was triggered.
+func (h *GenericEntityHandler) autoProvisionIfEmpty(c *fiber.Ctx, orgID string) bool {
+	if h.provisioningService == nil {
+		return false
+	}
+
+	metaRepo := h.getMetadataRepo(c)
+	entities, err := metaRepo.ListEntities(c.Context(), orgID)
+	if err != nil || len(entities) > 0 {
+		return false // has metadata already, or error checking
+	}
+
+	// No entities at all — metadata was never provisioned to this tenant DB
+	log.Printf("[AutoProvision] No metadata found for org %s, auto-provisioning...", orgID)
+
+	// Point provisioning at the tenant DB
+	if tenantDB := middleware.GetTenantDB(c); tenantDB != nil {
+		h.provisioningService.SetDB(tenantDB)
+	}
+
+	if err := h.provisioningService.ProvisionDefaultMetadata(c.Context(), orgID); err != nil {
+		log.Printf("[AutoProvision] Failed for org %s: %v", orgID, err)
+		return false
+	}
+
+	log.Printf("[AutoProvision] Successfully provisioned metadata for org %s", orgID)
+	return true
 }
 
 // getTableName converts entity name to table name (e.g., "Candidate" -> "candidates")
@@ -1303,7 +1339,17 @@ func (h *GenericEntityHandler) ListFields(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	if ent == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+		// Auto-provision if no metadata exists at all, then retry
+		if h.autoProvisionIfEmpty(c, orgID) {
+			resolvedName, _ := h.getMetadataRepo(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
+			if resolvedName != "" {
+				entityName = resolvedName
+			}
+			ent, _ = h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+		}
+		if ent == nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+		}
 	}
 
 	// Get field definitions
@@ -1335,7 +1381,16 @@ func (h *GenericEntityHandler) GetEntityDef(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	if ent == nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+		if h.autoProvisionIfEmpty(c, orgID) {
+			resolvedName, _ := h.getMetadataRepo(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
+			if resolvedName != "" {
+				entityName = resolvedName
+			}
+			ent, _ = h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+		}
+		if ent == nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
+		}
 	}
 
 	return c.JSON(ent)
@@ -1363,13 +1418,22 @@ func (h *GenericEntityHandler) GetLayout(c *fiber.Ctx) error {
 	}
 
 	if layout == nil {
-		// Return empty layout with exists=false if not found
-		return c.JSON(fiber.Map{
-			"entityName": entityName,
-			"layoutType": layoutType,
-			"layoutData": "[]",
-			"exists":     false,
-		})
+		// Auto-provision if no metadata exists, then retry
+		if h.autoProvisionIfEmpty(c, orgID) {
+			resolvedName, _ := h.getMetadataRepo(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
+			if resolvedName != "" {
+				entityName = resolvedName
+			}
+			layout, _ = h.getMetadataRepo(c).GetLayout(c.Context(), orgID, entityName, layoutType)
+		}
+		if layout == nil {
+			return c.JSON(fiber.Map{
+				"entityName": entityName,
+				"layoutType": layoutType,
+				"layoutData": "[]",
+				"exists":     false,
+			})
+		}
 	}
 
 	return c.JSON(fiber.Map{

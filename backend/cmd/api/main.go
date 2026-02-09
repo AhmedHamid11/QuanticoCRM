@@ -251,6 +251,7 @@ func main() {
 	relatedHandler := handler.NewRelatedHandler(masterDB)
 	relatedListHandler := handler.NewRelatedListHandler(relatedListRepo, metadataRepo, masterDB)
 	genericEntityHandler := handler.NewGenericEntityHandler(masterDB, metadataRepo, authRepo, tripwireService, validationService, realtimeChecker)
+	genericEntityHandler.SetProvisioningService(provisioningService)
 	dataExplorerHandler := handler.NewDataExplorerHandler(masterDB)
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
