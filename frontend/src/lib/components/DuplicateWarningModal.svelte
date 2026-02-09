@@ -166,18 +166,25 @@
 	function getRecordLabel(record: Record<string, unknown> | null, recordId: string): string {
 		const name = getRecordName(record);
 		if (!record) return name;
+		const email = String(record.emailAddress || record.email || '');
 		// Check if another match has the same name — disambiguate with email or short ID
 		const hasDuplicateName = availableMatches.some(m =>
 			m.recordId !== recordId &&
 			matchDetails[m.recordId] &&
 			getRecordName(matchDetails[m.recordId]) === name
 		);
-		if (hasDuplicateName) {
-			const email = record.emailAddress || record.email;
-			if (email) return `${name} (${email})`;
-			return `${name} (${String(recordId).slice(0, 8)}...)`;
-		}
-		return name;
+		if (!hasDuplicateName) return name;
+		// Check if email also collides — need record ID to truly distinguish
+		const hasMatchWithSameEmail = availableMatches.some(m => {
+			if (m.recordId === recordId || !matchDetails[m.recordId]) return false;
+			const other = matchDetails[m.recordId];
+			return getRecordName(other) === name &&
+				String(other.emailAddress || other.email || '') === email;
+		});
+		if (email && !hasMatchWithSameEmail) return `${name} (${email})`;
+		// Last resort: append short record ID
+		const shortId = recordId.slice(-6);
+		return email ? `${name} (${email}) #${shortId}` : `${name} #${shortId}`;
 	}
 
 	function getFieldValue(record: Record<string, unknown> | null, field: string): string {
