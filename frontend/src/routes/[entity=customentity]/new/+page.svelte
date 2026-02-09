@@ -13,7 +13,7 @@
 		name: string;
 	}
 
-	let entitySlug = $derived($page.params.entity);
+	let entitySlug = $derived($page.params.entity!);
 	let entityName = $derived(getEntityNameFromPath(entitySlug) || toPascalCase(entitySlug));
 	let queryParams = $derived($page.url.searchParams);
 
@@ -255,7 +255,8 @@
 								<input
 									type="checkbox"
 									id={field.name}
-									bind:checked={formData[field.name]}
+									checked={!!formData[field.name]}
+									onchange={(e) => { formData[field.name] = e.currentTarget.checked; }}
 									class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 								/>
 							{:else if field.type === 'enum' && field.options}

@@ -15,7 +15,7 @@ func TestTripwire_CRUD(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Tripwire Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Tripwire Test Org")
 
 	t.Run("admin can create tripwire", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -201,7 +201,7 @@ func TestTripwire_ConditionTypes(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Tripwire Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Tripwire Test Org")
 
 	conditionTypes := []struct {
 		name     string
@@ -244,7 +244,7 @@ func TestTripwire_EntityTypes(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Tripwire Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Tripwire Test Org")
 
 	entityTypes := []string{"Contact", "Account", "Task"}
 
@@ -279,8 +279,8 @@ func TestTripwire_OrgIsolation(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create two users in different organizations
-	user1 := app.CreateTestUser(t, "user1@example.com", "password123", "Org One")
-	user2 := app.CreateTestUser(t, "user2@example.com", "password123", "Org Two")
+	user1 := app.CreateTestUser(t, "user1@example.com", "Qw!x7Km9pZr2", "Org One")
+	user2 := app.CreateTestUser(t, "user2@example.com", "Qw!x7Km9pZr2", "Org Two")
 
 	// User 1 creates a tripwire
 	createBody := map[string]interface{}{
@@ -336,7 +336,7 @@ func TestTripwire_NonAdminAccess(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create admin and invite a regular user
-	admin := app.CreateTestUser(t, "admin@example.com", "password123", "Test Org")
+	admin := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Test Org")
 
 	// Invite a regular user
 	inviteBody := map[string]string{
@@ -352,7 +352,7 @@ func TestTripwire_NonAdminAccess(t *testing.T) {
 	// Accept the invitation
 	acceptBody := map[string]interface{}{
 		"token":    inviteResp.Token,
-		"password": "password123",
+		"password": "Qw!x7Km9pZr2",
 	}
 	var acceptResp struct {
 		AccessToken string `json:"accessToken"`

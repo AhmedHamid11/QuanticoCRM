@@ -13,7 +13,7 @@ func TestValidationRule_CRUD(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Validation Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Validation Test Org")
 
 	t.Run("admin can create validation rule", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -209,7 +209,7 @@ func TestValidationRule_Enforcement(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Validation Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Validation Test Org")
 
 	t.Run("BLOCK_SAVE prevents record creation", func(t *testing.T) {
 		// Create a validation rule that requires email for contacts with "VIP" in description
@@ -350,7 +350,7 @@ func TestValidationRule_Operators(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Validation Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Validation Test Org")
 
 	t.Run("EQUALS operator blocks specific values", func(t *testing.T) {
 		ruleBody := map[string]interface{}{
@@ -411,7 +411,7 @@ func TestValidationRule_NonAdminAccess(t *testing.T) {
 	// Create a regular user (not admin)
 	// Note: When registering, user becomes owner of their org
 	// We need to invite a user as "user" role to test non-admin access
-	admin := app.CreateTestUser(t, "admin@example.com", "password123", "Test Org")
+	admin := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Test Org")
 
 	// Invite a regular user
 	inviteBody := map[string]string{
@@ -427,7 +427,7 @@ func TestValidationRule_NonAdminAccess(t *testing.T) {
 	// Accept the invitation
 	acceptBody := map[string]interface{}{
 		"token":    inviteResp.Token,
-		"password": "password123",
+		"password": "Qw!x7Km9pZr2",
 	}
 	var acceptResp struct {
 		AccessToken string `json:"accessToken"`

@@ -10,7 +10,7 @@
 		readonly?: boolean;
 	}
 
-	let { label, entry, log, required = false, onchange, onsubmit, ondelete, readonly = false }: Props = $props();
+	let { label, entry = $bindable(), log, required = false, onchange, onsubmit, ondelete, readonly = false }: Props = $props();
 
 	// Local entry state for inline editing mode (when onsubmit is provided)
 	let localEntry = $state('');

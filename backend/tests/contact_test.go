@@ -14,7 +14,7 @@ func TestContact_Create(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	t.Run("creates contact with required fields", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -111,7 +111,7 @@ func TestContact_Get(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	// Create a contact
 	createBody := map[string]interface{}{
@@ -157,7 +157,7 @@ func TestContact_List(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	// Create multiple contacts
 	contacts := []map[string]interface{}{
@@ -248,7 +248,7 @@ func TestContact_Update(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	// Create a contact
 	createBody := map[string]interface{}{
@@ -315,7 +315,7 @@ func TestContact_Delete(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	// Create a contact
 	createBody := map[string]interface{}{
@@ -347,8 +347,8 @@ func TestContact_OrgIsolation(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create two users in different organizations
-	user1 := app.CreateTestUser(t, "user1@example.com", "password123", "Org One")
-	user2 := app.CreateTestUser(t, "user2@example.com", "password123", "Org Two")
+	user1 := app.CreateTestUser(t, "user1@example.com", "Qw!x7Km9pZr2", "Org One")
+	user2 := app.CreateTestUser(t, "user2@example.com", "Qw!x7Km9pZr2", "Org Two")
 
 	// User 1 creates a contact
 	createBody := map[string]interface{}{
@@ -399,7 +399,7 @@ func TestContact_CustomFields(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	t.Run("creates contact with custom fields", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -464,7 +464,7 @@ func TestContact_ListTasks(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "contact@example.com", "password123", "Contact Test Org")
+	user := app.CreateTestUser(t, "contact@example.com", "Qw!x7Km9pZr2", "Contact Test Org")
 
 	// Create a contact
 	contactBody := map[string]interface{}{

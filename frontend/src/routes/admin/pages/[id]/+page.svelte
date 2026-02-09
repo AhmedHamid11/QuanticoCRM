@@ -19,7 +19,7 @@
 		type: 'iframe',
 		title: '',
 		width: 'full',
-		config: {}
+		config: {} as any
 	});
 
 	async function loadPage() {
@@ -104,7 +104,7 @@
 		}
 
 		showComponentModal = false;
-		componentForm = { type: 'iframe', title: '', width: 'full', config: {} };
+		componentForm = { type: 'iframe', title: '', width: 'full', config: {} as any };
 		editingComponentIndex = null;
 	}
 

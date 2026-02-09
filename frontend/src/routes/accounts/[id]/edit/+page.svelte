@@ -70,7 +70,7 @@
 			}
 		} catch {
 			fields = [];
-			layoutFields = [];
+			layout = null;
 		}
 	}
 
@@ -87,7 +87,7 @@
 				const key = fieldNameToKey(field.name);
 				if (isSystemField(field.name)) {
 					// System field - get from account directly using camelCase key
-					data[field.name] = (accountData as Record<string, unknown>)[key] ?? '';
+					data[field.name] = (accountData as unknown as Record<string, unknown>)[key] ?? '';
 				} else {
 					// Custom field - get from customFields (try camelCase key first, then original)
 					data[field.name] = accountData.customFields?.[key] ?? accountData.customFields?.[field.name] ?? '';
@@ -101,7 +101,7 @@
 					const key = fieldNameToKey(field.name);
 					const nameKey = `${key}Name`;
 					const nameVal = isSystemField(field.name)
-						? (accountData as Record<string, unknown>)[nameKey]
+						? (accountData as unknown as Record<string, unknown>)[nameKey]
 						: accountData.customFields?.[nameKey] ?? accountData.customFields?.[`${field.name}Name`];
 					if (nameVal) {
 						lookupNames[field.name] = String(nameVal);

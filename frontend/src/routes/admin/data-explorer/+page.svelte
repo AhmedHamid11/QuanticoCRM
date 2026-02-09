@@ -45,7 +45,7 @@
 
 	function exportCSV() {
 		if (!result || result.rows.length === 0) {
-			addToast('No data to export', 'warning');
+			addToast('No data to export', 'info');
 			return;
 		}
 

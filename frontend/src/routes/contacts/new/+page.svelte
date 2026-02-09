@@ -222,7 +222,8 @@
 								<input
 									type="checkbox"
 									id={fieldName}
-									bind:checked={formData[fieldName]}
+									checked={!!formData[fieldName]}
+									onchange={(e) => { formData[fieldName] = e.currentTarget.checked; }}
 									class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 									disabled={field.isReadOnly}
 								/>

@@ -19,9 +19,9 @@
 		name: string;
 	}
 
-	let entitySlug = $derived($page.params.entity);
+	let entitySlug = $derived($page.params.entity!);
 	let entityName = $derived(getEntityNameFromPath(entitySlug) || toPascalCase(entitySlug));
-	let recordId = $derived($page.params.id);
+	let recordId = $derived($page.params.id!);
 
 	function toPascalCase(slug: string): string {
 		let singular = slug;

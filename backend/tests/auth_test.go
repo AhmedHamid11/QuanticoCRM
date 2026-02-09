@@ -18,7 +18,7 @@ func TestAuth_Register(t *testing.T) {
 	t.Run("successful registration creates user and organization", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "test@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 			"orgName":  "Test Organization",
 		}
 
@@ -67,7 +67,7 @@ func TestAuth_Register(t *testing.T) {
 
 	t.Run("registration fails with missing email", func(t *testing.T) {
 		body := map[string]string{
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 			"orgName":  "Test Organization",
 		}
 
@@ -88,7 +88,7 @@ func TestAuth_Register(t *testing.T) {
 	t.Run("registration fails with missing org name", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "test3@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 		}
 
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/register", body, "")
@@ -110,7 +110,7 @@ func TestAuth_Register(t *testing.T) {
 		// First registration
 		body := map[string]string{
 			"email":    "duplicate@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 			"orgName":  "First Org",
 		}
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/register", body, "")
@@ -128,12 +128,12 @@ func TestAuth_Login(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create a test user first
-	user := app.CreateTestUser(t, "login@example.com", "password123", "Login Test Org")
+	user := app.CreateTestUser(t, "login@example.com", "Qw!x7Km9pZr2", "Login Test Org")
 
 	t.Run("successful login returns tokens", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "login@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 		}
 
 		var response struct {
@@ -174,7 +174,7 @@ func TestAuth_Login(t *testing.T) {
 	t.Run("login fails with non-existent email", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "nonexistent@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 		}
 
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/login", body, "")
@@ -183,7 +183,7 @@ func TestAuth_Login(t *testing.T) {
 
 	t.Run("login fails with missing email", func(t *testing.T) {
 		body := map[string]string{
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 		}
 
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/login", body, "")
@@ -205,7 +205,7 @@ func TestAuth_Me(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create a test user
-	user := app.CreateTestUser(t, "me@example.com", "password123", "Me Test Org")
+	user := app.CreateTestUser(t, "me@example.com", "Qw!x7Km9pZr2", "Me Test Org")
 
 	t.Run("returns current user info with valid token", func(t *testing.T) {
 		var response struct {
@@ -250,7 +250,7 @@ func TestAuth_RefreshToken(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create a test user
-	user := app.CreateTestUser(t, "refresh@example.com", "password123", "Refresh Test Org")
+	user := app.CreateTestUser(t, "refresh@example.com", "Qw!x7Km9pZr2", "Refresh Test Org")
 
 	t.Run("refreshes tokens successfully", func(t *testing.T) {
 		// Refresh token is sent via cookie
@@ -301,7 +301,7 @@ func TestAuth_Logout(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create a test user
-	user := app.CreateTestUser(t, "logout@example.com", "password123", "Logout Test Org")
+	user := app.CreateTestUser(t, "logout@example.com", "Qw!x7Km9pZr2", "Logout Test Org")
 
 	t.Run("logout invalidates session", func(t *testing.T) {
 		// Logout using cookie-based refresh token
@@ -324,11 +324,11 @@ func TestAuth_ChangePassword(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create a test user
-	user := app.CreateTestUser(t, "changepw@example.com", "oldpassword123", "Password Test Org")
+	user := app.CreateTestUser(t, "changepw@example.com", "oldQw!x7Km9pZr2", "Password Test Org")
 
 	t.Run("changes password successfully", func(t *testing.T) {
 		body := map[string]string{
-			"currentPassword": "oldpassword123",
+			"currentPassword": "oldQw!x7Km9pZr2",
 			"newPassword":     "newpassword456",
 		}
 
@@ -370,7 +370,7 @@ func TestAuth_GetUserOrgs(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create a test user
-	user := app.CreateTestUser(t, "orgs@example.com", "password123", "First Org")
+	user := app.CreateTestUser(t, "orgs@example.com", "Qw!x7Km9pZr2", "First Org")
 
 	t.Run("returns user organizations", func(t *testing.T) {
 		var response struct {
@@ -398,7 +398,7 @@ func TestAuth_Invitation(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create an admin user
-	admin := app.CreateTestUser(t, "admin@example.com", "password123", "Invite Test Org")
+	admin := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Invite Test Org")
 
 	t.Run("admin can invite user", func(t *testing.T) {
 		body := map[string]string{
@@ -443,7 +443,7 @@ func TestAuth_Invitation(t *testing.T) {
 
 	t.Run("non-admin cannot invite user", func(t *testing.T) {
 		// Create a regular user by accepting an invitation or registering separately
-		regularUser := app.CreateTestUser(t, "regular@example.com", "password123", "Regular User Org")
+		regularUser := app.CreateTestUser(t, "regular@example.com", "Qw!x7Km9pZr2", "Regular User Org")
 
 		body := map[string]string{
 			"email": "another@example.com",
@@ -462,7 +462,7 @@ func TestAuth_AcceptInvitation(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create an admin user and invite someone
-	admin := app.CreateTestUser(t, "inviter@example.com", "password123", "Accept Test Org")
+	admin := app.CreateTestUser(t, "inviter@example.com", "Qw!x7Km9pZr2", "Accept Test Org")
 
 	inviteBody := map[string]string{
 		"email": "newuser@example.com",
@@ -479,7 +479,7 @@ func TestAuth_AcceptInvitation(t *testing.T) {
 	t.Run("new user can accept invitation", func(t *testing.T) {
 		body := map[string]interface{}{
 			"token":     inviteResp.Token,
-			"password":  "newuserpassword123",
+			"password":  "newuserQw!x7Km9pZr2",
 			"firstName": "New",
 			"lastName":  "User",
 		}
@@ -506,7 +506,7 @@ func TestAuth_AcceptInvitation(t *testing.T) {
 	t.Run("fails with invalid token", func(t *testing.T) {
 		body := map[string]interface{}{
 			"token":    "invalid-token",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 		}
 
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/accept-invite", body, "")

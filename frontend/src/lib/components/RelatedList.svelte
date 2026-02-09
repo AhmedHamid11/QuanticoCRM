@@ -476,7 +476,7 @@
 							</td>
 						</tr>
 					{/if}
-					{#each data.records as record}
+					{#each data!.records as record}
 						<tr
 							class="hover:bg-gray-50 cursor-pointer"
 							onclick={() => navigateToRecord(record.id as string)}

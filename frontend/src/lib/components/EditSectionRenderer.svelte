@@ -114,7 +114,7 @@
 							{:else if field.type === 'stream'}
 								<StreamField
 									label={field.label}
-									bind:entry={formData[field.name]}
+									entry={String(formData[field.name] ?? '')} onchange={(val) => { formData[field.name] = val; }}
 									log={formData[`${field.name}Log`] ? String(formData[`${field.name}Log`]) : ''}
 									readonly={false}
 								/>
@@ -145,7 +145,7 @@
 									<input
 										type="checkbox"
 										id={field.name}
-										bind:checked={formData[field.name]}
+										checked={Boolean(formData[field.name])} onchange={(e) => { formData[field.name] = e.currentTarget.checked; }}
 										class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
 										class:border-gray-300={!fieldError}
 										class:border-red-500={fieldError}

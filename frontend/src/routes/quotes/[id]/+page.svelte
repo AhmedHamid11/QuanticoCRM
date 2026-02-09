@@ -70,7 +70,7 @@
 		// Add system fields
 		for (const fieldName of SYSTEM_FIELDS) {
 			if (fieldName in quote) {
-				data[fieldName] = (quote as Record<string, unknown>)[fieldName];
+				data[fieldName] = (quote as unknown as Record<string, unknown>)[fieldName];
 			}
 		}
 
@@ -90,7 +90,7 @@
 		// Add other dynamic fields from the quote object
 		for (const field of fields) {
 			if (!SYSTEM_FIELDS.has(field.name) && field.name in quote && !(field.name in data)) {
-				data[field.name] = (quote as Record<string, unknown>)[field.name];
+				data[field.name] = (quote as unknown as Record<string, unknown>)[field.name];
 			}
 		}
 
@@ -147,7 +147,7 @@
 	function handleBearingUpdate(fieldName: string, newValue: string) {
 		if (quote) {
 			if (isSystemField(fieldName)) {
-				(quote as Record<string, unknown>)[fieldName] = newValue;
+				(quote as unknown as Record<string, unknown>)[fieldName] = newValue;
 			} else {
 				if (!quote.customFields) {
 					quote.customFields = {};
@@ -274,12 +274,12 @@
 				return { href: String(value), text: String(value) };
 			case 'link':
 				if (field.linkEntity && quote) {
-					const id = (quote as Record<string, unknown>)[fieldName];
+					const id = (quote as unknown as Record<string, unknown>)[fieldName];
 					if (!id) return null;
 					const entityPath = field.linkEntity.toLowerCase() + 's';
 					// Get the display name from the record
 					const nameField = fieldName.replace('Id', 'Name');
-					const displayName = (quote as Record<string, unknown>)[nameField] || value;
+					const displayName = (quote as unknown as Record<string, unknown>)[nameField] || value;
 					return { href: `/${entityPath}/${id}`, text: String(displayName) };
 				}
 				return null;
@@ -411,7 +411,7 @@
 				{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
 					{@const fieldName = bearing.sourcePicklist}
 					{@const currentVal = isSystemField(fieldName)
-						? (quote as Record<string, unknown>)[fieldName]
+						? (quote as unknown as Record<string, unknown>)[fieldName]
 						: quote.customFields?.[fieldName]}
 					<Bearing
 						{bearing}

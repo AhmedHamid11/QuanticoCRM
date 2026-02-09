@@ -2,7 +2,7 @@
 // SECURITY: Access tokens are stored only in memory (reactive state)
 // SECURITY: Refresh tokens are in HttpOnly cookies - never accessible to JavaScript
 import { PUBLIC_API_URL } from '$env/static/public';
-import { initSessionTracking, stopSessionTracking } from './session.svelte.ts';
+import { initSessionTracking, stopSessionTracking } from './session.svelte';
 import type {
 	AuthState,
 	AuthResponse,
@@ -132,6 +132,7 @@ function getInitialState(): AuthState {
 			user: null,
 			currentOrg: null,
 			accessToken: null, // Memory only - NOT restored from storage
+			refreshToken: null,
 			expiresAt: null,
 			isAuthenticated: false,
 			isLoading: true, // Start true - we'll try silent refresh
@@ -150,6 +151,7 @@ function getInitialState(): AuthState {
 				user: data.user,
 				currentOrg: data.currentOrg,
 				accessToken: null, // DO NOT restore - memory only
+				refreshToken: null,
 				expiresAt: null, // Must re-validate via refresh
 				isAuthenticated: false, // Not authenticated until refresh succeeds
 				isLoading: true, // Will attempt silent refresh
@@ -166,6 +168,7 @@ function getInitialState(): AuthState {
 		user: null,
 		currentOrg: null,
 		accessToken: null,
+		refreshToken: null,
 		expiresAt: null,
 		isAuthenticated: false,
 		isLoading: false,

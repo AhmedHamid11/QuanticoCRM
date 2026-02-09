@@ -7,6 +7,8 @@ export type {
 	PendingAlert
 } from './dedup';
 
+import type { DuplicateMatch, PendingAlert } from './dedup';
+
 export {
 	getBannerClass,
 	getConfidenceBadgeClass,

@@ -68,7 +68,7 @@ func TestImport_CreateMode(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "import@test.com", "password123", "Import Test Org")
+	user := app.CreateTestUser(t, "import@test.com", "Qw!x7Km9pZr2", "Import Test Org")
 
 	// First create the Contact entity with fields
 	setupContactEntity(t, app, user.AccessToken)
@@ -124,7 +124,7 @@ func TestImport_UpdateMode(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "import-update@test.com", "password123", "Import Update Org")
+	user := app.CreateTestUser(t, "import-update@test.com", "Qw!x7Km9pZr2", "Import Update Org")
 	setupContactEntity(t, app, user.AccessToken)
 
 	// Create initial records
@@ -194,7 +194,7 @@ func TestImport_UpsertMode(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "import-upsert@test.com", "password123", "Import Upsert Org")
+	user := app.CreateTestUser(t, "import-upsert@test.com", "Qw!x7Km9pZr2", "Import Upsert Org")
 	setupContactEntity(t, app, user.AccessToken)
 
 	// Create initial record
@@ -240,7 +240,7 @@ func TestImport_DeleteMode(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "import-delete@test.com", "password123", "Import Delete Org")
+	user := app.CreateTestUser(t, "import-delete@test.com", "Qw!x7Km9pZr2", "Import Delete Org")
 	setupContactEntity(t, app, user.AccessToken)
 
 	// Create records to delete
@@ -304,7 +304,7 @@ func TestImport_ValidationErrors(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "import-validate@test.com", "password123", "Import Validate Org")
+	user := app.CreateTestUser(t, "import-validate@test.com", "Qw!x7Km9pZr2", "Import Validate Org")
 	setupContactEntity(t, app, user.AccessToken)
 
 	t.Run("requires matchField for update mode", func(t *testing.T) {
@@ -349,7 +349,7 @@ func TestImport_SkipErrors(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "import-skip@test.com", "password123", "Import Skip Org")
+	user := app.CreateTestUser(t, "import-skip@test.com", "Qw!x7Km9pZr2", "Import Skip Org")
 	setupContactEntity(t, app, user.AccessToken)
 
 	t.Run("continues on error when skipErrors is true", func(t *testing.T) {

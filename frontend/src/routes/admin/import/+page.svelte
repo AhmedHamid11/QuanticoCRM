@@ -26,7 +26,7 @@
 			entities = Array.isArray(response) ? response : [];
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load entities';
-			addToast('error', 'Failed to load entities');
+			addToast('Failed to load entities', 'error');
 		} finally {
 			loading = false;
 		}

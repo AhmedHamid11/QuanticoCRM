@@ -98,7 +98,7 @@
 
 				const key = fieldNameToKey(field.name);
 				if (isSystemField(field.name)) {
-					data[field.name] = (quoteData as Record<string, unknown>)[key] ?? '';
+					data[field.name] = (quoteData as unknown as Record<string, unknown>)[key] ?? '';
 				} else {
 					data[field.name] = (quoteData as any).customFields?.[field.name] ?? '';
 				}
@@ -107,7 +107,7 @@
 				if (field.type === 'link') {
 					const nameKey = `${key}Name`;
 					const nameVal = isSystemField(field.name)
-						? (quoteData as Record<string, unknown>)[nameKey]
+						? (quoteData as unknown as Record<string, unknown>)[nameKey]
 						: (quoteData as any).customFields?.[`${field.name}Name`];
 					if (nameVal) {
 						lookupNames[field.name] = String(nameVal);

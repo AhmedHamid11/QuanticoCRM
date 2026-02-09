@@ -144,4 +144,5 @@ export interface AuthState {
 	isLoading: boolean;
 	isImpersonation: boolean;
 	impersonatedBy: string | null;
+	mustChangePassword: boolean;
 }

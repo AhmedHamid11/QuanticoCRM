@@ -13,7 +13,7 @@ func TestTask_Create(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "task@example.com", "password123", "Task Test Org")
+	user := app.CreateTestUser(t, "task@example.com", "Qw!x7Km9pZr2", "Task Test Org")
 
 	// Create a contact to link tasks to
 	contactBody := map[string]interface{}{
@@ -147,7 +147,7 @@ func TestTask_Get(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "task@example.com", "password123", "Task Test Org")
+	user := app.CreateTestUser(t, "task@example.com", "Qw!x7Km9pZr2", "Task Test Org")
 
 	// Create a contact
 	contactBody := map[string]interface{}{
@@ -200,7 +200,7 @@ func TestTask_List(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "task@example.com", "password123", "Task Test Org")
+	user := app.CreateTestUser(t, "task@example.com", "Qw!x7Km9pZr2", "Task Test Org")
 
 	// Create a contact
 	contactBody := map[string]interface{}{
@@ -323,7 +323,7 @@ func TestTask_Update(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "task@example.com", "password123", "Task Test Org")
+	user := app.CreateTestUser(t, "task@example.com", "Qw!x7Km9pZr2", "Task Test Org")
 
 	// Create a contact
 	contactBody := map[string]interface{}{
@@ -402,7 +402,7 @@ func TestTask_Delete(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "task@example.com", "password123", "Task Test Org")
+	user := app.CreateTestUser(t, "task@example.com", "Qw!x7Km9pZr2", "Task Test Org")
 
 	// Create a contact
 	contactBody := map[string]interface{}{
@@ -447,8 +447,8 @@ func TestTask_OrgIsolation(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create two users in different organizations
-	user1 := app.CreateTestUser(t, "user1@example.com", "password123", "Org One")
-	user2 := app.CreateTestUser(t, "user2@example.com", "password123", "Org Two")
+	user1 := app.CreateTestUser(t, "user1@example.com", "Qw!x7Km9pZr2", "Org One")
+	user2 := app.CreateTestUser(t, "user2@example.com", "Qw!x7Km9pZr2", "Org Two")
 
 	// User 1 creates a contact and task
 	contactBody := map[string]interface{}{
@@ -509,7 +509,7 @@ func TestTask_ParentTypeValidation(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "task@example.com", "password123", "Task Test Org")
+	user := app.CreateTestUser(t, "task@example.com", "Qw!x7Km9pZr2", "Task Test Org")
 
 	// Create a contact
 	contactBody := map[string]interface{}{

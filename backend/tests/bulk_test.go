@@ -13,7 +13,7 @@ func TestBulk_Create(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "bulk@example.com", "password123", "Bulk Test Org")
+	user := app.CreateTestUser(t, "bulk@example.com", "Qw!x7Km9pZr2", "Bulk Test Org")
 
 	t.Run("bulk creates multiple contacts", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -119,7 +119,7 @@ func TestBulk_Update(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "bulk@example.com", "password123", "Bulk Test Org")
+	user := app.CreateTestUser(t, "bulk@example.com", "Qw!x7Km9pZr2", "Bulk Test Org")
 
 	// Create contacts to update
 	var contactIDs []string
@@ -193,8 +193,8 @@ func TestBulk_OrgIsolation(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create two users in different organizations
-	user1 := app.CreateTestUser(t, "user1@example.com", "password123", "Org One")
-	user2 := app.CreateTestUser(t, "user2@example.com", "password123", "Org Two")
+	user1 := app.CreateTestUser(t, "user1@example.com", "Qw!x7Km9pZr2", "Org One")
+	user2 := app.CreateTestUser(t, "user2@example.com", "Qw!x7Km9pZr2", "Org Two")
 
 	// User 1 creates a contact
 	contactBody := map[string]interface{}{
@@ -236,7 +236,7 @@ func TestBulk_ValidationRules(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "bulk@example.com", "password123", "Bulk Test Org")
+	user := app.CreateTestUser(t, "bulk@example.com", "Qw!x7Km9pZr2", "Bulk Test Org")
 
 	// Create a validation rule that requires email for VIP contacts
 	ruleBody := map[string]interface{}{
@@ -295,7 +295,7 @@ func TestBulk_Tasks(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "bulk@example.com", "password123", "Bulk Test Org")
+	user := app.CreateTestUser(t, "bulk@example.com", "Qw!x7Km9pZr2", "Bulk Test Org")
 
 	// Create a contact to link tasks to
 	contactBody := map[string]interface{}{

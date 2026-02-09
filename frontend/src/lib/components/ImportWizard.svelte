@@ -184,18 +184,19 @@
 			}
 
 			previewData = await response.json();
+			const preview = previewData!;
 
 			// Initialize column mapping with auto-mapped fields
 			const mapping: Record<string, string> = {};
-			previewData.headers.forEach((header, idx) => {
-				if (previewData!.mappedHeaders[idx]) {
-					mapping[header] = previewData!.mappedHeaders[idx];
+			preview.headers.forEach((header: string, idx: number) => {
+				if (preview.mappedHeaders[idx]) {
+					mapping[header] = preview.mappedHeaders[idx];
 				}
 			});
 			columnMapping = mapping;
 
 			// Get available fields for dropdowns (use the full list from backend)
-			availableFields = previewData.availableFields || [];
+			availableFields = preview.availableFields || [];
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load file';
 			file = null;
@@ -353,16 +354,17 @@
 			importResult = await response.json();
 			step = 3;
 			// Build success message based on mode
+			const result = importResult!;
 			const messages: string[] = [];
-			if (importResult.created > 0) messages.push(`${importResult.created} created`);
-			if (importResult.updated > 0) messages.push(`${importResult.updated} updated`);
-			if ((importResult as any).deleted > 0) messages.push(`${(importResult as any).deleted} deleted`);
-			if (importResult.skipped && importResult.skipped > 0) messages.push(`${importResult.skipped} skipped`);
-			if (importResult.merged && importResult.merged > 0) messages.push(`${importResult.merged} sent to merge`);
-			addToast('success', `Import complete: ${messages.join(', ') || 'No changes'}`);
+			if (result.created > 0) messages.push(`${result.created} created`);
+			if (result.updated > 0) messages.push(`${result.updated} updated`);
+			if ((result as any).deleted > 0) messages.push(`${(result as any).deleted} deleted`);
+			if (result.skipped && result.skipped > 0) messages.push(`${result.skipped} skipped`);
+			if (result.merged && result.merged > 0) messages.push(`${result.merged} sent to merge`);
+			addToast(`Import complete: ${messages.join(', ') || 'No changes'}`, 'success');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Import failed';
-			addToast('error', 'Import failed');
+			addToast('Import failed', 'error');
 		} finally {
 			loading = false;
 		}
@@ -1255,7 +1257,7 @@
 				{#if importResult.auditReport}
 					<div class="mt-4">
 						<button
-							onclick={() => downloadAuditReport(importResult.auditReport!)}
+							onclick={() => downloadAuditReport(importResult!.auditReport!)}
 							class="inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-white hover:bg-green-50"
 						>
 							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

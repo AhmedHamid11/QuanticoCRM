@@ -72,7 +72,7 @@
 				selections[field.name] = survivorId;
 			} else {
 				// Survivor field is empty, find first record with non-empty value
-				const recordWithValue = preview.records.find((r) => {
+				const recordWithValue = preview!.records.find((r) => {
 					const val = r[field.name];
 					return val !== null && val !== undefined && val !== '';
 				});

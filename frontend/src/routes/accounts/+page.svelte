@@ -127,9 +127,9 @@
 
 		// For link fields, get the display name from {fieldName}Name
 		if (field?.type === 'link') {
-			value = (record as Record<string, unknown>)[`${fieldName}Name`] ?? (record as Record<string, unknown>)[fieldName];
+			value = (record as unknown as Record<string, unknown>)[`${fieldName}Name`] ?? (record as unknown as Record<string, unknown>)[fieldName];
 		} else if (field?.type === 'linkMultiple') {
-			const names = (record as Record<string, unknown>)[`${fieldName}Names`];
+			const names = (record as unknown as Record<string, unknown>)[`${fieldName}Names`];
 			if (names) {
 				try {
 					const parsed = typeof names === 'string' ? JSON.parse(names) : names;
@@ -140,9 +140,9 @@
 					// Not valid JSON
 				}
 			}
-			value = (record as Record<string, unknown>)[fieldName];
+			value = (record as unknown as Record<string, unknown>)[fieldName];
 		} else {
-			value = (record as Record<string, unknown>)[fieldName];
+			value = (record as unknown as Record<string, unknown>)[fieldName];
 		}
 
 		if (value === null || value === undefined || value === '') {
@@ -597,7 +597,7 @@
 											{formatFieldValue(account, fieldName)}
 										</a>
 									{:else if isLinkField(fieldName)}
-										{@const value = (account as Record<string, unknown>)[fieldName]}
+										{@const value = (account as unknown as Record<string, unknown>)[fieldName]}
 										{#if value}
 											<a href={String(value)} target="_blank" class="text-blue-600 hover:underline">
 												{formatFieldValue(account, fieldName)}

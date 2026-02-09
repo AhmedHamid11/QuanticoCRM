@@ -69,7 +69,7 @@
 		// Add system fields
 		for (const fieldName of SYSTEM_FIELDS) {
 			if (fieldName in account) {
-				data[fieldName] = (account as Record<string, unknown>)[fieldName];
+				data[fieldName] = (account as unknown as Record<string, unknown>)[fieldName];
 			}
 		}
 
@@ -84,7 +84,7 @@
 		// These are returned at the top level, not in customFields
 		for (const field of fields) {
 			if (!SYSTEM_FIELDS.has(field.name) && field.name in account && !(field.name in data)) {
-				data[field.name] = (account as Record<string, unknown>)[field.name];
+				data[field.name] = (account as unknown as Record<string, unknown>)[field.name];
 			}
 		}
 
@@ -192,7 +192,7 @@
 				return { href: String(value), text: String(value) };
 			case 'link':
 				if (field.linkEntity && account) {
-					const id = (account as Record<string, unknown>)[fieldName];
+					const id = (account as unknown as Record<string, unknown>)[fieldName];
 					if (!id) return null;
 					const entityPath = field.linkEntity.toLowerCase() + 's';
 					return { href: `/${entityPath}/${id}`, text: String(value) };
@@ -207,7 +207,7 @@
 		if (account) {
 			// Update local state optimistically
 			if (isSystemField(fieldName)) {
-				(account as Record<string, unknown>)[fieldName] = newValue;
+				(account as unknown as Record<string, unknown>)[fieldName] = newValue;
 			} else {
 				if (!account.customFields) {
 					account.customFields = {};
@@ -299,7 +299,7 @@
 				{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
 					{@const fieldName = bearing.sourcePicklist}
 					{@const currentVal = isSystemField(fieldName)
-						? (account as Record<string, unknown>)[fieldName]
+						? (account as unknown as Record<string, unknown>)[fieldName]
 						: account.customFields?.[fieldName]}
 					<Bearing
 						{bearing}

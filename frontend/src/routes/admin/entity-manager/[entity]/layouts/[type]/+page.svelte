@@ -9,7 +9,7 @@
 	import SectionEditor from '$lib/components/SectionEditor.svelte';
 
 	let entityName = $derived($page.params.entity);
-	let layoutType = $derived($page.params.type);
+	let layoutType = $derived($page.params.type ?? '');
 	let isListLayout = $derived(layoutType === 'list');
 
 	let entity = $state<EntityDef | null>(null);

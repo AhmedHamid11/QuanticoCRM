@@ -25,7 +25,7 @@
 	}
 
 	// Get entity name from URL via navigation lookup or fallback to PascalCase conversion
-	let entitySlug = $derived($page.params.entity);
+	let entitySlug = $derived($page.params.entity!);
 	let entityName = $derived(getEntityNameFromPath(entitySlug) || toPascalCase(entitySlug));
 
 	// Convert slug to PascalCase as fallback (remove trailing 's' for plural)

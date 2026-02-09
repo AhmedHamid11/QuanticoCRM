@@ -77,7 +77,7 @@
 				const key = fieldNameToKey(field.name);
 				if (isSystemField(field.name)) {
 					// System field - get from contact directly
-					data[field.name] = (contactData as Record<string, unknown>)[key] ?? '';
+					data[field.name] = (contactData as unknown as Record<string, unknown>)[key] ?? '';
 				} else {
 					// Custom field - get from customFields
 					data[field.name] = contactData.customFields?.[field.name] ?? '';
@@ -88,7 +88,7 @@
 					const nameFieldName = field.name.replace(/Id$/, 'Name');
 					const nameKey = fieldNameToKey(nameFieldName);
 					if (isSystemField(nameFieldName)) {
-						data[nameFieldName] = (contactData as Record<string, unknown>)[nameKey] ?? '';
+						data[nameFieldName] = (contactData as unknown as Record<string, unknown>)[nameKey] ?? '';
 					} else {
 						data[nameFieldName] = contactData.customFields?.[nameFieldName] ?? '';
 					}
@@ -104,10 +104,10 @@
 					const namesKey = fieldNameToKey(namesFieldName);
 
 					const idsVal = isSystemField(idsFieldName)
-						? (contactData as Record<string, unknown>)[idsKey]
+						? (contactData as unknown as Record<string, unknown>)[idsKey]
 						: contactData.customFields?.[idsFieldName];
 					const namesVal = isSystemField(namesFieldName)
-						? (contactData as Record<string, unknown>)[namesKey]
+						? (contactData as unknown as Record<string, unknown>)[namesKey]
 						: contactData.customFields?.[namesFieldName];
 
 					if (idsVal && namesVal && idsVal !== '[]') {
@@ -198,7 +198,7 @@
 					bind:formData
 					{lookupNames}
 					{multiLookupValues}
-					getFieldError={(fieldName) => formErrors.getFieldError(fieldName) ? { field: fieldName, message: formErrors.getFieldError(fieldName) || '' } : undefined}
+					getFieldError={(fieldName) => formErrors.getFieldError(fieldName) ? { field: fieldName, message: formErrors.getFieldError(fieldName) || '', ruleId: '' } : undefined}
 					onLookupChange={(fieldName, id, name) => {
 						formData[`${fieldName}Id`] = id;
 						formData[`${fieldName}Name`] = name;

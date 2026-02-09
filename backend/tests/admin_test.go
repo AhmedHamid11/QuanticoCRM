@@ -13,7 +13,7 @@ func TestAdmin_EntityManagement(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	t.Run("admin can list entities", func(t *testing.T) {
 		// API returns array directly, not wrapped in object
@@ -59,7 +59,7 @@ func TestAdmin_FieldTypes(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	t.Run("admin can list field types", func(t *testing.T) {
 		// API returns array directly, not wrapped in object
@@ -100,7 +100,7 @@ func TestAdmin_Fields(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	t.Run("admin can list entity fields", func(t *testing.T) {
 		// API returns array directly, not wrapped in object
@@ -133,7 +133,7 @@ func TestAdmin_Navigation(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	t.Run("user can get navigation", func(t *testing.T) {
 		// API returns array directly, not wrapped in object
@@ -175,7 +175,7 @@ func TestAdmin_Users(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create admin
-	admin := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	admin := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	// Invite a regular user
 	inviteBody := map[string]string{
@@ -193,7 +193,7 @@ func TestAdmin_Users(t *testing.T) {
 	// Accept the invitation
 	acceptBody := map[string]interface{}{
 		"token":    inviteResp.Invitation.Token,
-		"password": "password123",
+		"password": "Qw!x7Km9pZr2",
 	}
 	var acceptResp struct {
 		User struct {
@@ -246,7 +246,7 @@ func TestAuthorization_RoleBasedAccess(t *testing.T) {
 	defer app.Cleanup()
 
 	// Create an owner/admin
-	owner := app.CreateTestUser(t, "owner@example.com", "password123", "Role Test Org")
+	owner := app.CreateTestUser(t, "owner@example.com", "Qw!x7Km9pZr2", "Role Test Org")
 
 	// Invite a regular user
 	inviteBody := map[string]string{
@@ -264,7 +264,7 @@ func TestAuthorization_RoleBasedAccess(t *testing.T) {
 	// Accept the invitation
 	acceptBody := map[string]interface{}{
 		"token":    inviteResp.Invitation.Token,
-		"password": "password123",
+		"password": "Qw!x7Km9pZr2",
 	}
 	var acceptResp struct {
 		AccessToken string `json:"accessToken"`
@@ -385,7 +385,7 @@ func TestAuthorization_UnauthenticatedAccess(t *testing.T) {
 	t.Run("unauthenticated can register", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "newuser@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 			"orgName":  "New Org",
 		}
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/register", body, "")
@@ -396,7 +396,7 @@ func TestAuthorization_UnauthenticatedAccess(t *testing.T) {
 		// First register
 		registerBody := map[string]string{
 			"email":    "logintest@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 			"orgName":  "Login Test Org",
 		}
 		app.MakeRequest(t, "POST", "/api/v1/auth/register", registerBody, "")
@@ -404,7 +404,7 @@ func TestAuthorization_UnauthenticatedAccess(t *testing.T) {
 		// Then login
 		loginBody := map[string]string{
 			"email":    "logintest@example.com",
-			"password": "password123",
+			"password": "Qw!x7Km9pZr2",
 		}
 		resp := app.MakeRequest(t, "POST", "/api/v1/auth/login", loginBody, "")
 		AssertStatus(t, resp, http.StatusOK)
@@ -432,7 +432,7 @@ func TestAdmin_Bearings(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	t.Run("admin can get bearings", func(t *testing.T) {
 		resp := app.MakeRequest(t, "GET", "/api/v1/bearings/Contact", nil, user.AccessToken)
@@ -465,7 +465,7 @@ func TestAdmin_RelatedLists(t *testing.T) {
 	app := SetupTestApp(t)
 	defer app.Cleanup()
 
-	user := app.CreateTestUser(t, "admin@example.com", "password123", "Admin Test Org")
+	user := app.CreateTestUser(t, "admin@example.com", "Qw!x7Km9pZr2", "Admin Test Org")
 
 	t.Run("admin can get related list options", func(t *testing.T) {
 		resp := app.MakeRequest(t, "GET", "/api/v1/related-list/Account/options", nil, user.AccessToken)
