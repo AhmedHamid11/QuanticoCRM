@@ -142,20 +142,17 @@ func (s *TenantProvisioningService) provisionTursoTenant(ctx context.Context, or
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	// Provision metadata to the MASTER database (where MetadataRepo queries from)
-	// This includes entity_defs, field_defs, layout_defs, bearing_configs
-	// Using masterDBConn which has retry logic for connection errors
-	s.provisioningService.SetDB(s.masterDBConn)
+	// Provision all org data to the TENANT database.
+	// API handlers read metadata via getMetadataRepo(c) which uses the tenant DB,
+	// so entity_defs, field_defs, layout_defs must live in the tenant DB.
+	s.provisioningService.SetDB(tenantDB)
 	if err := s.provisioningService.ProvisionMetadataOnly(ctx, orgID); err != nil {
 		tenantDB.Close()
 		_ = s.tursoClient.DeleteDatabase(ctx, dbName)
 		return nil, fmt.Errorf("failed to provision metadata: %w", err)
 	}
 
-	// Provision navigation and sample data to the TENANT database
-	// Note: tenantDB is a fresh *sql.DB which implements db.DBConn interface
-	// Navigation goes to tenant DB because NavigationHandler queries tenant DB
-	s.provisioningService.SetDB(tenantDB)
+	// Navigation and sample data also go to the tenant DB
 	s.provisioningService.ProvisionNavigation(ctx, orgID)
 	s.provisioningService.ProvisionSampleData(ctx, orgID)
 
