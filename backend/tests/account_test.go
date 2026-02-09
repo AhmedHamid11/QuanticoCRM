@@ -444,7 +444,7 @@ func TestAccount_ListTasks(t *testing.T) {
 	// Create tasks linked to the account
 	for i := 0; i < 3; i++ {
 		taskBody := map[string]interface{}{
-			"name":       fmt.Sprintf("Account Task %d", i+1),
+			"subject":    fmt.Sprintf("Account Task %d", i+1),
 			"type":       "Todo",
 			"parentType": "Account",
 			"parentId":   account.ID,

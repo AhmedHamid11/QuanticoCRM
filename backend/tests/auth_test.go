@@ -209,25 +209,19 @@ func TestAuth_Me(t *testing.T) {
 
 	t.Run("returns current user info with valid token", func(t *testing.T) {
 		var response struct {
-			User struct {
-				ID    string `json:"id"`
-				Email string `json:"email"`
-			} `json:"user"`
-			Organization struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"organization"`
-			Role string `json:"role"`
+			ID    string `json:"id"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
 		}
 
 		resp := app.MakeRequestWithResponse(t, "GET", "/api/v1/auth/me", nil, user.AccessToken, &response)
 		AssertStatus(t, resp, http.StatusOK)
 
-		if response.User.ID != user.UserID {
-			t.Errorf("Expected user ID %s, got %s", user.UserID, response.User.ID)
+		if response.ID != user.UserID {
+			t.Errorf("Expected user ID %s, got %s", user.UserID, response.ID)
 		}
-		if response.User.Email != "me@example.com" {
-			t.Errorf("Expected email me@example.com, got %s", response.User.Email)
+		if response.Email != "me@example.com" {
+			t.Errorf("Expected email me@example.com, got %s", response.Email)
 		}
 		if response.Role != "owner" {
 			t.Errorf("Expected role 'owner', got %s", response.Role)

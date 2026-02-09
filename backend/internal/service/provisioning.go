@@ -186,6 +186,9 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 				rollup_query TEXT,
 				rollup_result_type TEXT,
 				rollup_decimal_places INTEGER DEFAULT 2,
+				default_to_today INTEGER DEFAULT 0,
+				variant TEXT DEFAULT 'info',
+				content TEXT DEFAULT '',
 				created_at TEXT NOT NULL DEFAULT (datetime('now')),
 				modified_at TEXT NOT NULL DEFAULT (datetime('now')),
 				UNIQUE(org_id, entity_name, name)
@@ -398,6 +401,9 @@ func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context)
 			rollup_query TEXT,
 			rollup_result_type TEXT,
 			rollup_decimal_places INTEGER DEFAULT 2,
+			default_to_today INTEGER DEFAULT 0,
+			variant TEXT DEFAULT 'info',
+			content TEXT DEFAULT '',
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			modified_at TEXT NOT NULL DEFAULT (datetime('now')),
 			UNIQUE(org_id, entity_name, name)

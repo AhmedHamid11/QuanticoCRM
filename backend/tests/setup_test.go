@@ -173,6 +173,12 @@ func SetupTestApp(t *testing.T) *TestApp {
 	// Navigation
 	navigationHandler.RegisterPublicRoutes(protected)
 
+	// Related list public routes (GET configs for detail pages)
+	relatedListHandler.RegisterPublicRoutes(protected)
+
+	// Bearing public routes (GET active bearings for detail pages)
+	bearingHandler.RegisterPublicRoutes(protected)
+
 	// Admin routes
 	adminProtected := api.Group("", authMiddleware.OrgAdminRequired())
 	adminHandler.RegisterRoutes(adminProtected)
