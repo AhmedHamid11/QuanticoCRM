@@ -987,7 +987,15 @@ func (r *AuthRepo) DeleteOrganization(ctx context.Context, orgID string) error {
 		return err
 	}
 
-	// Delete CRM data (contacts, accounts, tasks)
+	// Delete CRM data (contacts, accounts, tasks, quotes)
+	_, err = r.db.ExecContext(ctx, `DELETE FROM quote_line_items WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM quotes WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
 	_, err = r.db.ExecContext(ctx, `DELETE FROM contacts WHERE org_id = ?`, orgID)
 	if err != nil {
 		return err
@@ -997,6 +1005,40 @@ func (r *AuthRepo) DeleteOrganization(ctx context.Context, orgID string) error {
 		return err
 	}
 	_, err = r.db.ExecContext(ctx, `DELETE FROM tasks WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+
+	// Delete data quality / dedup tables
+	_, err = r.db.ExecContext(ctx, `DELETE FROM scan_checkpoints WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM scan_jobs WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM scan_schedules WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM pending_duplicate_alerts WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM matching_rule_fields WHERE rule_id IN (SELECT id FROM matching_rules WHERE org_id = ?)`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM matching_rules WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM merge_snapshots WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `DELETE FROM notifications WHERE org_id = ?`, orgID)
 	if err != nil {
 		return err
 	}
@@ -1027,6 +1069,12 @@ func (r *AuthRepo) DeleteOrganization(ctx context.Context, orgID string) error {
 		return err
 	}
 	_, err = r.db.ExecContext(ctx, `DELETE FROM flow_definitions WHERE org_id = ?`, orgID)
+	if err != nil {
+		return err
+	}
+
+	// Delete migration tracking (has FK to organizations without CASCADE)
+	_, err = r.db.ExecContext(ctx, `DELETE FROM migration_runs WHERE org_id = ?`, orgID)
 	if err != nil {
 		return err
 	}
