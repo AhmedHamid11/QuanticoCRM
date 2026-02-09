@@ -254,7 +254,7 @@ func (h *VersionHandler) GetMigrationStatus(c *fiber.Ctx) error {
 }
 
 // RetryMigration retries migration for a specific failed org
-// POST /api/v1/version/migration-retry/:orgId
+// POST /api/v1/version/migration-retry/:orgId?force=true
 func (h *VersionHandler) RetryMigration(c *fiber.Ctx) error {
 	orgID := c.Params("orgId")
 	if orgID == "" {
@@ -269,7 +269,14 @@ func (h *VersionHandler) RetryMigration(c *fiber.Ctx) error {
 		})
 	}
 
-	run, err := h.migrationPropagator.RetryOrg(c.Context(), orgID)
+	var run *entity.MigrationRun
+	var err error
+
+	if c.Query("force") == "true" {
+		run, err = h.migrationPropagator.ForceRetryOrg(c.Context(), orgID)
+	} else {
+		run, err = h.migrationPropagator.RetryOrg(c.Context(), orgID)
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),

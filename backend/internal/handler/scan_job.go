@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -269,6 +270,9 @@ func (h *ScanJobHandler) ListJobs(c *fiber.Ctx) error {
 	}
 
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
+		}
 		log.Printf("Error listing jobs: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to list jobs",

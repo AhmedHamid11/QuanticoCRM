@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
@@ -235,6 +236,9 @@ func (h *MergeHandler) History(c *fiber.Ctx) error {
 	// Fetch merge history (repo doesn't support entityType filter, we'll filter in memory)
 	snapshots, total, err := h.getMergeRepo(c).ListByOrg(c.Context(), orgID, page, pageSize)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 

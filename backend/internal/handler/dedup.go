@@ -15,6 +15,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// isNoSuchTableError checks if an error is caused by a missing table
+// This can happen when dedup migrations haven't been applied to a tenant DB
+func isNoSuchTableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "no such table")
+}
+
 // DedupHandler handles duplicate detection API endpoints
 type DedupHandler struct {
 	defaultDB db.DBConn
@@ -66,6 +76,10 @@ func (h *DedupHandler) ListRules(c *fiber.Ctx) error {
 
 	rules, err := h.getRuleRepo(c).ListRules(c.Context(), orgID, entityType)
 	if err != nil {
+		if isNoSuchTableError(err) {
+			log.Printf("[DEDUP] matching_rules table missing for org %s - migrations may need to be re-applied", orgID)
+			return c.JSON(fiber.Map{"data": []entity.MatchingRule{}})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
@@ -112,6 +126,11 @@ func (h *DedupHandler) CreateRule(c *fiber.Ctx) error {
 
 	rule, err := h.getRuleRepo(c).CreateRule(c.Context(), orgID, input)
 	if err != nil {
+		if isNoSuchTableError(err) {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Duplicate detection tables not yet provisioned. Please contact your administrator to run migrations.",
+			})
+		}
 		if strings.Contains(err.Error(), "UNIQUE constraint") {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "A rule with this name already exists for this entity type"})
 		}
@@ -175,6 +194,9 @@ func (h *DedupHandler) CheckDuplicates(c *fiber.Ctx) error {
 
 	matches, err := h.detector.CheckForDuplicates(c.Context(), h.getDB(c), orgID, entityType, body, excludeID)
 	if err != nil {
+		if isNoSuchTableError(err) {
+			return c.JSON(fiber.Map{"duplicates": []any{}, "count": 0})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
