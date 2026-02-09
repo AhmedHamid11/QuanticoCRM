@@ -60,7 +60,7 @@ func ensureDedupSchema(ctx context.Context, conn db.DBConn) error {
 			threshold REAL NOT NULL DEFAULT 0.70,
 			high_confidence_threshold REAL DEFAULT 0.95,
 			medium_confidence_threshold REAL DEFAULT 0.85,
-			blocking_strategy TEXT NOT NULL DEFAULT 'soundex',
+			blocking_strategy TEXT NOT NULL DEFAULT 'multi',
 			field_configs TEXT NOT NULL,
 			merge_display_fields TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -186,6 +186,10 @@ func ensureDedupSchema(ctx context.Context, conn db.DBConn) error {
 			return fmt.Errorf("failed to create blocking key index: %w", err)
 		}
 	}
+
+	// Upgrade existing rules from soundex-only to multi blocking strategy
+	// soundex only finds candidates by last name, missing email/phone-based duplicates
+	_, _ = conn.ExecContext(ctx, `UPDATE matching_rules SET blocking_strategy = 'multi' WHERE blocking_strategy = 'soundex'`)
 
 	log.Printf("[DEDUP] Auto-provisioned dedup tables and blocking key columns on tenant DB")
 	return nil
