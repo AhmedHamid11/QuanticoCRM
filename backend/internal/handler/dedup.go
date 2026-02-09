@@ -195,6 +195,10 @@ func (h *DedupHandler) GetPendingAlert(c *fiber.Ctx) error {
 
 	alert, err := h.getAlertRepo(c).GetPendingByRecord(c.Context(), orgID, entityType, recordID)
 	if err != nil {
+		// Tolerate missing dedup tables in orgs that haven't had dedup migrations run
+		if strings.Contains(err.Error(), "no such table") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No pending alert"})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	if alert == nil {
@@ -310,6 +314,9 @@ func (h *DedupHandler) ListPendingAlerts(c *fiber.Ctx) error {
 	// Fetch alerts
 	alerts, total, err := h.getAlertRepo(c).ListAllPending(c.Context(), orgID, entityType, pageSize, offset)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
