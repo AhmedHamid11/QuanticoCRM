@@ -19,10 +19,13 @@
 
 	onMount(async () => {
 		try {
+			// Ensure navigation tabs are loaded for the homepage selector
+			await loadNavigation();
 			settings = await get<OrgSettings>('/settings');
 			selectedHomePage = settings?.homePage || '/';
 		} catch (e) {
-			addToast('Failed to load settings', 'error');
+			const message = e instanceof Error ? e.message : 'Failed to load settings';
+			addToast(message, 'error');
 		} finally {
 			loading = false;
 		}

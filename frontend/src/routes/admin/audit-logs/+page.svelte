@@ -65,19 +65,23 @@
 		firstBrokenEntry?: string;
 	} | null>(null);
 
+	let loadError = $state<string | null>(null);
+
 	// Load event types for filter dropdown
 	async function loadEventTypes() {
 		try {
 			const response = await get<{ eventTypes: EventType[] }>('/admin/audit-logs/event-types');
 			eventTypes = response.eventTypes || [];
 		} catch (err) {
-			console.error('Failed to load event types:', err);
+			// Non-critical - filter dropdown will just be empty
+			console.warn('Failed to load event types:', err);
 		}
 	}
 
 	// Load logs with filters
 	async function loadLogs() {
 		loading = true;
+		loadError = null;
 		try {
 			// Build query string
 			const params = new URLSearchParams();
@@ -103,7 +107,10 @@
 			hasMore = response.hasMore;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Failed to load audit logs';
-			addToast(message, 'error');
+			loadError = message;
+			logs = [];
+			total = 0;
+			hasMore = false;
 		} finally {
 			loading = false;
 		}
@@ -432,6 +439,20 @@
 		{#if loading}
 			<div class="flex items-center justify-center py-12">
 				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+			</div>
+		{:else if loadError}
+			<div class="text-center py-12">
+				<svg class="mx-auto h-12 w-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+				</svg>
+				<h3 class="mt-2 text-sm font-medium text-gray-900">Failed to load audit logs</h3>
+				<p class="mt-1 text-sm text-gray-500">{loadError}</p>
+				<button
+					onclick={() => loadLogs()}
+					class="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-600/90"
+				>
+					Retry
+				</button>
 			</div>
 		{:else if logs.length === 0}
 			<div class="text-center py-12">
