@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import {
 		listPendingAlerts,
 		mergePreview,
 		mergeExecute,
-		mergeUndo,
 		getBannerClass,
 		getConfidenceBadgeClass,
 		formatConfidence,
@@ -34,19 +32,6 @@
 		loadAlerts();
 	});
 
-	// Reload when filter or page changes
-	let prevFilter = $state('');
-	let prevPage = $state(1);
-	$effect(() => {
-		const filter = entityFilter;
-		const pg = currentPage;
-		if (filter !== prevFilter || pg !== prevPage) {
-			prevFilter = filter;
-			prevPage = pg;
-			loadAlerts();
-		}
-	});
-
 	async function loadAlerts() {
 		loading = true;
 		try {
@@ -55,8 +40,8 @@
 				page: currentPage,
 				pageSize
 			});
-			alerts = response.data;
-			total = response.total;
+			alerts = response.data || [];
+			total = response.total || 0;
 		} catch (error: any) {
 			toast.error(`Failed to load alerts: ${error.message || 'Unknown error'}`);
 		} finally {
@@ -68,13 +53,15 @@
 		const target = event.target as HTMLSelectElement;
 		entityFilter = target.value;
 		currentPage = 1;
-		selectedIds.clear();
+		selectedIds = new Set();
+		loadAlerts();
 	}
 
 	function handlePageChange(newPage: number) {
 		currentPage = newPage;
-		selectedIds.clear();
+		selectedIds = new Set();
 		window.scrollTo({ top: 0, behavior: 'smooth' });
+		loadAlerts();
 	}
 
 	function toggleSelection(alertId: string) {
@@ -88,7 +75,7 @@
 
 	function toggleSelectAll() {
 		if (selectedIds.size === alerts.length) {
-			selectedIds.clear();
+			selectedIds = new Set();
 		} else {
 			selectedIds = new Set(alerts.map((a) => a.id));
 		}
@@ -149,8 +136,9 @@
 		}
 	}
 
-	function navigateToMergeWizard(alertId: string) {
-		goto(`/admin/data-quality/merge/${alertId}`);
+	function navigateToMergeWizard(alert: PendingAlert) {
+		const recordIds = [alert.recordId, ...alert.matches.map((m) => m.recordId)].join(',');
+		goto(`/admin/data-quality/merge/${alert.id}?entityType=${alert.entityType}&recordIds=${recordIds}`);
 	}
 
 	async function bulkDismiss() {
@@ -176,7 +164,7 @@
 		// Remove dismissed alerts from list
 		alerts = alerts.filter((a) => !selectedIds.has(a.id));
 		total -= successCount;
-		selectedIds.clear();
+		selectedIds = new Set();
 		bulkProcessing = false;
 
 		if (failCount > 0) {
@@ -206,7 +194,7 @@
 			bulkProgress.current++;
 		}
 
-		selectedIds.clear();
+		selectedIds = new Set();
 		bulkProcessing = false;
 
 		if (failCount > 0) {
@@ -234,7 +222,10 @@
 
 		<div class="flex items-center gap-4">
 			<!-- Entity Filter -->
+			<label for="entity-filter" class="sr-only">Filter by entity type</label>
 			<select
+				id="entity-filter"
+				name="entity-filter"
 				onchange={handleFilterChange}
 				value={entityFilter}
 				class="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -320,12 +311,14 @@
 				<!-- Select All Checkbox -->
 				<div class="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2">
 					<input
+						id="select-all"
+						name="select-all"
 						type="checkbox"
 						checked={selectedIds.size === alerts.length && alerts.length > 0}
 						onchange={toggleSelectAll}
 						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 					/>
-					<label class="text-sm text-gray-700">
+					<label for="select-all" class="text-sm text-gray-700">
 						{selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
 					</label>
 				</div>
@@ -341,8 +334,11 @@
 						<!-- Checkbox -->
 						<input
 							type="checkbox"
+							id="alert-{alert.id}"
+							name="alert-{alert.id}"
 							checked={selectedIds.has(alert.id)}
 							onchange={() => toggleSelection(alert.id)}
+							aria-label="Select {alert.entityType} {alert.recordId}"
 							class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 						/>
 
@@ -353,15 +349,15 @@
 								<div>
 									<div class="flex items-center gap-2">
 										<h3 class="text-lg font-medium text-gray-900">
-											{alert.entityType}
+											{alert.recordName || alert.recordId}
 										</h3>
+										<span class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+											{alert.entityType}
+										</span>
 										<span class="rounded-full {badgeClass} px-2 py-1 text-xs font-medium">
 											{formatConfidence(confidenceScore)} {alert.highestConfidence.toUpperCase()}
 										</span>
 									</div>
-									<p class="mt-1 text-sm text-gray-500">
-										Record ID: {alert.recordId}
-									</p>
 								</div>
 							</div>
 
@@ -377,12 +373,12 @@
 														{match.recordName || match.recordId}
 													</span>
 													<span class="text-xs text-gray-500">
-														Match: {formatConfidence(match.matchResult.score)}
+														Match: {formatConfidence(match.matchResult?.score || 0)}
 													</span>
 												</div>
-												{#if match.matchResult.matchingFields.length > 0}
+												{#if match.matchResult?.matchingFields?.length > 0}
 													<div class="mt-1 flex flex-wrap gap-1">
-														{#each match.matchResult.matchingFields as field}
+														{#each match.matchResult?.matchingFields || [] as field}
 															<span class="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
 																{field}
 															</span>
@@ -410,7 +406,7 @@
 									Quick Merge
 								</button>
 								<button
-									onclick={() => navigateToMergeWizard(alert.id)}
+									onclick={() => navigateToMergeWizard(alert)}
 									class="rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
 								>
 									Merge

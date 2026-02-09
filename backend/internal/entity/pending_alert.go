@@ -8,6 +8,7 @@ type PendingDuplicateAlert struct {
 	OrgID                  string                `json:"orgId" db:"org_id"`
 	EntityType             string                `json:"entityType" db:"entity_type"`
 	RecordID               string                `json:"recordId" db:"record_id"`
+	RecordName             string                `json:"recordName,omitempty" db:"-"` // Display name, populated at serve time
 	Matches                []DuplicateAlertMatch `json:"matches" db:"-"`
 	MatchesJSON            string                `json:"-" db:"matches_json"`
 	TotalMatchCount        int                   `json:"totalMatchCount" db:"total_match_count"`

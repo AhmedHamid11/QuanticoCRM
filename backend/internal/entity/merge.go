@@ -85,8 +85,10 @@ type MergeHistoryEntry struct {
 	SnapshotID   string    `json:"snapshotId"`
 	EntityType   string    `json:"entityType"`
 	SurvivorID   string    `json:"survivorId"`
+	SurvivorName string    `json:"survivorName,omitempty"`
 	DuplicateIDs []string  `json:"duplicateIds"`
 	MergedByID   string    `json:"mergedById"`
+	MergedByName string    `json:"mergedByName,omitempty"`
 	CanUndo      bool      `json:"canUndo"`
 	CreatedAt    time.Time `json:"createdAt"`
 	ExpiresAt    time.Time `json:"expiresAt"`

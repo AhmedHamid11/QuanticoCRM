@@ -78,12 +78,15 @@
 
 	// Blocking strategy options
 	const blockingStrategyOptions = [
-		{ value: 'none', label: 'None' },
-		{ value: 'soundex', label: 'Soundex' },
-		{ value: 'prefix', label: 'Prefix' },
-		{ value: 'domain', label: 'Domain' },
-		{ value: 'phone', label: 'Phone' }
+		{ value: 'none', label: 'All Records', description: 'Compares every record. Thorough but slower on large datasets.' },
+		{ value: 'soundex', label: 'Similar-Sounding Names', description: 'Groups by last names that sound alike (e.g., Smith / Smyth).' },
+		{ value: 'prefix', label: 'Same Name Spelling', description: 'Groups by first 3 letters of last name (e.g., Johnson / Johnston).' },
+		{ value: 'domain', label: 'Same Email Domain', description: 'Groups by company email domain (e.g., @acme.com).' },
+		{ value: 'phone', label: 'Same Phone Number', description: 'Groups by matching phone number.' }
 	];
+
+	// Tooltip state for blocking strategy info icon
+	let showBlockingInfo = $state(false);
 
 	async function loadData() {
 		try {
@@ -282,10 +285,12 @@
 
 	<!-- Entity Filter -->
 	<div class="mb-6">
-		<label class="block text-sm font-medium text-gray-700 mb-2">
+		<label for="rules-entity-filter" class="block text-sm font-medium text-gray-700 mb-2">
 			Filter by Entity Type
 		</label>
 		<select
+			id="rules-entity-filter"
+			name="rules-entity-filter"
 			bind:value={entityFilter}
 			class="w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
 		>
@@ -475,7 +480,31 @@
 
 				<div>
 					<label class="block text-sm font-medium text-gray-700 mb-1">
-						Blocking Strategy
+						<span class="inline-flex items-center gap-1.5">
+							Blocking Strategy
+							<span class="relative">
+								<button
+									type="button"
+									onclick={(e) => { e.preventDefault(); showBlockingInfo = !showBlockingInfo; }}
+									onblur={() => { showBlockingInfo = false; }}
+									class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-300 text-gray-600 text-[10px] font-bold leading-none hover:bg-gray-400 hover:text-white transition-colors cursor-help"
+									aria-label="What is blocking strategy?"
+								>
+									i
+								</button>
+								{#if showBlockingInfo}
+									<div class="absolute z-50 right-6 -top-2 w-72 bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 space-y-2">
+										<p class="font-semibold text-gray-200">Blocking strategies narrow down which records get compared, improving speed on large datasets.</p>
+										{#each blockingStrategyOptions as opt}
+											<div>
+												<span class="font-medium text-blue-300">{opt.label}</span>
+												<span class="text-gray-300"> — {opt.description}</span>
+											</div>
+										{/each}
+									</div>
+								{/if}
+							</span>
+						</span>
 					</label>
 					<select
 						bind:value={editingRule.blockingStrategy}

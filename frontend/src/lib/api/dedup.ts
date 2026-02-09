@@ -21,6 +21,7 @@ export interface PendingAlert {
 	orgId: string;
 	entityType: string;
 	recordId: string;
+	recordName?: string;
 	matches: DuplicateMatch[];
 	totalMatchCount: number;
 	highestConfidence: 'high' | 'medium' | 'low';

@@ -90,8 +90,17 @@
 	}
 
 	function getRecordName(record: Record<string, any>): string {
-		// Try common name fields
-		return record.name || record.fullName || record.title || record.email || record.id.substring(0, 8);
+		// Try firstName + lastName (contacts, leads)
+		const first = record.firstName || record.first_name || '';
+		const last = record.lastName || record.last_name || '';
+		const fullName = `${first} ${last}`.trim();
+		if (fullName) return fullName;
+		// Try name field (accounts, opportunities, tasks)
+		if (record.name) return record.name;
+		if (record.fullName) return record.fullName;
+		if (record.title) return record.title;
+		if (record.email) return record.email;
+		return record.id?.substring(0, 8) || 'Unknown';
 	}
 
 	function formatFieldValue(value: any): string {
@@ -105,6 +114,27 @@
 			return JSON.stringify(value);
 		}
 		return String(value);
+	}
+
+	// For lookup fields (e.g. accountId), display the related name (accountName) if available
+	function getDisplayValue(record: Record<string, any>, field: FieldDef): string {
+		if (field.type === 'lookup' && field.name.endsWith('Id')) {
+			const nameField = field.name.slice(0, -2) + 'Name';
+			if (record[nameField]) return String(record[nameField]);
+		}
+		const value = record[field.name];
+		// Format datetime fields
+		if (field.type === 'datetime' || field.name.endsWith('At') || field.name.endsWith('_at')) {
+			if (typeof value === 'string' && value.includes('T')) {
+				try {
+					return new Date(value).toLocaleDateString('en-US', {
+						year: 'numeric', month: 'short', day: 'numeric',
+						hour: '2-digit', minute: '2-digit'
+					});
+				} catch { /* fall through */ }
+			}
+		}
+		return formatFieldValue(value);
 	}
 
 	function valuesAreDifferent(fieldName: string): boolean {
@@ -330,7 +360,7 @@
 													class="mt-1"
 												/>
 												<span class="text-sm text-gray-700">
-													{formatFieldValue(record[field.name])}
+													{getDisplayValue(record, field)}
 												</span>
 											</label>
 										</td>

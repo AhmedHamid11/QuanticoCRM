@@ -8,6 +8,7 @@ import (
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/util"
 )
 
 // RealtimeChecker coordinates async duplicate detection
@@ -134,6 +135,12 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 			MatchResult: match.MatchResult,
 		}
 
+		// Look up display name for matched record
+		matchedRecord, err := util.FetchRecordAsMap(ctx, db.GetRawDB(conn), util.GetTableName(input.EntityType), match.RecordID, input.OrgID)
+		if err == nil && matchedRecord != nil {
+			alertMatches[i].RecordName = util.GetRecordDisplayName(input.EntityType, matchedRecord)
+		}
+
 		// Track highest confidence
 		if match.MatchResult != nil {
 			tier := match.MatchResult.ConfidenceTier
@@ -172,6 +179,7 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	for _, match := range alertMatches {
 		reverseMatch := entity.DuplicateAlertMatch{
 			RecordID:    input.RecordID,
+			RecordName:  input.RecordName,
 			MatchResult: match.MatchResult, // Same match result applies both directions
 		}
 

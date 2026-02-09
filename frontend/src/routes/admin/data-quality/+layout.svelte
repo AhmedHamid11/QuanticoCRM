@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
+	let { children } = $props();
+
 	const tabs = [
 		{ id: 'rules', label: 'Duplicate Rules', href: '/admin/data-quality/duplicate-rules' },
 		{ id: 'queue', label: 'Review Queue', href: '/admin/data-quality/review-queue' },
-		{ id: 'history', label: 'Merge History', href: '/admin/data-quality/merge/history' },
+		{ id: 'history', label: 'Merge History', href: '/admin/data-quality/merge-history' },
 		{ id: 'scans', label: 'Scan Jobs', href: '/admin/data-quality/scan-jobs' }
 	];
 
-	let currentPath = $derived($page.url.pathname);
-
 	function isActive(href: string): boolean {
-		return currentPath === href || currentPath.startsWith(href + '/');
+		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
 	}
 </script>
 
@@ -43,7 +43,7 @@
 
 		<!-- Content Area -->
 		<div class="p-6">
-			<slot />
+			{@render children()}
 		</div>
 	</div>
 </div>

@@ -142,6 +142,14 @@ func (r *PendingAlertRepo) Resolve(ctx context.Context, orgID, entityType, recor
 		overridePtr = &overrideText
 	}
 
+	// Delete any previously resolved alert with the same target status to avoid UNIQUE constraint
+	// violation on (org_id, entity_type, record_id, status)
+	deleteQuery := `
+		DELETE FROM pending_duplicate_alerts
+		WHERE org_id = ? AND entity_type = ? AND record_id = ? AND status = ?
+	`
+	r.db.ExecContext(ctx, deleteQuery, orgID, entityType, recordID, status)
+
 	query := `
 		UPDATE pending_duplicate_alerts
 		SET status = ?, resolved_at = ?, resolved_by_id = ?, override_text = ?

@@ -251,6 +251,8 @@ func (h *MergeHandler) History(c *fiber.Ctx) error {
 	}
 
 	// Convert to history entries with canUndo flag
+	conn := h.getDBConn(c)
+	rawDB := db.GetRawDB(conn)
 	var entries []entity.MergeHistoryEntry
 	for _, snapshot := range snapshots {
 		// Apply entity type filter if provided
@@ -267,10 +269,19 @@ func (h *MergeHandler) History(c *fiber.Ctx) error {
 		// Determine if undo is possible (not consumed and not expired)
 		canUndo := snapshot.ConsumedAt == nil
 
+		// Look up survivor display name
+		var survivorName string
+		tableName := util.GetTableName(snapshot.EntityType)
+		record, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, snapshot.SurvivorID, orgID)
+		if fetchErr == nil && record != nil {
+			survivorName = util.GetRecordDisplayName(snapshot.EntityType, record)
+		}
+
 		entries = append(entries, entity.MergeHistoryEntry{
 			SnapshotID:   snapshot.ID,
 			EntityType:   snapshot.EntityType,
 			SurvivorID:   snapshot.SurvivorID,
+			SurvivorName: survivorName,
 			DuplicateIDs: duplicateIDs,
 			MergedByID:   snapshot.MergedByID,
 			CanUndo:      canUndo,

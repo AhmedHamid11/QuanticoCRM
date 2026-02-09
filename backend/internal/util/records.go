@@ -57,6 +57,34 @@ func FetchRecordAsMap(ctx context.Context, db *sql.DB, tableName, id, orgID stri
 	return camelRecord, nil
 }
 
+// GetRecordDisplayName extracts a human-readable display name from a record map.
+// For contacts/leads it uses firstName + lastName, for other entities it uses the name field.
+func GetRecordDisplayName(entityType string, record map[string]interface{}) string {
+	et := strings.ToLower(entityType)
+	if et == "contact" || et == "lead" {
+		first, _ := record["firstName"].(string)
+		last, _ := record["lastName"].(string)
+		name := strings.TrimSpace(first + " " + last)
+		if name != "" {
+			return name
+		}
+	}
+	// Try "name" field (accounts, opportunities, tasks, etc.)
+	if name, ok := record["name"].(string); ok && name != "" {
+		return name
+	}
+	// Try snake_case variants (raw DB rows use snake_case)
+	if et == "contact" || et == "lead" {
+		first, _ := record["first_name"].(string)
+		last, _ := record["last_name"].(string)
+		name := strings.TrimSpace(first + " " + last)
+		if name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
 // StructToMap converts any struct to a map using reflection.
 // It uses json tags for field names, falling back to the field name in camelCase.
 // This ensures all fields (including newly added ones) are automatically included.

@@ -131,8 +131,10 @@ export interface MergeHistoryEntry {
 	snapshotId: string;
 	entityType: string;
 	survivorId: string;
+	survivorName?: string;
 	duplicateIds: string[];
 	mergedById: string;  // User ID
+	mergedByName?: string;
 	canUndo: boolean;
 	createdAt: string;
 	expiresAt: string;  // 30 days from merge

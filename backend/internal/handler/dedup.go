@@ -302,13 +302,21 @@ func (h *DedupHandler) GetPendingAlert(c *fiber.Ctx) error {
 	}
 
 	// Update alert with fresh match data
+	rawDB := db.GetRawDB(conn)
+	tableName := util.GetTableName(entityType)
 	freshMatches := make([]entity.DuplicateAlertMatch, 0, len(matches))
 	highestConfidence := entity.ConfidenceLow
 	for _, match := range matches {
-		freshMatches = append(freshMatches, entity.DuplicateAlertMatch{
+		am := entity.DuplicateAlertMatch{
 			RecordID:    match.RecordID,
 			MatchResult: match.MatchResult,
-		})
+		}
+		// Look up display name for matched record
+		matchedRecord, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, match.RecordID, orgID)
+		if fetchErr == nil && matchedRecord != nil {
+			am.RecordName = util.GetRecordDisplayName(entityType, matchedRecord)
+		}
+		freshMatches = append(freshMatches, am)
 		if match.MatchResult != nil {
 			tier := match.MatchResult.ConfidenceTier
 			if tier == entity.ConfidenceHigh {
@@ -322,6 +330,7 @@ func (h *DedupHandler) GetPendingAlert(c *fiber.Ctx) error {
 	alert.Matches = freshMatches
 	alert.TotalMatchCount = len(freshMatches)
 	alert.HighestConfidence = highestConfidence
+	alert.RecordName = util.GetRecordDisplayName(entityType, record)
 
 	return c.JSON(alert)
 }
@@ -386,6 +395,31 @@ func (h *DedupHandler) ListPendingAlerts(c *fiber.Ctx) error {
 			return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Enrich record names for display
+	conn := h.getDB(c)
+	rawDB := db.GetRawDB(conn)
+	for i := range alerts {
+		tableName := util.GetTableName(alerts[i].EntityType)
+
+		// Enrich source record name
+		if alerts[i].RecordName == "" {
+			record, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, alerts[i].RecordID, orgID)
+			if fetchErr == nil && record != nil {
+				alerts[i].RecordName = util.GetRecordDisplayName(alerts[i].EntityType, record)
+			}
+		}
+
+		// Enrich match record names
+		for j := range alerts[i].Matches {
+			if alerts[i].Matches[j].RecordName == "" {
+				record, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, alerts[i].Matches[j].RecordID, orgID)
+				if fetchErr == nil && record != nil {
+					alerts[i].Matches[j].RecordName = util.GetRecordDisplayName(alerts[i].EntityType, record)
+				}
+			}
+		}
 	}
 
 	return c.JSON(fiber.Map{
