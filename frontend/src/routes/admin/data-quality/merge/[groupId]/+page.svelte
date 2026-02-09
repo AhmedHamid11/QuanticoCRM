@@ -21,8 +21,8 @@
 	let fieldSelections = $state<Record<string, string>>({}); // fieldName -> recordId
 	let merging = $state(false);
 
-	// System fields to skip
-	const SKIP_FIELDS = ['id', 'org_id', 'orgId', 'created_at', 'createdAt', 'updated_at', 'updatedAt', 'archived_at', 'archivedAt', 'archived_by', 'archivedBy', 'merge_survivor_id', 'mergeSurvivorId'];
+	// System fields to skip (not user-selectable in merge)
+	const SKIP_FIELDS = ['id', 'org_id', 'orgId', 'created_at', 'createdAt', 'updated_at', 'updatedAt', 'modified_at', 'modifiedAt', 'archived_at', 'archivedAt', 'archived_by', 'archivedBy', 'created_by_id', 'createdById', 'modified_by_id', 'modifiedById', 'created_by_name', 'createdByName', 'modified_by_name', 'modifiedByName', 'merge_survivor_id', 'mergeSurvivorId', 'deleted'];
 
 	onMount(async () => {
 		if (!entityTypeParam || recordIds.length < 2) {
@@ -103,12 +103,25 @@
 		return record.id?.substring(0, 8) || 'Unknown';
 	}
 
-	function formatFieldValue(value: any): string {
+	function getRecordSubtitle(record: Record<string, any>): string {
+		// Return a secondary identifier to help distinguish records
+		const parts: string[] = [];
+		if (record.emailAddress || record.email) parts.push(record.emailAddress || record.email);
+		if (record.phoneNumber || record.phone) parts.push(record.phoneNumber || record.phone);
+		if (parts.length === 0 && record.id) parts.push(`ID: ${record.id.substring(0, 12)}...`);
+		return parts.join(' · ');
+	}
+
+	function formatFieldValue(value: any, fieldType?: string): string {
 		if (value === null || value === undefined || value === '') {
 			return '(empty)';
 		}
 		if (typeof value === 'boolean') {
 			return value ? 'Yes' : 'No';
+		}
+		// SQLite stores booleans as 0/1 integers
+		if (fieldType === 'bool' || (typeof value === 'number' && (value === 0 || value === 1) && fieldType !== 'int' && fieldType !== 'float')) {
+			if (fieldType === 'bool') return value ? 'Yes' : 'No';
 		}
 		if (typeof value === 'object') {
 			return JSON.stringify(value);
@@ -116,11 +129,17 @@
 		return String(value);
 	}
 
-	// For lookup fields (e.g. accountId), display the related name (accountName) if available
+	// For link fields (e.g. accountId), display the related name (accountName) if available
 	function getDisplayValue(record: Record<string, any>, field: FieldDef): string {
-		if (field.type === 'lookup' && field.name.endsWith('Id')) {
+		if ((field.type === 'link' || field.type === 'lookup') && field.name.endsWith('Id')) {
 			const nameField = field.name.slice(0, -2) + 'Name';
 			if (record[nameField]) return String(record[nameField]);
+		}
+		// Boolean fields: render 0/1 as No/Yes
+		if (field.type === 'bool') {
+			const value = record[field.name];
+			if (value === null || value === undefined || value === '') return '(empty)';
+			return value ? 'Yes' : 'No';
 		}
 		const value = record[field.name];
 		// Format datetime fields
@@ -134,25 +153,20 @@
 				} catch { /* fall through */ }
 			}
 		}
-		return formatFieldValue(value);
+		return formatFieldValue(value, field.type);
 	}
 
 	function valuesAreDifferent(fieldName: string): boolean {
 		if (!preview) return false;
 
-		const values = preview.records.map((r) => r[fieldName]);
-		const firstValue = values[0];
+		const normalize = (v: any): string => {
+			if (v === null || v === undefined || v === '') return '';
+			return String(v).trim();
+		};
 
-		return values.some((v) => {
-			// Handle null/undefined/empty string as equivalent
-			const firstEmpty = firstValue === null || firstValue === undefined || firstValue === '';
-			const vEmpty = v === null || v === undefined || v === '';
-
-			if (firstEmpty && vEmpty) return false;
-			if (firstEmpty !== vEmpty) return true;
-
-			return v !== firstValue;
-		});
+		const values = preview.records.map((r) => normalize(r[fieldName]));
+		const first = values[0];
+		return values.some((v) => v !== first);
 	}
 
 	async function handleMerge() {
@@ -296,6 +310,9 @@
 						/>
 						<div class="flex-1">
 							<div class="font-medium text-gray-900">{getRecordName(record)}</div>
+							{#if getRecordSubtitle(record)}
+								<div class="text-sm text-gray-500">{getRecordSubtitle(record)}</div>
+							{/if}
 							<div class="mt-2 flex items-center gap-6 text-sm">
 								<div>
 									<span class="text-gray-600">Completeness:</span>
@@ -350,16 +367,16 @@
 										{field.label}
 									</td>
 									{#each preview.records as record}
-										<td class="px-4 py-3">
+										<td class="px-4 py-3 max-w-xs">
 											<label class="flex items-start gap-2 cursor-pointer">
 												<input
 													type="radio"
 													name="field-{field.name}"
 													value={record.id}
 													bind:group={fieldSelections[field.name]}
-													class="mt-1"
+													class="mt-1 shrink-0"
 												/>
-												<span class="text-sm text-gray-700">
+												<span class="text-sm text-gray-700 break-words">
 													{getDisplayValue(record, field)}
 												</span>
 											</label>
