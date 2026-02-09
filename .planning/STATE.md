@@ -53,6 +53,7 @@ None.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 017 | Fix Review Queue record name display (show names not UUIDs) | 2026-02-09 | b17c317 | [017-fix-review-queue-record-name-display](./quick/17-fix-review-queue-record-name-display/) |
 | 016 | Fix audit bugs and visual issues (13 items) | 2026-02-09 | d8fcc56 | [016-fix-audit-bugs-and-visual-issues](./quick/016-fix-audit-bugs-and-visual-issues/) |
 | 014 | Fix navigation tabs reprovision bugs (schema fix) | 2026-02-07 | 86ee548 | [014-fix-nav-tabs-reprovision](./quick/014-fix-nav-tabs-reprovision/) |
 | 013 | Debug Guardare-Operations missing navigation tabs | 2026-02-07 | b1e47d2 | [013-debug-guardare-nav-options](./quick/013-debug-guardare-nav-options/) |
@@ -63,7 +64,7 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-09
-Stopped at: v3.0 milestone archived
+Stopped at: Completed quick-17 (Fix Review Queue record name display)
 Resume file: None
 
 ---
