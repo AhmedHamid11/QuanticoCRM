@@ -156,15 +156,11 @@
 		return formatFieldValue(value, field.type);
 	}
 
-	function valuesAreDifferent(fieldName: string): boolean {
+	function valuesAreDifferent(field: FieldDef): boolean {
 		if (!preview) return false;
 
-		const normalize = (v: any): string => {
-			if (v === null || v === undefined || v === '') return '';
-			return String(v).trim();
-		};
-
-		const values = preview.records.map((r) => normalize(r[fieldName]));
+		// Compare display values (not raw) so formatting differences don't cause false highlights
+		const values = preview.records.map((r) => getDisplayValue(r, field));
 		const first = values[0];
 		return values.some((v) => v !== first);
 	}
@@ -362,7 +358,7 @@
 					<tbody class="bg-white divide-y divide-gray-200">
 						{#each preview.fields as field}
 							{#if !SKIP_FIELDS.includes(field.name)}
-								<tr class="{valuesAreDifferent(field.name) ? 'bg-yellow-50' : ''}">
+								<tr class="{valuesAreDifferent(field) ? 'bg-yellow-50' : ''}">
 									<td class="px-4 py-3 text-sm font-medium text-gray-900">
 										{field.label}
 									</td>
@@ -376,7 +372,7 @@
 													bind:group={fieldSelections[field.name]}
 													class="mt-1 shrink-0"
 												/>
-												<span class="text-sm text-gray-700 break-words">
+												<span class="text-sm text-gray-700 break-all">
 													{getDisplayValue(record, field)}
 												</span>
 											</label>
