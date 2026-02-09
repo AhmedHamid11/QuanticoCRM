@@ -2,29 +2,22 @@
 
 ## What This Is
 
-A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber backend with SvelteKit frontend, using Turso (SQLite edge) for per-tenant databases. Focuses on speed (<50ms perceived), optimistic UI, security hardened for production, and transparent platform updates.
+A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber backend with SvelteKit frontend, using Turso (SQLite edge) for per-tenant databases. Focuses on speed (<50ms perceived), optimistic UI, security hardened for production, transparent platform updates, and built-in data quality tools including deduplication and merge.
 
 ## Core Value
 
 Fast, secure multi-tenant CRM where customer data is protected and platform updates are transparent.
 
-## Current Milestone: v3.0 Deduplication System
-
-**Goal:** Build a comprehensive, entity-agnostic deduplication system with scoring-based matching, import integration, and manual merge capabilities.
-
-**Target features:**
-- Full profile scoring for duplicate detection (all available fields)
-- Import integration with duplicate blocking and review
-- Manual field selection during merge
-- Generic system supporting all entities (Contact, Account, Lead, custom)
-- Background duplicate scanning
-- Duplicate management UI
-
 ## Current State
 
-**Shipped:** v2.0 Security Hardening (2026-02-04)
-**Codebase:** 218,000+ LOC (Go/TypeScript/Svelte)
-**Status:** Production-ready with SOC 2/GDPR compliance foundation
+**Shipped:** v3.0 Deduplication System (2026-02-09)
+**Codebase:** ~96,000 LOC (58K Go, 38K TypeScript/Svelte)
+**Status:** Production-ready with security hardening, platform updates, and data quality tools
+
+**Milestones shipped:**
+- v1.0 Platform Update System (2026-02-01)
+- v2.0 Security Hardening (2026-02-04)
+- v3.0 Deduplication System (2026-02-09)
 
 ## Requirements
 
@@ -57,28 +50,33 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 - ✓ Tenant isolation verified — v2.0
 - ✓ Tamper-evident audit logging — v2.0
 - ✓ CI security scanning (gosec) — v2.0
+- ✓ Scoring-based duplicate detection with configurable thresholds — v3.0
+- ✓ Import duplicate detection with blocking review — v3.0
+- ✓ Manual merge with field-by-field selection — v3.0
+- ✓ Entity-agnostic deduplication engine — v3.0
+- ✓ Background duplicate scanning jobs — v3.0
+- ✓ Duplicate management admin UI — v3.0
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- Scoring-based duplicate detection with configurable thresholds
-- Import duplicate detection with blocking review
-- Manual merge with field-by-field selection
-- Entity-agnostic deduplication engine
-- Background duplicate scanning jobs
-- Duplicate management admin UI
+(None — planning next milestone)
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
-- SSO (SAML/OIDC) — Enterprise feature, defer to v3.0
+- SSO (SAML/OIDC) — Enterprise feature, consider for future milestone
 - Per-tenant encryption keys — High complexity, defer
 - Real-time anomaly detection — Advanced ML feature, future
 - Mobile app — Web-first, mobile later
 - Mandatory password complexity rules — NIST removed; leads to weaker passwords
 - Periodic password expiration — NIST removed; causes predictable patterns
+- Cross-entity duplicate detection (Lead-to-Contact) — Complex, deferred from v3.0
+- ML-based matching algorithms — Jaro-Winkler sufficient for now
+- Auto-merge without review — Risk of data loss, manual review preferred
+- Negative signal scoring (DETECT-07) — Framework ready in scorer.go, logic not yet implemented
 
 ## Context
 
@@ -93,6 +91,13 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 - XSS-immune token storage
 - Tamper-evident audit trails
 - CI security scanning enforced
+
+**Data Quality (v3.0):**
+- Entity-agnostic deduplication with Jaro-Winkler fuzzy matching
+- Real-time detection on record creation
+- CSV import duplicate review with resolution actions
+- Background scanning with checkpoint recovery
+- Full admin UI for rule management, review queue, merge wizard
 
 ## Constraints
 
@@ -113,6 +118,14 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 | NIST 800-63B password policy | Modern security best practice | ✓ Good |
 | Silent CORS reject | Prevent origin enumeration | ✓ Good |
 | SHA-256 hash chain for audit | Tamper evidence | ✓ Good |
+| Jaro-Winkler for fuzzy matching | Industry-standard name similarity, 0.88 threshold | ✓ Good |
+| Weighted field scoring for confidence | Flexible per-field importance, 0-100 scale | ✓ Good |
+| SQL blocking strategies | Reduces candidate set before expensive comparisons | ✓ Good |
+| Async detection on record create | Optimistic save, non-blocking UX | ✓ Good |
+| Single-page merge wizard | User-preferred, simpler than multi-step | ✓ Good |
+| 30-day undo window for merges | Safety net without indefinite storage | ✓ Good |
+| Checkpoint-based background scanning | Handles Turso 5-second timeout, resume on failure | ✓ Good |
+| Frequency presets over cron | Covers 95% of use cases, much simpler UX | ✓ Good |
 
 ---
-*Last updated: 2026-02-05 — v3.0 Deduplication System milestone started*
+*Last updated: 2026-02-09 after v3.0 milestone*
