@@ -33,7 +33,7 @@
 	let currentRecord = $state<Record<string, unknown> | null>(null);
 	// Available matches (filtered to only those that still exist)
 	let availableMatches = $state<DuplicateMatch[]>([]);
-	// Selected duplicate for comparison (set after loading)
+	// Selected match for merge mode (set when user clicks Merge on a specific match)
 	let selectedMatchId = $state<string>('');
 	// Duplicate record details
 	let matchDetails = $state<Record<string, Record<string, unknown>>>({});
@@ -96,14 +96,6 @@
 			}
 			matchDetails = details;
 			availableMatches = validMatches;
-
-			// Set selected match to first available one
-			if (validMatches.length > 0) {
-				selectedMatchId = validMatches[0].recordId;
-			}
-
-			// Initialize field selections - prefer non-empty values
-			initializeFieldSelections();
 		} catch (error) {
 			console.error('Failed to load record details:', error);
 		} finally {
@@ -111,11 +103,10 @@
 		}
 	});
 
-	function initializeFieldSelections() {
+	function initializeFieldSelections(matchId: string) {
 		const selections: Record<string, string> = {};
 
-		// If no match selected, default all fields to current record
-		if (!selectedMatchId || !matchDetails[selectedMatchId]) {
+		if (!matchId || !matchDetails[matchId]) {
 			for (const field of compareFields) {
 				selections[field] = currentRecordId;
 			}
@@ -123,7 +114,7 @@
 			return;
 		}
 
-		const otherRecord = matchDetails[selectedMatchId];
+		const otherRecord = matchDetails[matchId];
 
 		for (const field of compareFields) {
 			const currentVal = currentRecord?.[field];
@@ -133,7 +124,7 @@
 			if (currentVal && !otherVal) {
 				selections[field] = currentRecordId;
 			} else if (!currentVal && otherVal) {
-				selections[field] = selectedMatchId;
+				selections[field] = matchId;
 			} else {
 				// Both have values or both empty - default to primary
 				selections[field] = primaryRecordId;
@@ -142,15 +133,17 @@
 		fieldSelections = selections;
 	}
 
-	// Update field selections when primary changes
+	function enterMergeMode(matchId: string) {
+		selectedMatchId = matchId;
+		primaryRecordId = currentRecordId;
+		initializeFieldSelections(matchId);
+		mergeMode = true;
+	}
+
+	// Update field selections when primary changes in merge mode
 	$effect(() => {
-		if (primaryRecordId && !mergeMode) {
-			// Reset all to primary when switching primary record
-			const selections: Record<string, string> = {};
-			for (const field of compareFields) {
-				selections[field] = primaryRecordId;
-			}
-			fieldSelections = selections;
+		if (primaryRecordId && mergeMode && selectedMatchId) {
+			initializeFieldSelections(selectedMatchId);
 		}
 	});
 
@@ -161,30 +154,6 @@
 		}
 		if (record.name) return String(record.name);
 		return String(record.id || 'Unknown').slice(0, 12) + '...';
-	}
-
-	function getRecordLabel(record: Record<string, unknown> | null, recordId: string): string {
-		const name = getRecordName(record);
-		if (!record) return name;
-		const email = String(record.emailAddress || record.email || '');
-		// Check if another match has the same name — disambiguate with email or short ID
-		const hasDuplicateName = availableMatches.some(m =>
-			m.recordId !== recordId &&
-			matchDetails[m.recordId] &&
-			getRecordName(matchDetails[m.recordId]) === name
-		);
-		if (!hasDuplicateName) return name;
-		// Check if email also collides — need record ID to truly distinguish
-		const hasMatchWithSameEmail = availableMatches.some(m => {
-			if (m.recordId === recordId || !matchDetails[m.recordId]) return false;
-			const other = matchDetails[m.recordId];
-			return getRecordName(other) === name &&
-				String(other.emailAddress || other.email || '') === email;
-		});
-		if (email && !hasMatchWithSameEmail) return `${name} (${email})`;
-		// Last resort: append short record ID
-		const shortId = recordId.slice(-6);
-		return email ? `${name} (${email}) #${shortId}` : `${name} #${shortId}`;
 	}
 
 	function getFieldValue(record: Record<string, unknown> | null, field: string): string {
@@ -259,8 +228,6 @@
 	}
 
 	let canProceed = $derived(!isBlockMode || overrideText.toUpperCase() === 'DUPLICATE');
-	let selectedMatch = $derived(availableMatches.find(m => m.recordId === selectedMatchId));
-	let otherRecord = $derived(matchDetails[selectedMatchId]);
 	let hasAvailableMatches = $derived(availableMatches.length > 0);
 </script>
 
@@ -284,32 +251,15 @@
 	>
 		<!-- Header -->
 		<div class="px-6 py-4 border-b border-gray-200 bg-yellow-50 flex-shrink-0">
-			<div class="flex items-center justify-between">
-				<div>
-					<h2 id="modal-title" class="text-lg font-medium text-yellow-800">
-						{mergeMode ? 'Merge Records' : 'Potential Duplicate Found'}
-					</h2>
-					{#if selectedMatch}
-						<p class="text-sm text-yellow-700 mt-1">
-							<span class="font-medium">{selectedMatch.matchResult.confidenceTier.toUpperCase()}</span> confidence match
-							({formatConfidence(selectedMatch.matchResult.score)})
-						</p>
-					{/if}
-				</div>
-				{#if availableMatches.length > 1}
-					<select
-						bind:value={selectedMatchId}
-						onchange={() => initializeFieldSelections()}
-						class="text-sm border border-gray-300 rounded px-2 py-1"
-					>
-						{#each availableMatches as match}
-							<option value={match.recordId}>
-								{matchDetails[match.recordId] ? getRecordLabel(matchDetails[match.recordId], match.recordId) : match.recordId.slice(0, 12)}
-							</option>
-						{/each}
-					</select>
+			<h2 id="modal-title" class="text-lg font-medium text-yellow-800">
+				{#if mergeMode}
+					Merge Records
+				{:else if availableMatches.length === 1}
+					Potential Duplicate Found
+				{:else}
+					{availableMatches.length} Potential Duplicates Found
 				{/if}
-			</div>
+			</h2>
 		</div>
 
 		<!-- Body -->
@@ -321,108 +271,116 @@
 					<p class="text-gray-600 mb-2">The matched records are no longer available.</p>
 					<p class="text-sm text-gray-500">They may have been deleted or merged previously.</p>
 				</div>
-			{:else}
-				<!-- Primary Selection -->
-				{#if mergeMode}
-					<div class="mb-4 p-3 bg-blue-50 rounded-lg">
-						<p class="text-sm font-medium text-blue-800 mb-2">Select which record to keep as primary:</p>
-						<div class="flex gap-4">
-							<label class="flex items-center gap-2 cursor-pointer">
-								<input
-									type="radio"
-									name="primary"
-									value={currentRecordId}
-									bind:group={primaryRecordId}
-									class="text-blue-600"
-								/>
-								<span class="text-sm">{getRecordName(currentRecord)} (Current)</span>
-							</label>
-							<label class="flex items-center gap-2 cursor-pointer">
-								<input
-									type="radio"
-									name="primary"
-									value={selectedMatchId}
-									bind:group={primaryRecordId}
-									class="text-blue-600"
-								/>
-								<span class="text-sm">{getRecordName(otherRecord)}</span>
-							</label>
-						</div>
+			{:else if mergeMode}
+				<!-- Merge mode: single comparison with field selection -->
+				{@const mergeRecord = matchDetails[selectedMatchId]}
+				<div class="mb-4 p-3 bg-blue-50 rounded-lg">
+					<p class="text-sm font-medium text-blue-800 mb-2">Select which record to keep as primary:</p>
+					<div class="flex gap-4">
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="radio" name="primary" value={currentRecordId} bind:group={primaryRecordId} class="text-blue-600" />
+							<span class="text-sm">{getRecordName(currentRecord)} (Current)</span>
+						</label>
+						<label class="flex items-center gap-2 cursor-pointer">
+							<input type="radio" name="primary" value={selectedMatchId} bind:group={primaryRecordId} class="text-blue-600" />
+							<span class="text-sm">{getRecordName(mergeRecord)}</span>
+						</label>
 					</div>
-				{/if}
+				</div>
 
-				<!-- Side-by-side comparison -->
 				<div class="border rounded-lg overflow-hidden">
-					<!-- Header row -->
 					<div class="grid grid-cols-3 bg-gray-100 text-sm font-medium">
 						<div class="px-4 py-2 border-r border-gray-200">Field</div>
 						<div class="px-4 py-2 border-r border-gray-200 {primaryRecordId === currentRecordId ? 'bg-green-100' : ''}">
 							{getRecordName(currentRecord)}
-							{#if primaryRecordId === currentRecordId}
-								<span class="text-xs text-green-600 ml-1">(Primary)</span>
-							{/if}
+							{#if primaryRecordId === currentRecordId}<span class="text-xs text-green-600 ml-1">(Primary)</span>{/if}
 						</div>
 						<div class="px-4 py-2 {primaryRecordId === selectedMatchId ? 'bg-green-100' : ''}">
-							{getRecordName(otherRecord)}
-							{#if primaryRecordId === selectedMatchId}
-								<span class="text-xs text-green-600 ml-1">(Primary)</span>
-							{/if}
+							{getRecordName(mergeRecord)}
+							{#if primaryRecordId === selectedMatchId}<span class="text-xs text-green-600 ml-1">(Primary)</span>{/if}
 						</div>
 					</div>
-
-					<!-- Field rows -->
 					{#each compareFields as field}
 						{@const currentVal = getFieldValue(currentRecord, field)}
-						{@const otherVal = getFieldValue(otherRecord, field)}
+						{@const otherVal = getFieldValue(mergeRecord, field)}
 						{@const hasConflict = currentVal !== '-' && otherVal !== '-' && currentVal !== otherVal}
 						<div class="grid grid-cols-3 text-sm border-t border-gray-200 {hasConflict ? 'bg-yellow-50' : ''}">
 							<div class="px-4 py-2 border-r border-gray-200 text-gray-600 capitalize">
 								{formatFieldLabel(field)}
-								{#if hasConflict}
-									<span class="text-yellow-600 ml-1">*</span>
-								{/if}
+								{#if hasConflict}<span class="text-yellow-600 ml-1">*</span>{/if}
 							</div>
-							<div class="px-4 py-2 border-r border-gray-200 {fieldSelections[field] === currentRecordId && mergeMode ? 'bg-green-50 font-medium' : ''}">
-								{#if mergeMode}
-									<label class="flex items-center gap-2 cursor-pointer">
-										<input
-											type="radio"
-											name={field}
-											value={currentRecordId}
-											bind:group={fieldSelections[field]}
-											class="text-green-600"
-										/>
-										<span class="truncate" title={currentVal}>{currentVal}</span>
-									</label>
-								{:else}
-									<span class="truncate block" title={currentVal}>{currentVal}</span>
-								{/if}
+							<div class="px-4 py-2 border-r border-gray-200 {fieldSelections[field] === currentRecordId ? 'bg-green-50 font-medium' : ''}">
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input type="radio" name={field} value={currentRecordId} bind:group={fieldSelections[field]} class="text-green-600" />
+									<span class="truncate" title={currentVal}>{currentVal}</span>
+								</label>
 							</div>
-							<div class="px-4 py-2 {fieldSelections[field] === selectedMatchId && mergeMode ? 'bg-green-50 font-medium' : ''}">
-								{#if mergeMode}
-									<label class="flex items-center gap-2 cursor-pointer">
-										<input
-											type="radio"
-											name={field}
-											value={selectedMatchId}
-											bind:group={fieldSelections[field]}
-											class="text-green-600"
-										/>
-										<span class="truncate" title={otherVal}>{otherVal}</span>
-									</label>
-								{:else}
-									<span class="truncate block" title={otherVal}>{otherVal}</span>
-								{/if}
+							<div class="px-4 py-2 {fieldSelections[field] === selectedMatchId ? 'bg-green-50 font-medium' : ''}">
+								<label class="flex items-center gap-2 cursor-pointer">
+									<input type="radio" name={field} value={selectedMatchId} bind:group={fieldSelections[field]} class="text-green-600" />
+									<span class="truncate" title={otherVal}>{otherVal}</span>
+								</label>
 							</div>
 						</div>
 					{/each}
 				</div>
+				<p class="text-xs text-gray-500 mt-2">
+					<span class="text-yellow-600">*</span> Conflicting values highlighted — select the value you want to keep for each field
+				</p>
+			{:else}
+				<!-- View mode: show ALL matches stacked -->
+				{#each availableMatches as match, i}
+					{@const matchRecord = matchDetails[match.recordId]}
+					{#if i > 0}<div class="my-4 border-t border-gray-200"></div>{/if}
 
-				{#if mergeMode}
-					<p class="text-xs text-gray-500 mt-2">
-						<span class="text-yellow-600">*</span> Conflicting values highlighted — select the value you want to keep for each field
-					</p>
-				{/if}
+					<!-- Match header -->
+					<div class="flex items-center justify-between mb-2">
+						<div class="flex items-center gap-2">
+							<span class={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getConfidenceBadgeClass(match.matchResult.confidenceTier)}`}>
+								{match.matchResult.confidenceTier.toUpperCase()}
+							</span>
+							<span class="text-sm text-gray-600">
+								{formatConfidence(match.matchResult.score)} match with <span class="font-medium text-gray-900">{getRecordName(matchRecord)}</span>
+							</span>
+						</div>
+						<div class="flex gap-2">
+							<button
+								onclick={() => handleViewRecord(match.recordId)}
+								class="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+							>
+								View
+							</button>
+							<button
+								onclick={() => enterMergeMode(match.recordId)}
+								class="text-xs px-2 py-1 text-white bg-green-600 rounded hover:bg-green-700"
+							>
+								Merge
+							</button>
+						</div>
+					</div>
+
+					<!-- Compact comparison table -->
+					<div class="border rounded-lg overflow-hidden">
+						<div class="grid grid-cols-3 bg-gray-100 text-xs font-medium">
+							<div class="px-3 py-1.5 border-r border-gray-200">Field</div>
+							<div class="px-3 py-1.5 border-r border-gray-200">{getRecordName(currentRecord)} <span class="text-gray-400">(current)</span></div>
+							<div class="px-3 py-1.5">{getRecordName(matchRecord)}</div>
+						</div>
+						{#each compareFields as field}
+							{@const currentVal = getFieldValue(currentRecord, field)}
+							{@const otherVal = getFieldValue(matchRecord, field)}
+							{@const hasConflict = currentVal !== '-' && otherVal !== '-' && currentVal !== otherVal}
+							{@const bothEmpty = currentVal === '-' && otherVal === '-'}
+							{#if !bothEmpty}
+								<div class="grid grid-cols-3 text-xs border-t border-gray-200 {hasConflict ? 'bg-yellow-50' : ''}">
+									<div class="px-3 py-1.5 border-r border-gray-200 text-gray-600 capitalize">{formatFieldLabel(field)}</div>
+									<div class="px-3 py-1.5 border-r border-gray-200 truncate" title={currentVal}>{currentVal}</div>
+									<div class="px-3 py-1.5 truncate" title={otherVal}>{otherVal}</div>
+								</div>
+							{/if}
+						{/each}
+					</div>
+				{/each}
 			{/if}
 		</div>
 
@@ -440,76 +398,49 @@
 				/>
 			{/if}
 
-			<div class="flex flex-wrap justify-between gap-3">
-				<div class="flex gap-2">
+			<div class="flex justify-end gap-3">
+				{#if !hasAvailableMatches}
 					<button
-						onclick={() => handleViewRecord(currentRecordId)}
-						class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+						onclick={onDismiss}
+						class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
 					>
-						View Current
+						Dismiss Alert
 					</button>
-					{#if hasAvailableMatches}
-						<button
-							onclick={() => handleViewRecord(selectedMatchId)}
-							class="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-						>
-							View Duplicate
-						</button>
-					{/if}
-				</div>
-
-				<div class="flex gap-3">
+				{:else if mergeMode}
+					<button
+						onclick={() => mergeMode = false}
+						class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+					>
+						Back
+					</button>
+					<button
+						onclick={handleMerge}
+						disabled={merging}
+						class="px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+					>
+						{merging ? 'Merging...' : 'Merge Records'}
+					</button>
+				{:else}
 					<button
 						onclick={onClose}
 						class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
 					>
-						Cancel
+						Close
 					</button>
-
-					{#if !hasAvailableMatches}
-						<!-- All matches were deleted, just allow dismissing -->
-						<button
-							onclick={onDismiss}
-							class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
-						>
-							Dismiss Alert
-						</button>
-					{:else if mergeMode}
-						<button
-							onclick={() => mergeMode = false}
-							class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-						>
-							Back
-						</button>
-						<button
-							onclick={handleMerge}
-							disabled={merging}
-							class="px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
-						>
-							{merging ? 'Merging...' : 'Merge Records'}
-						</button>
-					{:else}
-						<button
-							onclick={onDismiss}
-							class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-						>
-							Not Duplicates
-						</button>
-						<button
-							onclick={() => mergeMode = true}
-							class="px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700"
-						>
-							Merge Records
-						</button>
-						<button
-							onclick={() => onCreateAnyway ? onCreateAnyway(overrideText) : onDismiss()}
-							disabled={!canProceed}
-							class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-						>
-							Keep Both
-						</button>
-					{/if}
-				</div>
+					<button
+						onclick={onDismiss}
+						class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+					>
+						Not Duplicates
+					</button>
+					<button
+						onclick={() => onCreateAnyway ? onCreateAnyway(overrideText) : onDismiss()}
+						disabled={!canProceed}
+						class="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+					>
+						Keep Both
+					</button>
+				{/if}
 			</div>
 		</div>
 	</div>
