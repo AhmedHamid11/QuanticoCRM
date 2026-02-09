@@ -1,0 +1,128 @@
+{
+  "name": "QuanticoCRM Screenshot Capture",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "quantico-capture",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse incoming capture data\nconst capture = $input.first().json;\n\n// Extract base64 image (remove data URL prefix)\nconst screenshot = capture.screenshot || '';\nconst base64Data = screenshot.replace(/^data:image\\/\\w+;base64,/, '');\n\n// Determine source type for task naming\nlet sourceType = 'Web';\nconst domain = capture.source?.domain?.toLowerCase() || '';\n\nif (domain.includes('linkedin')) sourceType = 'LinkedIn';\nelse if (domain.includes('facebook')) sourceType = 'Facebook';\nelse if (domain.includes('outlook') || domain.includes('mail')) sourceType = 'Email';\nelse if (domain.includes('google')) sourceType = 'Google';\n\n// Build task name\nconst taskName = `${sourceType} Capture: ${capture.contact?.name || 'Unknown'}`;\n\n// Build task description\nconst description = [\n  `**Source:** ${capture.source?.url || 'Unknown'}`,\n  `**Page Title:** ${capture.source?.title || 'Unknown'}`,\n  `**Captured:** ${capture.capturedAt || new Date().toISOString()}`,\n  capture.note ? `\\n**Note:** ${capture.note}` : ''\n].filter(Boolean).join('\\n');\n\nreturn [{\n  json: {\n    taskName,\n    description,\n    contactId: capture.contact?.id,\n    contactName: capture.contact?.name,\n    contactEmail: capture.contact?.email,\n    sourceUrl: capture.source?.url,\n    sourceDomain: capture.source?.domain,\n    sourceType,\n    note: capture.note,\n    capturedAt: capture.capturedAt,\n    screenshotBase64: base64Data,\n    screenshotMimeType: 'image/png'\n  }\n}];"
+      },
+      "id": "parse-capture",
+      "name": "Parse Capture Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.QUANTICO_CRM_URL }}/Task",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"{{ $json.taskName }}\",\n  \"status\": \"Not Started\",\n  \"description\": \"{{ $json.description }}\",\n  \"parentType\": \"Contact\",\n  \"parentId\": \"{{ $json.contactId }}\",\n  \"dateStart\": \"{{ $now.format('YYYY-MM-DD') }}\",\n  \"dateEnd\": \"{{ $now.plus({days: 7}).format('YYYY-MM-DD') }}\"\n}",
+        "options": {}
+      },
+      "id": "create-task",
+      "name": "Create CRM Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "QuanticoCRM API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, taskId: $json.id, message: 'Task created successfully' }) }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error?.message || 'Unknown error' }) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 480]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Capture Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Capture Data": {
+      "main": [
+        [
+          {
+            "node": "Create CRM Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create CRM Task": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "pinData": {}
+}

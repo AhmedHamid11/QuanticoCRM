@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuanticoCRM Capture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <path d="M21 15l-5-5L5 21"/>
+        </svg>
+        <span>QuanticoCRM Capture</span>
+      </div>
+    </header>
+
+    <!-- Settings (collapsed by default) -->
+    <div id="settingsPanel" class="settings-panel hidden">
+      <div class="setting-group">
+        <label for="webhookUrl">n8n Webhook URL</label>
+        <input type="url" id="webhookUrl" placeholder="https://your-n8n.com/webhook/..." />
+      </div>
+      <div class="setting-group">
+        <label for="crmApiUrl">QuanticoCRM API URL</label>
+        <input type="url" id="crmApiUrl" placeholder="https://your-crm.com/api" />
+      </div>
+      <div class="setting-group">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="Your API key" />
+      </div>
+      <button id="saveSettings" class="btn btn-secondary">Save Settings</button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Screenshot Preview -->
+      <div id="screenshotSection" class="screenshot-section">
+        <div class="screenshot-placeholder" id="screenshotPlaceholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          <span>Click capture to screenshot</span>
+        </div>
+        <img id="screenshotPreview" class="screenshot-preview hidden" alt="Screenshot preview" />
+      </div>
+
+      <!-- Page Info -->
+      <div id="pageInfo" class="page-info hidden">
+        <div class="page-domain">
+          <img id="pageFavicon" class="favicon" src="" alt="" />
+          <span id="pageDomain"></span>
+        </div>
+        <div id="pageTitle" class="page-title"></div>
+      </div>
+
+      <!-- Contact Search -->
+      <div class="contact-section">
+        <label for="contactSearch">Select Contact</label>
+        <div class="search-wrapper">
+          <input 
+            type="text" 
+            id="contactSearch" 
+            placeholder="Search contacts..." 
+            autocomplete="off"
+          />
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+          </svg>
+        </div>
+        
+        <!-- Contact Results -->
+        <div id="contactResults" class="contact-results hidden"></div>
+        
+        <!-- Selected Contact -->
+        <div id="selectedContact" class="selected-contact hidden">
+          <div class="contact-card selected">
+            <div class="contact-avatar" id="selectedAvatar"></div>
+            <div class="contact-info">
+              <div class="contact-name" id="selectedName"></div>
+              <div class="contact-email" id="selectedEmail"></div>
+            </div>
+            <button id="clearContact" class="clear-btn" title="Clear selection">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Note (optional) -->
+      <div class="note-section">
+        <label for="taskNote">Note (optional)</label>
+        <textarea id="taskNote" placeholder="Add a note for this task..." rows="2"></textarea>
+      </div>
+    </main>
+
+    <!-- Actions -->
+    <footer class="actions">
+      <button id="captureBtn" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        Capture
+      </button>
+      <button id="sendBtn" class="btn btn-primary" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+        </svg>
+        Send to CRM
+      </button>
+    </footer>
+
+    <!-- Settings Toggle -->
+    <button id="settingsToggle" class="settings-toggle" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+
+    <!-- Status Messages -->
+    <div id="statusMessage" class="status-message hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

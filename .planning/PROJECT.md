@@ -61,7 +61,12 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 
 <!-- Current scope. Building toward these. -->
 
-(None — planning next milestone)
+- [ ] Merge instruction payload builder from dedup results — v4.0
+- [ ] Salesforce OAuth 2.0 integration with Connected App — v4.0
+- [ ] Batch merge instruction delivery to Salesforce staging object — v4.0
+- [ ] Rate limiting & exponential backoff for Salesforce API — v4.0
+- [ ] Audit logging for merge instruction delivery — v4.0
+- [ ] Admin UI: integration configuration and delivery monitoring — v4.0
 
 ### Out of Scope
 
@@ -127,5 +132,16 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 | Checkpoint-based background scanning | Handles Turso 5-second timeout, resume on failure | ✓ Good |
 | Frequency presets over cron | Covers 95% of use cases, much simpler UX | ✓ Good |
 
+## Current Milestone: v4.0 Salesforce Merge Integration
+
+**Goal:** Send merge instructions from Quantico to Salesforce so customers can use Quantico as a standalone dedup/merge tool that syncs results back to their Salesforce org.
+
+**Target features:**
+- Payload builder: construct merge instructions from dedup results (winner, loser, field values)
+- Salesforce integration: OAuth 2.0 authentication, REST API delivery to staging object
+- Batch delivery: group instructions for efficiency, rate limiting, exponential backoff
+- Audit tracking: log all merge instructions sent, delivery status, outcomes
+- Admin UI: configure Salesforce org, test connection, monitor delivery status
+
 ---
-*Last updated: 2026-02-09 after v3.0 milestone*
+*Last updated: 2026-02-09 after starting v4.0 milestone*

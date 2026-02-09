@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 
 ## Current Position
 
-**Milestone:** v3.0 complete — next milestone TBD
-**Phase:** All 16 phases complete across 3 milestones
-**Plan:** Not started
-**Status:** Ready to plan next milestone
+**Milestone:** v4.0 Salesforce Merge Integration (defining requirements)
+**Phase:** Not started (gathering requirements)
+**Plan:** —
+**Status:** Researching domain architecture
 
-**Last activity:** 2026-02-09 — Fix Review Queue record name display (quick task 17)
+**Last activity:** 2026-02-09 — Started v4.0 milestone planning
 
 Progress: [██████████] 100% (53/53 plans across v1.0-v3.0)
 
