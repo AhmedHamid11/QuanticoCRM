@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
+	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -238,7 +239,7 @@ func (h *MergeHandler) History(c *fiber.Ctx) error {
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
 			// Auto-provision dedup tables and retry
-			if err2 := ensureDedupTables(c.Context(), h.getDBConn(c)); err2 == nil {
+			if err2 := dedup.EnsureDedupSchema(c.Context(), h.getDBConn(c)); err2 == nil {
 				snapshots, total, err = h.getMergeRepo(c).ListByOrg(c.Context(), orgID, page, pageSize)
 			}
 			if err != nil {

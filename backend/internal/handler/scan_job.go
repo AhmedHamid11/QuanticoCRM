@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
+	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -101,7 +102,7 @@ func (h *ScanJobHandler) ListSchedules(c *fiber.Ctx) error {
 	schedules, err := repo.ListSchedules(c.Context(), orgID)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
-			if err2 := ensureDedupTables(c.Context(), h.getDBConn(c)); err2 == nil {
+			if err2 := dedup.EnsureDedupSchema(c.Context(), h.getDBConn(c)); err2 == nil {
 				schedules, err = repo.ListSchedules(c.Context(), orgID)
 				if err == nil {
 					return c.JSON(schedules)
@@ -280,7 +281,7 @@ func (h *ScanJobHandler) ListJobs(c *fiber.Ctx) error {
 
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
-			if err2 := ensureDedupTables(c.Context(), h.getDBConn(c)); err2 == nil {
+			if err2 := dedup.EnsureDedupSchema(c.Context(), h.getDBConn(c)); err2 == nil {
 				if entityType != "" {
 					jobs, total, err = repo.ListJobsByEntity(c.Context(), orgID, entityType, pageSize, offset)
 				} else {

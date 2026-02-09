@@ -59,6 +59,12 @@ func (r *RealtimeChecker) CheckAsync(conn db.DBConn, input CheckAsyncInput) {
 func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input CheckAsyncInput) {
 	log.Printf("[DEDUP] Starting async check for %s/%s in org %s", input.EntityType, input.RecordID, input.OrgID)
 
+	// Ensure dedup schema exists (tables + blocking key columns)
+	if err := EnsureDedupSchema(ctx, conn); err != nil {
+		log.Printf("ERROR: Failed to ensure dedup schema for %s/%s: %v", input.EntityType, input.RecordID, err)
+		return
+	}
+
 	// Always update blocking keys for this record so it can be found by future checks
 	// This must happen regardless of whether rules exist, since rules may be added later
 	if err := r.detector.GetBlocker().UpdateBlockingKeys(ctx, conn, input.EntityType, input.RecordID, input.RecordData); err != nil {
