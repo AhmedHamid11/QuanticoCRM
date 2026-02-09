@@ -100,6 +100,9 @@ func (h *ScanJobHandler) ListSchedules(c *fiber.Ctx) error {
 
 	schedules, err := repo.ListSchedules(c.Context(), orgID)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return c.JSON([]any{})
+		}
 		log.Printf("Error listing schedules for org %s: %v", orgID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to list schedules",
