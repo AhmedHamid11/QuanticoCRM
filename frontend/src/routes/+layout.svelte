@@ -213,7 +213,7 @@
 									onclick={() => showOrgSwitcher = !showOrgSwitcher}
 									class="flex items-center px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
 								>
-									<span class="font-medium">{auth.currentOrg?.orgName}</span>
+									<span class="font-medium whitespace-nowrap truncate max-w-[200px]">{auth.currentOrg?.orgName}</span>
 									<svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
 									</svg>
@@ -241,7 +241,7 @@
 								{/if}
 							</div>
 						{:else if auth.currentOrg}
-							<span class="text-sm text-gray-600">{auth.currentOrg.orgName}</span>
+							<span class="text-sm text-gray-600 whitespace-nowrap truncate max-w-[200px]">{auth.currentOrg.orgName}</span>
 						{/if}
 
 						{#if auth.canAccessSetup}

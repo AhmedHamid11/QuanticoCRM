@@ -329,25 +329,25 @@
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 							Name
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 							Entity Type
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
 							Status
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
 							Priority
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
 							Threshold
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 							Fields
 						</th>
-						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+						<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 							Actions
 						</th>
 					</tr>
@@ -358,27 +358,27 @@
 							onclick={() => expandRule(rule)}
 							class="cursor-pointer hover:bg-gray-50 transition-colors"
 						>
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+							<td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
 								{rule.name}
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+							<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
 								{entities.find(e => e.name === rule.entityType)?.label || rule.entityType}
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap">
+							<td class="px-4 py-4 whitespace-nowrap">
 								<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {rule.isEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
 									{rule.isEnabled ? 'Enabled' : 'Disabled'}
 								</span>
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+							<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
 								{rule.priority}
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+							<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
 								{Math.round(rule.threshold * 100)}%
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+							<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
 								{rule.fieldConfigs.length} fields
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+							<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
 								<button
 									onclick={(e) => {
 										e.stopPropagation();

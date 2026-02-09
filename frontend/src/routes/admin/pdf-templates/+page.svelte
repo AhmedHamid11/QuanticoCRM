@@ -129,7 +129,7 @@
 						<div class="flex items-start justify-between">
 							<div class="flex-1 min-w-0">
 								<div class="flex items-center gap-2">
-									<h3 class="text-lg font-medium text-gray-900 truncate">{tpl.name}</h3>
+									<h3 class="text-lg font-medium text-gray-900" title={tpl.name}>{tpl.name}</h3>
 									{#if tpl.isDefault}
 										<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Default</span>
 									{/if}
