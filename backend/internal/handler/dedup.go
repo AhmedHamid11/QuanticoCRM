@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
@@ -23,6 +25,131 @@ func isNoSuchTableError(err error) bool {
 	}
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "no such table")
+}
+
+// dedupProvisionedDBs tracks which tenant DBs have been auto-provisioned
+// to avoid re-running CREATE TABLE on every request
+var dedupProvisionedDBs sync.Map
+
+// ensureDedupTables creates dedup tables if they're missing on a tenant DB.
+// Uses CREATE TABLE IF NOT EXISTS so it's safe to run multiple times.
+func ensureDedupTables(ctx context.Context, conn db.DBConn) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS matching_rules (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT,
+			entity_type TEXT NOT NULL,
+			target_entity_type TEXT,
+			is_enabled INTEGER DEFAULT 1,
+			priority INTEGER DEFAULT 0,
+			threshold REAL NOT NULL DEFAULT 0.70,
+			high_confidence_threshold REAL DEFAULT 0.95,
+			medium_confidence_threshold REAL DEFAULT 0.85,
+			blocking_strategy TEXT NOT NULL DEFAULT 'soundex',
+			field_configs TEXT NOT NULL,
+			merge_display_fields TEXT,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, entity_type, name)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_matching_rules_org ON matching_rules(org_id, entity_type, is_enabled)`,
+		`CREATE INDEX IF NOT EXISTS idx_matching_rules_priority ON matching_rules(org_id, is_enabled, priority)`,
+		`CREATE TABLE IF NOT EXISTS pending_duplicate_alerts (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			entity_type TEXT NOT NULL,
+			record_id TEXT NOT NULL,
+			matches_json TEXT NOT NULL,
+			total_match_count INTEGER NOT NULL,
+			highest_confidence TEXT NOT NULL,
+			is_block_mode INTEGER NOT NULL DEFAULT 0,
+			detected_at TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			resolved_at TEXT,
+			resolved_by_id TEXT,
+			override_text TEXT,
+			merge_display_fields TEXT,
+			UNIQUE(org_id, entity_type, record_id, status)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_pending_alerts_record ON pending_duplicate_alerts(org_id, entity_type, record_id, status)`,
+		`CREATE INDEX IF NOT EXISTS idx_pending_alerts_pending ON pending_duplicate_alerts(org_id, status, detected_at)`,
+		`CREATE TABLE IF NOT EXISTS merge_snapshots (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			entity_type TEXT NOT NULL,
+			survivor_id TEXT NOT NULL,
+			survivor_before TEXT NOT NULL,
+			duplicate_ids TEXT NOT NULL,
+			duplicate_snapshots TEXT NOT NULL,
+			related_record_fks TEXT NOT NULL,
+			merged_by_id TEXT NOT NULL,
+			consumed_at TEXT,
+			created_at TEXT NOT NULL,
+			expires_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_merge_snapshots_org ON merge_snapshots(org_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_merge_snapshots_survivor ON merge_snapshots(org_id, survivor_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_merge_snapshots_expires ON merge_snapshots(expires_at)`,
+		`CREATE TABLE IF NOT EXISTS scan_schedules (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			entity_type TEXT NOT NULL,
+			frequency TEXT NOT NULL,
+			day_of_week INTEGER,
+			day_of_month INTEGER,
+			hour INTEGER NOT NULL DEFAULT 3,
+			minute INTEGER NOT NULL DEFAULT 0,
+			is_enabled INTEGER NOT NULL DEFAULT 1,
+			last_run_at TEXT,
+			next_run_at TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(org_id, entity_type)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_scan_schedules_org ON scan_schedules(org_id, is_enabled)`,
+		`CREATE INDEX IF NOT EXISTS idx_scan_schedules_next_run ON scan_schedules(next_run_at, is_enabled)`,
+		`CREATE TABLE IF NOT EXISTS scan_jobs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			entity_type TEXT NOT NULL,
+			schedule_id TEXT,
+			status TEXT NOT NULL DEFAULT 'pending',
+			trigger_type TEXT NOT NULL DEFAULT 'scheduled',
+			total_records INTEGER NOT NULL DEFAULT 0,
+			processed_records INTEGER NOT NULL DEFAULT 0,
+			duplicates_found INTEGER NOT NULL DEFAULT 0,
+			error_message TEXT,
+			started_at TEXT,
+			completed_at TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_scan_jobs_org_status ON scan_jobs(org_id, status)`,
+		`CREATE INDEX IF NOT EXISTS idx_scan_jobs_org_entity ON scan_jobs(org_id, entity_type, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_scan_jobs_schedule ON scan_jobs(schedule_id, created_at)`,
+		`CREATE TABLE IF NOT EXISTS scan_checkpoints (
+			id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			last_offset INTEGER NOT NULL DEFAULT 0,
+			last_processed_id TEXT,
+			retry_count INTEGER NOT NULL DEFAULT 0,
+			chunk_size INTEGER NOT NULL DEFAULT 500,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(job_id)
+		)`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("failed to create dedup table: %w", err)
+		}
+	}
+
+	log.Printf("[DEDUP] Auto-provisioned dedup tables on tenant DB")
+	return nil
 }
 
 // DedupHandler handles duplicate detection API endpoints
@@ -69,6 +196,22 @@ func (h *DedupHandler) getAlertRepo(c *fiber.Ctx) *repo.PendingAlertRepo {
 
 // --- Matching Rules CRUD ---
 
+// ensureDedupTablesForRequest auto-provisions dedup tables if missing, returns true if provisioned
+func (h *DedupHandler) ensureDedupTablesForRequest(c *fiber.Ctx) bool {
+	conn := h.getDB(c)
+	// Use connection pointer as key to avoid re-provisioning same DB
+	connKey := fmt.Sprintf("%p", conn)
+	if _, ok := dedupProvisionedDBs.Load(connKey); ok {
+		return true
+	}
+	if err := ensureDedupTables(c.Context(), conn); err != nil {
+		log.Printf("[DEDUP] Failed to auto-provision dedup tables: %v", err)
+		return false
+	}
+	dedupProvisionedDBs.Store(connKey, true)
+	return true
+}
+
 // ListRules returns all matching rules for the org
 func (h *DedupHandler) ListRules(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
@@ -77,7 +220,15 @@ func (h *DedupHandler) ListRules(c *fiber.Ctx) error {
 	rules, err := h.getRuleRepo(c).ListRules(c.Context(), orgID, entityType)
 	if err != nil {
 		if isNoSuchTableError(err) {
-			log.Printf("[DEDUP] matching_rules table missing for org %s - migrations may need to be re-applied", orgID)
+			log.Printf("[DEDUP] matching_rules table missing for org %s - auto-provisioning", orgID)
+			if h.ensureDedupTablesForRequest(c) {
+				// Retry after provisioning
+				rules, err = h.getRuleRepo(c).ListRules(c.Context(), orgID, entityType)
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+				}
+				return c.JSON(fiber.Map{"data": rules})
+			}
 			return c.JSON(fiber.Map{"data": []entity.MatchingRule{}})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -127,8 +278,20 @@ func (h *DedupHandler) CreateRule(c *fiber.Ctx) error {
 	rule, err := h.getRuleRepo(c).CreateRule(c.Context(), orgID, input)
 	if err != nil {
 		if isNoSuchTableError(err) {
+			log.Printf("[DEDUP] matching_rules table missing for org %s - auto-provisioning", orgID)
+			if h.ensureDedupTablesForRequest(c) {
+				// Retry after provisioning
+				rule, err = h.getRuleRepo(c).CreateRule(c.Context(), orgID, input)
+				if err != nil {
+					if strings.Contains(err.Error(), "UNIQUE constraint") {
+						return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "A rule with this name already exists for this entity type"})
+					}
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+				}
+				return c.Status(fiber.StatusCreated).JSON(rule)
+			}
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-				"error": "Duplicate detection tables not yet provisioned. Please contact your administrator to run migrations.",
+				"error": "Failed to provision duplicate detection tables. Please contact support.",
 			})
 		}
 		if strings.Contains(err.Error(), "UNIQUE constraint") {
@@ -195,9 +358,17 @@ func (h *DedupHandler) CheckDuplicates(c *fiber.Ctx) error {
 	matches, err := h.detector.CheckForDuplicates(c.Context(), h.getDB(c), orgID, entityType, body, excludeID)
 	if err != nil {
 		if isNoSuchTableError(err) {
-			return c.JSON(fiber.Map{"duplicates": []any{}, "count": 0})
+			if h.ensureDedupTablesForRequest(c) {
+				matches, err = h.detector.CheckForDuplicates(c.Context(), h.getDB(c), orgID, entityType, body, excludeID)
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+				}
+			} else {
+				return c.JSON(fiber.Map{"duplicates": []any{}, "count": 0})
+			}
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{

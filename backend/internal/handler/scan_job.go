@@ -101,6 +101,12 @@ func (h *ScanJobHandler) ListSchedules(c *fiber.Ctx) error {
 	schedules, err := repo.ListSchedules(c.Context(), orgID)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			if err2 := ensureDedupTables(c.Context(), h.getDBConn(c)); err2 == nil {
+				schedules, err = repo.ListSchedules(c.Context(), orgID)
+				if err == nil {
+					return c.JSON(schedules)
+				}
+			}
 			return c.JSON([]any{})
 		}
 		log.Printf("Error listing schedules for org %s: %v", orgID, err)
@@ -274,6 +280,16 @@ func (h *ScanJobHandler) ListJobs(c *fiber.Ctx) error {
 
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			if err2 := ensureDedupTables(c.Context(), h.getDBConn(c)); err2 == nil {
+				if entityType != "" {
+					jobs, total, err = repo.ListJobsByEntity(c.Context(), orgID, entityType, pageSize, offset)
+				} else {
+					jobs, total, err = repo.ListJobs(c.Context(), orgID, pageSize, offset)
+				}
+				if err == nil {
+					return c.JSON(fiber.Map{"data": jobs, "total": total, "page": page, "pageSize": pageSize})
+				}
+			}
 			return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
 		}
 		log.Printf("Error listing jobs: %v", err)

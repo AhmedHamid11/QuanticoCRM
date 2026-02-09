@@ -237,9 +237,16 @@ func (h *MergeHandler) History(c *fiber.Ctx) error {
 	snapshots, total, err := h.getMergeRepo(c).ListByOrg(c.Context(), orgID, page, pageSize)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
-			return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
+			// Auto-provision dedup tables and retry
+			if err2 := ensureDedupTables(c.Context(), h.getDBConn(c)); err2 == nil {
+				snapshots, total, err = h.getMergeRepo(c).ListByOrg(c.Context(), orgID, page, pageSize)
+			}
+			if err != nil {
+				return c.JSON(fiber.Map{"data": []any{}, "total": 0, "page": page, "pageSize": pageSize})
+			}
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// Convert to history entries with canUndo flag
