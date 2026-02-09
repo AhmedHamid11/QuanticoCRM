@@ -195,7 +195,8 @@
 								{formatDate(quote.validUntil)}
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<a href="/quotes/{quote.id}" onclick={(e) => e.stopPropagation()} class="text-blue-600 hover:text-blue-900 mr-3">View</a>
+								<a href="/quotes/{quote.id}/edit" onclick={(e) => e.stopPropagation()} class="text-gray-600 hover:text-gray-900 mr-3">Edit</a>
 								<button
 									onclick={(e) => { e.stopPropagation(); deleteQuote(quote.id); }}
 									class="text-red-600 hover:text-red-900"

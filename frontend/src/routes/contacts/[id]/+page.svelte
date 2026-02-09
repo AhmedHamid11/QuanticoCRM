@@ -204,6 +204,19 @@
 				}
 				return null;
 			default:
+				// Fallback: detect *Id fields with a corresponding *Name field
+				// This handles cases where field type metadata is missing 'link'
+				if (fieldName.endsWith('Id') && contact) {
+					const nameFieldName = fieldName.replace(/Id$/, 'Name');
+					const nameKey = fieldNameToKey(nameFieldName) as keyof Contact;
+					const displayName = contact[nameKey];
+					if (displayName) {
+						// Infer entity path from field name (e.g., accountId -> accounts)
+						const entityName = fieldName.replace(/Id$/, '');
+						const entityPath = entityName.toLowerCase() + 's';
+						return { href: `/${entityPath}/${value}`, text: String(displayName) };
+					}
+				}
 				return null;
 		}
 	}
@@ -303,8 +316,8 @@
 				/>
 			{/each}
 
-			<!-- Description (if exists and not in layout) -->
-			{#if contact.description}
+			<!-- Description (only if NOT already rendered in layout sections) -->
+			{#if contact.description && !visibleSections().some(s => s.fields.some(f => f.name === 'description'))}
 				<div class="bg-white shadow rounded-lg p-6">
 					<h2 class="text-lg font-medium text-gray-900 mb-4">Description</h2>
 					<p class="text-sm text-gray-900 whitespace-pre-wrap">{contact.description}</p>
