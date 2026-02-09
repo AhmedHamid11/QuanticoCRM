@@ -163,6 +163,23 @@
 		return String(record.id || 'Unknown').slice(0, 12) + '...';
 	}
 
+	function getRecordLabel(record: Record<string, unknown> | null, recordId: string): string {
+		const name = getRecordName(record);
+		if (!record) return name;
+		// Check if another match has the same name — disambiguate with email or short ID
+		const hasDuplicateName = availableMatches.some(m =>
+			m.recordId !== recordId &&
+			matchDetails[m.recordId] &&
+			getRecordName(matchDetails[m.recordId]) === name
+		);
+		if (hasDuplicateName) {
+			const email = record.emailAddress || record.email;
+			if (email) return `${name} (${email})`;
+			return `${name} (${String(recordId).slice(0, 8)}...)`;
+		}
+		return name;
+	}
+
 	function getFieldValue(record: Record<string, unknown> | null, field: string): string {
 		if (!record) return '-';
 		const value = record[field];
@@ -280,7 +297,7 @@
 					>
 						{#each availableMatches as match}
 							<option value={match.recordId}>
-								{matchDetails[match.recordId] ? getRecordName(matchDetails[match.recordId]) : match.recordId.slice(0, 12)}
+								{matchDetails[match.recordId] ? getRecordLabel(matchDetails[match.recordId], match.recordId) : match.recordId.slice(0, 12)}
 							</option>
 						{/each}
 					</select>
