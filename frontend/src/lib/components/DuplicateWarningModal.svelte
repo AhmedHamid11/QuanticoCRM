@@ -200,11 +200,15 @@
 			// Delete the secondary record
 			await del(`/${entityPlural}/${secondaryId}`);
 
-			// Resolve the pending alert so it doesn't persist after merge
+			// Resolve alerts for BOTH records involved in the merge
+			// Without this, the reverse alert on the matched record persists
 			try {
-				await resolveAlert(entityType, currentRecordId, 'merged');
+				await Promise.allSettled([
+					resolveAlert(entityType, currentRecordId, 'merged'),
+					resolveAlert(entityType, selectedMatchId, 'merged')
+				]);
 			} catch {
-				// Non-critical - alert may already be resolved
+				// Non-critical - alerts may already be resolved
 			}
 
 			toast.success(`Records merged. ${getRecordName(secondaryRecord)} was deleted.`);
