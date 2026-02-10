@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { get, post } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import { FormSkeleton, ErrorDisplay, FormField, FieldError } from '$lib/components/ui';
@@ -68,10 +69,47 @@
 				}
 			}
 			formData = data;
+
+			// Pre-fill from URL query parameters
+			await prefillFromQueryParams();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load form';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function prefillFromQueryParams() {
+		const queryParams = $page.url.searchParams;
+
+		// Iterate through all query parameters
+		for (const [paramName, paramValue] of queryParams.entries()) {
+			if (!paramValue) continue;
+
+			// Find matching field - look for {paramName}Id pattern for lookup fields
+			const field = fields.find(f => f.name === paramName || f.name === `${paramName}Id`);
+
+			if (field) {
+				// For lookup fields, fetch the display name
+				if (field.type === 'link' && field.linkEntity) {
+					try {
+						// Fetch the linked record to get its display name
+						const linkedRecord = await get<Record<string, unknown>>(`/entities/${field.linkEntity}/records/${paramValue}`);
+
+						// Set both ID and Name fields
+						formData[field.name] = paramValue;
+						const nameFieldName = field.name.replace(/Id$/, 'Name');
+						formData[nameFieldName] = linkedRecord.name || linkedRecord.id || '';
+					} catch (err) {
+						console.warn(`Failed to fetch ${field.linkEntity} record ${paramValue}:`, err);
+						// Still set the ID even if we can't fetch the name
+						formData[field.name] = paramValue;
+					}
+				} else {
+					// For non-lookup fields, just set the value directly
+					formData[field.name] = paramValue;
+				}
+			}
 		}
 	}
 
