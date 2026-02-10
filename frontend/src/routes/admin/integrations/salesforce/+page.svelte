@@ -10,6 +10,7 @@
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let isTriggeringDelivery = $state(false);
+	let isTestingConnection = $state(false);
 
 	// Form fields
 	let clientId = $state('');
@@ -181,6 +182,27 @@
 		}
 	}
 
+	async function testConnection() {
+		isTestingConnection = true;
+		try {
+			const response = await get<{ status: string }>('/salesforce/status');
+			if (response.status === 'connected') {
+				toast.success('Connection test passed - Salesforce is connected');
+			} else if (response.status === 'expired') {
+				toast.error('Connection test failed - token expired, reconnect required');
+			} else {
+				toast.error(`Connection test result: ${response.status}`);
+			}
+			// Refresh config to update status display
+			await loadData();
+		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Connection test failed';
+			toast.error(message);
+		} finally {
+			isTestingConnection = false;
+		}
+	}
+
 	function getStatusDisplay(status: string): { text: string; dotColor: string; description: string } {
 		switch (status) {
 			case 'connected':
@@ -339,6 +361,13 @@
 					>
 						Disconnect
 					</button>
+					<button
+						onclick={testConnection}
+						disabled={isTestingConnection}
+						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						{isTestingConnection ? 'Testing...' : 'Test Connection'}
+					</button>
 				{/if}
 
 				{#if isConnected}
@@ -371,6 +400,14 @@
 					<p class="mt-2 text-sm text-gray-500">
 						Manually trigger delivery of all pending merge instructions to Salesforce
 					</p>
+					<div class="mt-4 pt-4 border-t border-gray-200">
+						<a
+							href="/admin/audit-logs?eventTypes=SALESFORCE_MERGE_DELIVERY,SALESFORCE_MERGE_DELIVERY_ERROR,SALESFORCE_MERGE_DELIVERY_RETRY"
+							class="text-sm text-blue-600 hover:text-blue-800"
+						>
+							View Salesforce Delivery Audit Logs &rarr;
+						</a>
+					</div>
 				</div>
 			{/if}
 
