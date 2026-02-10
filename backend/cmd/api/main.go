@@ -205,7 +205,10 @@ func main() {
 	}
 	defer dbManager.Close()
 
-	// Initialize Salesforce delivery service (Plan 04)
+	// Initialize Salesforce rate limiting service (Plan 18-01)
+	rateLimitService := service.NewRateLimitService(dbManager, authRepo)
+
+	// Initialize Salesforce delivery service (Plan 04, updated Plan 18-02)
 	sfDeliveryService := service.NewSFDeliveryService(
 		salesforceOAuthService,
 		payloadBuilder,
@@ -213,6 +216,7 @@ func main() {
 		salesforceRepo,
 		dbManager,
 		authRepo,
+		rateLimitService,
 	)
 
 	// Initialize migration propagator for multi-tenant updates
@@ -300,7 +304,7 @@ func main() {
 	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
-	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, salesforceRepo)
+	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)

@@ -12,21 +12,24 @@ import (
 
 // SalesforceHandler handles HTTP requests for Salesforce integration
 type SalesforceHandler struct {
-	oauthService    *service.SalesforceOAuthService
-	deliveryService *service.SFDeliveryService
-	repo            *repo.SalesforceRepo
+	oauthService     *service.SalesforceOAuthService
+	deliveryService  *service.SFDeliveryService
+	rateLimitService *service.RateLimitService
+	repo             *repo.SalesforceRepo
 }
 
 // NewSalesforceHandler creates a new SalesforceHandler
 func NewSalesforceHandler(
 	oauthService *service.SalesforceOAuthService,
 	deliveryService *service.SFDeliveryService,
+	rateLimitService *service.RateLimitService,
 	repo *repo.SalesforceRepo,
 ) *SalesforceHandler {
 	return &SalesforceHandler{
-		oauthService:    oauthService,
-		deliveryService: deliveryService,
-		repo:            repo,
+		oauthService:     oauthService,
+		deliveryService:  deliveryService,
+		rateLimitService: rateLimitService,
+		repo:             repo,
 	}
 }
 
@@ -285,6 +288,16 @@ func (h *SalesforceHandler) QueueMergeInstructions(c *fiber.Ctx) error {
 	// Queue instructions for delivery
 	jobID, err := h.deliveryService.QueueMergeInstructions(c.Context(), orgID, input.Instructions)
 	if err != nil {
+		// Check for QuotaExceededError
+		if quotaErr, ok := err.(*entity.QuotaExceededError); ok {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":     quotaErr.Message,
+				"usage":     quotaErr.Usage,
+				"threshold": quotaErr.Threshold,
+				"hint":      "API quota threshold reached. Use manual trigger with force flag to override.",
+			})
+		}
+
 		log.Printf("Failed to queue merge instructions for org %s: %v", orgID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to queue instructions: %v", err),
@@ -372,13 +385,14 @@ func (h *SalesforceHandler) RetryJob(c *fiber.Ctx) error {
 	})
 }
 
-// ManualTrigger manually triggers merge instruction delivery
+// ManualTrigger manually triggers merge instruction delivery with optional force flag
 // POST /salesforce/trigger
 func (h *SalesforceHandler) ManualTrigger(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 
 	var input struct {
 		Instructions []service.MergeInstructionInput `json:"instructions"`
+		Force        bool                            `json:"force"`
 	}
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -392,9 +406,27 @@ func (h *SalesforceHandler) ManualTrigger(c *fiber.Ctx) error {
 		})
 	}
 
-	// Queue instructions (same as queue endpoint, but distinguishes trigger_type)
-	jobID, err := h.deliveryService.QueueMergeInstructions(c.Context(), orgID, input.Instructions)
+	jobID, err := h.deliveryService.QueueMergeInstructionsWithOptions(
+		c.Context(),
+		orgID,
+		input.Instructions,
+		service.DeliveryOptions{
+			Force:       input.Force,
+			TriggerType: entity.SyncTriggerManual,
+		},
+	)
+
 	if err != nil {
+		// Check for QuotaExceededError specifically
+		if quotaErr, ok := err.(*entity.QuotaExceededError); ok {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"error":     quotaErr.Message,
+				"usage":     quotaErr.Usage,
+				"threshold": quotaErr.Threshold,
+				"hint":      "Use {\"force\": true} to override rate limiting",
+			})
+		}
+
 		log.Printf("Failed to manually trigger merge instructions for org %s: %v", orgID, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fmt.Sprintf("Failed to trigger instructions: %v", err),
@@ -406,6 +438,22 @@ func (h *SalesforceHandler) ManualTrigger(c *fiber.Ctx) error {
 		"status":  "pending",
 		"message": "Merge instructions manually triggered for delivery",
 	})
+}
+
+// GetQuota returns current API usage quota status
+// GET /salesforce/quota
+func (h *SalesforceHandler) GetQuota(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+
+	quota, err := h.rateLimitService.GetQuotaStatus(c.Context(), orgID)
+	if err != nil {
+		log.Printf("Failed to get quota for org %s: %v", orgID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get quota status",
+		})
+	}
+
+	return c.JSON(quota)
 }
 
 // RegisterRoutes registers all Salesforce routes
@@ -429,6 +477,7 @@ func (h *SalesforceHandler) RegisterRoutes(router fiber.Router) {
 	sf.Get("/jobs/:jobId", h.GetJobStatus)
 	sf.Post("/jobs/:jobId/retry", h.RetryJob)
 	sf.Post("/trigger", h.ManualTrigger)
+	sf.Get("/quota", h.GetQuota)
 }
 
 // RegisterCallbackRoute registers the OAuth callback route (public, no auth required)
