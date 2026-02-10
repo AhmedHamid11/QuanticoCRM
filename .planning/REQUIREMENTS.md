@@ -106,19 +106,40 @@ Maps v4.0 requirements to roadmap phases. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |---|---|---|
-| SFI-01 to SFI-04 | Phase 17 | Pending |
-| SFI-05 to SFI-09 | Phase 17 | Pending |
-| SFI-10 to SFI-14 | Phase 17 | Pending |
-| SFI-15 to SFI-19 | Phase 18 | Pending |
-| SFI-20 to SFI-23 | Phase 19 | Pending |
-| SFI-24 to SFI-27 | Phase 19 | Pending |
+| SFI-01 | Phase 17 | Pending |
+| SFI-02 | Phase 17 | Pending |
+| SFI-03 | Phase 17 | Pending |
+| SFI-04 | Phase 17 | Pending |
+| SFI-05 | Phase 17 | Pending |
+| SFI-06 | Phase 17 | Pending |
+| SFI-07 | Phase 17 | Pending |
+| SFI-08 | Phase 17 | Pending |
+| SFI-09 | Phase 17 | Pending |
+| SFI-10 | Phase 17 | Pending |
+| SFI-11 | Phase 17 | Pending |
+| SFI-12 | Phase 17 | Pending |
+| SFI-13 | Phase 17 | Pending |
+| SFI-14 | Phase 17 | Pending |
+| SFI-15 | Phase 18 | Pending |
+| SFI-16 | Phase 18 | Pending |
+| SFI-17 | Phase 18 | Pending |
+| SFI-18 | Phase 18 | Pending |
+| SFI-19 | Phase 18 | Pending |
+| SFI-20 | Phase 19 | Pending |
+| SFI-21 | Phase 19 | Pending |
+| SFI-22 | Phase 19 | Pending |
+| SFI-23 | Phase 19 | Pending |
+| SFI-24 | Phase 19 | Pending |
+| SFI-25 | Phase 19 | Pending |
+| SFI-26 | Phase 19 | Pending |
+| SFI-27 | Phase 19 | Pending |
 
 **Coverage:**
 - v4.0 requirements: 27 total
-- Mapped to phases: — (pending roadmap)
-- Unmapped: — (pending roadmap)
+- Mapped to phases: 27/27 (100%)
+- Unmapped: 0
 
 ---
 
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after initial definition*
+*Last updated: 2026-02-09 — Traceability complete for v4.0 roadmap*

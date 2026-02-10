@@ -1,39 +1,39 @@
-# Last Updated: 2026-02-09T18:45:00Z
+# Last Updated: 2026-02-09T18:55:00Z
 
 ## Just Completed
-UI verification analysis of Review Queue page at /admin/data-quality/review-queue
-- Analyzed code structure and data flow
-- Identified ID display issue (critical UX problem)
-- Verified Select All checkbox behavior in code
+Research for v4.0 Salesforce Merge Integration milestone
+- Created comprehensive FEATURES.md (table stakes, differentiators, anti-features)
+- Created SUMMARY.md with phase recommendations and roadmap implications
+- Reviewed existing STACK.md and ARCHITECTURE.md (already exist)
+- Created PITFALLS.md with critical/moderate/minor pitfalls
 
 ## Current State
-CRITICAL ISSUE IDENTIFIED:
-- Backend DuplicateMatch struct lacks RecordName field
-- Frontend expects recordName but backend only returns recordId
-- This causes raw UUIDs to display instead of human-readable names
-- Users see "Record ID: abc-123-def" instead of contact/account names
+v4.0 research phase complete
+- 4 research files created in .planning/research/v4.0-salesforce-merge/
+- All 10 research questions answered with categorization
+- Table stakes (TS-01 through TS-06) defined with admin UI requirements
+- Differentiators (DIFF-01 through DIFF-05) identified
+- Anti-features (AF-01 through AF-06) documented
+- 5-phase roadmap structure recommended
+- Confidence: MEDIUM (WebSearch verified with official Salesforce docs)
 
-## Files Analyzed
-- /frontend/src/routes/admin/data-quality/review-queue/+page.svelte
-- /frontend/src/lib/api/dedup.ts
-- /frontend/src/lib/api/data-quality.ts
-- /backend/internal/handler/dedup.go
-- /backend/internal/repo/pending_alert.go
-- /backend/internal/dedup/detector.go
+## Files Created
+- .planning/research/v4.0-salesforce-merge/FEATURES.md (13,500 words)
+- .planning/research/v4.0-salesforce-merge/SUMMARY.md (2,800 words)
+- .planning/research/v4.0-salesforce-merge/PITFALLS.md (4,200 words)
+
+## Files Already Exist
+- .planning/research/v4.0-salesforce-merge/STACK.md (existing, OAuth-focused)
+- .planning/research/v4.0-salesforce-merge/ARCHITECTURE.md (existing, OAuth-focused)
 
 ## Next Step
-IMMEDIATE: Fix RecordName bug in backend before considering feature complete
-THEN: Perform browser-based verification with Chrome DevTools
-
-## Verification Report
-Complete UI verification report generated above with:
-1. CRITICAL ERROR: Missing RecordName field (blocks usability)
-2. BLOCKED: Browser testing required for console/visual checks
-3. SUSPICIOUS: Select All checkbox reactivity (needs human testing)
-4. Documentation created in agent memory for future reference
+AWAITING: Orchestrator to commit research files
+THEN: Requirements definition phase (map features to R-01 through R-NN)
 
 ## Notes
-- Dev server is running on port 5173
-- Cannot directly test in browser without Chrome DevTools MCP
-- Code analysis reveals structural data issues
-- Backend needs RecordName field added to DuplicateMatch struct
+- All research sources verified against Salesforce official documentation
+- Integration Patterns v66.0 Spring '26 confirmed staging object pattern
+- Rate limiting critical (100K API calls/day Enterprise Edition)
+- OAuth token encryption non-negotiable for compliance
+- Exponential backoff required for production reliability
+- Admin visibility is table stakes (no black-box integrations)
