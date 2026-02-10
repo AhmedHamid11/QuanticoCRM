@@ -132,3 +132,90 @@ func (r *DeltaKeyRepo) CountByMirror(ctx context.Context, tenantDB db.DBConn, mi
 
 	return count, nil
 }
+
+// DeltaKeyPage represents a paginated response of delta keys
+type DeltaKeyPage struct {
+	Keys       []DeltaKeyRecord `json:"keys"`
+	NextCursor string           `json:"nextCursor,omitempty"`
+	TotalCount int              `json:"totalCount"`
+}
+
+// DeltaKeyRecord represents a single delta key record
+type DeltaKeyRecord struct {
+	UniqueKey  string `json:"uniqueKey"`
+	RecordID   string `json:"recordId"`
+	IngestedAt string `json:"ingestedAt"`
+}
+
+// ListByMirror returns delta keys for a mirror with cursor-based pagination
+func (r *DeltaKeyRepo) ListByMirror(ctx context.Context, tenantDB db.DBConn, mirrorID string, cursor string, limit int) (*DeltaKeyPage, error) {
+	// Apply default and max limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	// Get total count
+	totalCount, err := r.CountByMirror(ctx, tenantDB, mirrorID)
+	if err != nil {
+		return nil, fmt.Errorf("count delta keys: %w", err)
+	}
+
+	// Build query with optional cursor filter
+	query := `
+		SELECT unique_key, record_id, ingested_at
+		FROM ingest_delta_keys
+		WHERE mirror_id = ?`
+	args := []interface{}{mirrorID}
+
+	if cursor != "" {
+		query += ` AND unique_key > ?`
+		args = append(args, cursor)
+	}
+
+	query += ` ORDER BY unique_key ASC LIMIT ?`
+	args = append(args, limit+1) // Fetch one extra to detect next page
+
+	rows, err := tenantDB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query delta keys: %w", err)
+	}
+	defer rows.Close()
+
+	// Build results
+	keys := make([]DeltaKeyRecord, 0, limit)
+	for rows.Next() {
+		var record DeltaKeyRecord
+		var ingestedAt sql.NullString
+
+		if err := rows.Scan(&record.UniqueKey, &record.RecordID, &ingestedAt); err != nil {
+			return nil, fmt.Errorf("scan delta key: %w", err)
+		}
+
+		if ingestedAt.Valid {
+			record.IngestedAt = ingestedAt.String
+		}
+
+		keys = append(keys, record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate delta keys: %w", err)
+	}
+
+	// Determine next cursor
+	var nextCursor string
+	if len(keys) > limit {
+		// We have more results, set cursor to the last included key
+		nextCursor = keys[limit-1].UniqueKey
+		keys = keys[:limit] // Trim to limit
+	}
+
+	return &DeltaKeyPage{
+		Keys:       keys,
+		NextCursor: nextCursor,
+		TotalCount: totalCount,
+	}, nil
+}
