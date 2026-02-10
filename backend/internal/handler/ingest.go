@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/fastcrm/backend/internal/entity"
@@ -18,15 +20,23 @@ type IngestHandler struct {
 	mirrorRepo    *repo.MirrorRepo
 	jobRepo       *repo.IngestJobRepo
 	deltaKeyRepo  *repo.DeltaKeyRepo
+	rateLimiter   *service.IngestRateLimiter
 }
 
 // NewIngestHandler creates a new IngestHandler
-func NewIngestHandler(ingestService *service.IngestService, mirrorRepo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo, deltaKeyRepo *repo.DeltaKeyRepo) *IngestHandler {
+func NewIngestHandler(
+	ingestService *service.IngestService,
+	mirrorRepo *repo.MirrorRepo,
+	jobRepo *repo.IngestJobRepo,
+	deltaKeyRepo *repo.DeltaKeyRepo,
+	rateLimiter *service.IngestRateLimiter,
+) *IngestHandler {
 	return &IngestHandler{
 		ingestService: ingestService,
 		mirrorRepo:    mirrorRepo,
 		jobRepo:       jobRepo,
 		deltaKeyRepo:  deltaKeyRepo,
+		rateLimiter:   rateLimiter,
 	}
 }
 
@@ -108,6 +118,19 @@ func (h *IngestHandler) Ingest(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":     "Mirror has no target entity configured",
 			"mirror_id": req.MirrorID,
+		})
+	}
+
+	// Check per-mirror rate limit
+	allowed, retryAfter := h.rateLimiter.Allow(mirror.ID, mirror.RateLimit)
+	if !allowed {
+		c.Set("Retry-After", strconv.Itoa(retryAfter))
+		return c.Status(429).JSON(fiber.Map{
+			"error":       "Rate limit exceeded for mirror",
+			"mirror_id":   req.MirrorID,
+			"retry_after": retryAfter,
+			"limit":       mirror.RateLimit,
+			"message":     fmt.Sprintf("Mirror rate limit of %d requests/minute exceeded. Retry after %d seconds.", mirror.RateLimit, retryAfter),
 		})
 	}
 
