@@ -208,7 +208,7 @@ func main() {
 	// Initialize Salesforce rate limiting service (Plan 18-01)
 	rateLimitService := service.NewRateLimitService(dbManager, authRepo)
 
-	// Initialize Salesforce delivery service (Plan 04, updated Plan 18-02)
+	// Initialize Salesforce delivery service (Plan 04, updated Plan 18-02, Plan 19-01)
 	sfDeliveryService := service.NewSFDeliveryService(
 		salesforceOAuthService,
 		payloadBuilder,
@@ -217,6 +217,7 @@ func main() {
 		dbManager,
 		authRepo,
 		rateLimitService,
+		auditLogger,
 	)
 
 	// Initialize migration propagator for multi-tenant updates

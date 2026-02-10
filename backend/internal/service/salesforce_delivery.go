@@ -30,6 +30,7 @@ type SFDeliveryService struct {
 	dbManager        *db.Manager
 	authRepo         *repo.AuthRepo
 	rateLimitService *RateLimitService
+	auditLogger      *AuditLogger
 
 	// Per-org concurrency control (max 1 concurrent delivery per org)
 	runningJobs map[string]bool
@@ -45,6 +46,7 @@ func NewSFDeliveryService(
 	dbManager *db.Manager,
 	authRepo *repo.AuthRepo,
 	rateLimitService *RateLimitService,
+	auditLogger *AuditLogger,
 ) *SFDeliveryService {
 	return &SFDeliveryService{
 		oauthService:     oauthService,
@@ -54,6 +56,7 @@ func NewSFDeliveryService(
 		dbManager:        dbManager,
 		authRepo:         authRepo,
 		rateLimitService: rateLimitService,
+		auditLogger:      auditLogger,
 		runningJobs:      make(map[string]bool),
 	}
 }
@@ -313,6 +316,10 @@ func (s *SFDeliveryService) executeBatchDelivery(orgID string, jobIDs []string) 
 
 			errMsg := err.Error()
 			log.Printf("Job %s failed: %s", jobID, errMsg)
+
+			// Audit log the delivery error
+			s.auditLogger.LogSalesforceMergeDelivery(ctx, orgID, job.BatchID, "", "", "", "error", 0, "", job.RetryCount, errMsg)
+
 			_ = s.repo.WithDB(tenantDB).UpdateSyncJobCompletion(ctx, jobID, entity.SyncStatusFailed, 0, job.TotalInstructions, &errMsg)
 			continue
 		}
@@ -325,6 +332,10 @@ func (s *SFDeliveryService) executeBatchDelivery(orgID string, jobIDs []string) 
 
 		// Mark completed
 		log.Printf("Job %s completed: %d/%d instructions delivered", jobID, deliveredCount, job.TotalInstructions)
+
+		// Audit log the successful delivery
+		s.auditLogger.LogSalesforceMergeDelivery(ctx, orgID, job.BatchID, "", "", "", "success", 200, "", 0, "")
+
 		_ = s.repo.WithDB(tenantDB).UpdateSyncJobCompletion(ctx, jobID, entity.SyncStatusCompleted, deliveredCount, 0, nil)
 	}
 }
