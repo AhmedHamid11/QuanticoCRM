@@ -83,6 +83,7 @@ const (
 	SyncStatusRunning   = "running"
 	SyncStatusCompleted = "completed"
 	SyncStatusFailed    = "failed"
+	SyncStatusPaused    = "paused" // Paused due to API quota threshold
 )
 
 // Sync trigger type constants
@@ -91,3 +92,40 @@ const (
 	SyncTriggerScheduled = "scheduled"
 	SyncTriggerRealtime  = "realtime"
 )
+
+// Salesforce API quota constants
+const (
+	SalesforceMaxDailyAPICalls = 100000 // Enterprise Edition limit
+	SalesforcePauseThreshold   = 80000  // 80% of max - pause delivery
+)
+
+// QuotaExceededError indicates the org has reached the API usage threshold
+type QuotaExceededError struct {
+	OrgID     string
+	Usage     int
+	Threshold int
+	Message   string
+}
+
+func (e *QuotaExceededError) Error() string {
+	return e.Message
+}
+
+// QuotaStatus represents current API usage quota for an org
+type QuotaStatus struct {
+	Usage      int  `json:"usage"`
+	Limit      int  `json:"limit"`
+	Percentage int  `json:"percentage"`
+	Threshold  int  `json:"threshold"`
+	IsPaused   bool `json:"isPaused"`
+}
+
+// APIUsageLog represents a single API usage record
+type APIUsageLog struct {
+	ID        string    `json:"id" db:"id"`
+	OrgID     string    `json:"orgId" db:"org_id"`
+	Timestamp string    `json:"timestamp" db:"timestamp"`
+	APICalls  int       `json:"apiCalls" db:"api_calls"`
+	JobID     *string   `json:"jobId,omitempty" db:"job_id"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+}
