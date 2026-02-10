@@ -718,7 +718,8 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createDefaultMatchingRules(ctx, orgID, now)
 
 	// Create default related list configurations
-	s.createDefaultRelatedListConfigs(ctx, orgID, now)
+	// TODO: Implement createDefaultRelatedListConfigs method
+	// s.createDefaultRelatedListConfigs(ctx, orgID, now)
 
 	log.Printf("[Provisioning] Completed metadata provisioning for org %s", orgID)
 	return nil
