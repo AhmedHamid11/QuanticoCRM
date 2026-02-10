@@ -47,6 +47,9 @@ const (
 	PrefixSFConnection       = "0Sf" // Salesforce connection
 	PrefixSyncJob            = "0Sy" // Sync job
 	PrefixSFFieldMapping     = "0Sm" // Salesforce field mapping
+	PrefixIngestKey          = "0Ik" // Ingest API key
+	PrefixIngestJob          = "0Ij" // Ingest job
+	PrefixMirror             = "0Mi" // Mirror config
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -308,4 +311,19 @@ func NewSyncJob() string {
 // NewSFFieldMapping generates a new Salesforce Field Mapping ID (prefix: 0Sm)
 func NewSFFieldMapping() string {
 	return New(PrefixSFFieldMapping)
+}
+
+// NewIngestKey generates a new Ingest API Key ID (prefix: 0Ik)
+func NewIngestKey() string {
+	return New(PrefixIngestKey)
+}
+
+// NewIngestJob generates a new Ingest Job ID (prefix: 0Ij)
+func NewIngestJob() string {
+	return New(PrefixIngestJob)
+}
+
+// NewMirror generates a new Mirror Config ID (prefix: 0Mi)
+func NewMirror() string {
+	return New(PrefixMirror)
 }
