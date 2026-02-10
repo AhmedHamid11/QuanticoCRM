@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/fastcrm/backend/internal/entity"
@@ -11,15 +12,21 @@ import (
 
 // SalesforceHandler handles HTTP requests for Salesforce integration
 type SalesforceHandler struct {
-	oauthService *service.SalesforceOAuthService
-	repo         *repo.SalesforceRepo
+	oauthService    *service.SalesforceOAuthService
+	deliveryService *service.SFDeliveryService
+	repo            *repo.SalesforceRepo
 }
 
 // NewSalesforceHandler creates a new SalesforceHandler
-func NewSalesforceHandler(oauthService *service.SalesforceOAuthService, repo *repo.SalesforceRepo) *SalesforceHandler {
+func NewSalesforceHandler(
+	oauthService *service.SalesforceOAuthService,
+	deliveryService *service.SFDeliveryService,
+	repo *repo.SalesforceRepo,
+) *SalesforceHandler {
 	return &SalesforceHandler{
-		oauthService: oauthService,
-		repo:         repo,
+		oauthService:    oauthService,
+		deliveryService: deliveryService,
+		repo:            repo,
 	}
 }
 
@@ -238,17 +245,170 @@ func (h *SalesforceHandler) ToggleSync(c *fiber.Ctx) error {
 	})
 }
 
+// QueueMergeInstructions queues merge instructions for delivery to Salesforce
+// POST /salesforce/queue
+func (h *SalesforceHandler) QueueMergeInstructions(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+
+	var input struct {
+		Instructions []service.MergeInstructionInput `json:"instructions"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if len(input.Instructions) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "instructions array is required",
+		})
+	}
+
+	// Queue instructions for delivery
+	jobID, err := h.deliveryService.QueueMergeInstructions(c.Context(), orgID, input.Instructions)
+	if err != nil {
+		log.Printf("Failed to queue merge instructions for org %s: %v", orgID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to queue instructions: %v", err),
+		})
+	}
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"jobId":   jobID,
+		"status":  "pending",
+		"message": "Merge instructions queued for delivery",
+	})
+}
+
+// ListJobs returns sync job history for the org
+// GET /salesforce/jobs
+func (h *SalesforceHandler) ListJobs(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+
+	// Parse query params
+	limit := c.QueryInt("limit", 20)
+	offset := c.QueryInt("offset", 0)
+
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	jobs, total, err := h.deliveryService.ListJobs(c.Context(), orgID, limit, offset)
+	if err != nil {
+		log.Printf("Failed to list jobs for org %s: %v", orgID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to list jobs",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"jobs":  jobs,
+		"total": total,
+	})
+}
+
+// GetJobStatus returns the status of a specific sync job
+// GET /salesforce/jobs/:jobId
+func (h *SalesforceHandler) GetJobStatus(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	jobID := c.Params("jobId")
+
+	if jobID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "jobId is required",
+		})
+	}
+
+	job, err := h.deliveryService.GetJobStatus(c.Context(), orgID, jobID)
+	if err != nil {
+		log.Printf("Failed to get job status for job %s: %v", jobID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get job status",
+		})
+	}
+
+	return c.JSON(job)
+}
+
+// RetryJob retries a failed sync job
+// POST /salesforce/jobs/:jobId/retry
+func (h *SalesforceHandler) RetryJob(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	jobID := c.Params("jobId")
+
+	if jobID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "jobId is required",
+		})
+	}
+
+	if err := h.deliveryService.RetryJob(c.Context(), orgID, jobID); err != nil {
+		log.Printf("Failed to retry job %s: %v", jobID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to retry job: %v", err),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": "retrying",
+	})
+}
+
+// ManualTrigger manually triggers merge instruction delivery
+// POST /salesforce/trigger
+func (h *SalesforceHandler) ManualTrigger(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+
+	var input struct {
+		Instructions []service.MergeInstructionInput `json:"instructions"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	if len(input.Instructions) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "instructions array is required",
+		})
+	}
+
+	// Queue instructions (same as queue endpoint, but distinguishes trigger_type)
+	jobID, err := h.deliveryService.QueueMergeInstructions(c.Context(), orgID, input.Instructions)
+	if err != nil {
+		log.Printf("Failed to manually trigger merge instructions for org %s: %v", orgID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fmt.Sprintf("Failed to trigger instructions: %v", err),
+		})
+	}
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"jobId":   jobID,
+		"status":  "pending",
+		"message": "Merge instructions manually triggered for delivery",
+	})
+}
+
 // RegisterRoutes registers all Salesforce routes
 func (h *SalesforceHandler) RegisterRoutes(router fiber.Router) {
 	sf := router.Group("/salesforce")
 
-	// Configuration and OAuth endpoints (admin-protected)
+	// Configuration and OAuth endpoints (admin-protected from Plan 02)
 	sf.Post("/config", h.SaveConfig)
 	sf.Get("/config", h.GetConfig)
 	sf.Post("/oauth/authorize", h.InitiateOAuth)
 	sf.Get("/status", h.GetStatus)
 	sf.Post("/disconnect", h.Disconnect)
 	sf.Put("/toggle", h.ToggleSync)
+
+	// Delivery endpoints (admin-protected from Plan 04)
+	sf.Post("/queue", h.QueueMergeInstructions)
+	sf.Get("/jobs", h.ListJobs)
+	sf.Get("/jobs/:jobId", h.GetJobStatus)
+	sf.Post("/jobs/:jobId/retry", h.RetryJob)
+	sf.Post("/trigger", h.ManualTrigger)
 }
 
 // RegisterCallbackRoute registers the OAuth callback route (public, no auth required)

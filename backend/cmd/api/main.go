@@ -177,6 +177,10 @@ func main() {
 	}
 	salesforceOAuthService := service.NewSalesforceOAuthService(salesforceRepo, sfEncryptionKey)
 
+	// Initialize Salesforce delivery service components (Plan 03)
+	payloadBuilder := service.NewMergeInstructionBuilder(salesforceRepo, metadataRepo)
+	batchAssembler := service.NewBatchAssembler()
+
 	// Initialize tenant provisioning service for per-org databases
 	// This creates dedicated Turso databases for each new organization
 	// Using masterDBConn (with retry logic) for metadata provisioning
@@ -200,6 +204,16 @@ func main() {
 		dbManager = db.NewManager(masterDB, dbManagerConfig)
 	}
 	defer dbManager.Close()
+
+	// Initialize Salesforce delivery service (Plan 04)
+	sfDeliveryService := service.NewSFDeliveryService(
+		salesforceOAuthService,
+		payloadBuilder,
+		batchAssembler,
+		salesforceRepo,
+		dbManager,
+		authRepo,
+	)
 
 	// Initialize migration propagator for multi-tenant updates
 	migrationPropagator := service.NewMigrationPropagator(
@@ -286,7 +300,7 @@ func main() {
 	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
-	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, salesforceRepo)
+	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, salesforceRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
