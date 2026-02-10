@@ -33,7 +33,24 @@ func NewSalesforceHandler(
 // SaveConfig saves Salesforce Connected App credentials
 // POST /salesforce/config
 func (h *SalesforceHandler) SaveConfig(c *fiber.Ctx) error {
-	orgID := c.Locals("orgID").(string)
+	log.Println("[DEBUG] SaveConfig handler called")
+
+	orgIDRaw := c.Locals("orgID")
+	if orgIDRaw == nil {
+		log.Println("[ERROR] orgID not set in context locals")
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Organization context not set",
+		})
+	}
+
+	orgID, ok := orgIDRaw.(string)
+	if !ok {
+		log.Printf("[ERROR] orgID has wrong type: %T", orgIDRaw)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Invalid organization context type",
+		})
+	}
+	log.Printf("[DEBUG] SaveConfig processing for org: %s", orgID)
 
 	var config entity.SFSyncConfig
 	if err := c.BodyParser(&config); err != nil {
@@ -393,11 +410,14 @@ func (h *SalesforceHandler) ManualTrigger(c *fiber.Ctx) error {
 
 // RegisterRoutes registers all Salesforce routes
 func (h *SalesforceHandler) RegisterRoutes(router fiber.Router) {
+	log.Println("[STARTUP] Registering Salesforce routes")
 	sf := router.Group("/salesforce")
 
 	// Configuration and OAuth endpoints (admin-protected from Plan 02)
 	sf.Post("/config", h.SaveConfig)
+	log.Println("[STARTUP] Registered POST /salesforce/config")
 	sf.Get("/config", h.GetConfig)
+	log.Println("[STARTUP] Registered GET /salesforce/config")
 	sf.Post("/oauth/authorize", h.InitiateOAuth)
 	sf.Get("/status", h.GetStatus)
 	sf.Post("/disconnect", h.Disconnect)
