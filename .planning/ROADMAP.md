@@ -90,10 +90,11 @@ Plans:
   4. Admin page shows Salesforce connection status (connected/disconnected/token expired) and allows testing connection
   5. Admin can enable or disable Salesforce sync for an org via toggle control
   6. Admin can manually trigger immediate merge instruction delivery via admin UI button
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 19-01: TBD
+- [ ] 19-01-PLAN.md -- Backend: Salesforce audit event types, delivery logging, batch_id/success filters, retention service
+- [ ] 19-02-PLAN.md -- Frontend: audit log Salesforce filters and descriptions, test connection button, admin controls
 
 ---
 
@@ -109,10 +110,10 @@ Phases execute in numeric order: 17 → 18 → 19
 | 11-16 | v3.0 | 22/22 | Complete | 2026-02-09 |
 | 17 | v4.0 | 5/5 | Complete | 2026-02-10 |
 | 18 | v4.0 | 2/2 | Complete | 2026-02-10 |
-| 19 | v4.0 | 0/TBD | Not started | - |
+| 19 | v4.0 | 0/2 | Not started | - |
 
-**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (7/7 plans complete for Phases 17-18, Phase 19 remaining)
+**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (7/9 plans complete for Phases 17-18, Phase 19 remaining)
 
 ---
 
-*Last updated: 2026-02-10 — Phase 18 complete (2/2 plans, verified)*
+*Last updated: 2026-02-10 — Phase 19 planned (2 plans in 2 waves)*
