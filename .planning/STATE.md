@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 ## Current Position
 
 **Milestone:** v4.0 Salesforce Merge Integration
-**Phase:** 18 of 19 (Rate Limiting & Error Handling) — COMPLETE
-**Plan:** Complete
-**Status:** Phase 18 verified, ready for Phase 19
+**Phase:** 19 of 19 (Audit Logging & Admin Configuration) — IN PROGRESS
+**Plan:** 1 of 2 complete
+**Status:** Phase 19 Plan 01 complete, Plan 02 next
 
-**Last activity:** 2026-02-10 — Phase 18 complete (2/2 plans, verified 5/5 criteria)
+**Last activity:** 2026-02-10 — Phase 19 Plan 01 complete (2/2 tasks, 227s)
 
-Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (7/7 plans for P17-18 complete)
+Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (8/9 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 60 (9 v1.0 + 22 v2.0 + 22 v3.0 + 7 v4.0)
-- Average duration: 3.5 min
-- Total execution time: ~253 min
+- Total plans completed: 61 (9 v1.0 + 22 v2.0 + 22 v3.0 + 8 v4.0)
+- Average duration: 3.7 min
+- Total execution time: ~257 min
 
 **By Milestone:**
 
@@ -32,12 +32,15 @@ Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
 | v3.0 Deduplication | 11-16 | 22 | ~96 min |
-| v4.0 Salesforce Integration | 17-19 | 7/7 (P17-18) | ~17.3 min |
+| v4.0 Salesforce Integration | 17-19 | 8/9 (P17-18, P19-01) | ~21.1 min |
 
 **Recent Plan Execution:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 19-01 | 3.8 min | 2 | 7 |
 | Phase 18-02 | 4.3 min | 2 | 5 |
 | Phase 18-01 | 1.8 min | 2 | 3 |
 | Phase 17-04 | 4.4 min | 2 | 3 |
@@ -75,6 +78,8 @@ _All milestone decisions archived. See PROJECT.md Key Decisions table for cumula
 - Force flag on ManualTrigger bypasses quota check for emergency overrides (18-02)
 - Record API usage on both success and failure deliveries (18-02)
 - HTTP 429 with usage/threshold/hint for quota violations (18-02)
+- Use JSON LIKE search for batchId filter instead of dedicated column (19-01)
+- 7-year audit log retention with VerifyChainSince for partial verification after cleanup (19-01)
 
 ### Pending Todos
 
@@ -99,9 +104,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Phase 18 complete and verified. Phase 19 not yet planned.
+Stopped at: Completed 19-01-PLAN.md
 Resume file: None
 
 ---
 
-*Updated: 2026-02-10 — Phase 18 complete (verified 5/5 criteria)*
+*Updated: 2026-02-10 — Phase 19 Plan 01 complete (2/2 tasks, 227s)*
