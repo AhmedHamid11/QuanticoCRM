@@ -44,6 +44,9 @@ const (
 	PrefixScanSchedule       = "0Sc" // Scan schedule
 	PrefixScanJob            = "0Sj" // Scan job execution
 	PrefixNotification       = "0Nt" // In-app notification
+	PrefixSFConnection       = "0Sf" // Salesforce connection
+	PrefixSyncJob            = "0Sy" // Sync job
+	PrefixSFFieldMapping     = "0Sm" // Salesforce field mapping
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -290,4 +293,19 @@ func NewScanJob() string {
 // NewNotification generates a new Notification ID (prefix: 0Nt)
 func NewNotification() string {
 	return New(PrefixNotification)
+}
+
+// NewSFConnection generates a new Salesforce Connection ID (prefix: 0Sf)
+func NewSFConnection() string {
+	return New(PrefixSFConnection)
+}
+
+// NewSyncJob generates a new Sync Job ID (prefix: 0Sy)
+func NewSyncJob() string {
+	return New(PrefixSyncJob)
+}
+
+// NewSFFieldMapping generates a new Salesforce Field Mapping ID (prefix: 0Sm)
+func NewSFFieldMapping() string {
+	return New(PrefixSFFieldMapping)
 }
