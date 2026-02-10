@@ -5,7 +5,7 @@
 - **v1.0 Platform Update System** - Phases 01-05 (shipped 2026-02-01) -> [archive](milestones/v1.0-ROADMAP.md)
 - **v2.0 Security Hardening** - Phases 06-10 (shipped 2026-02-04) -> [archive](milestones/v2.0-ROADMAP.md)
 - **v3.0 Deduplication System** - Phases 11-16 (shipped 2026-02-09) -> [archive](milestones/v3.0-ROADMAP.md)
-- **v4.0 Salesforce Merge Integration** - Phases 17-19 (in progress)
+- **v4.0 Salesforce Merge Integration** - Phases 17-19 (shipped 2026-02-10) -> [archive](milestones/v4.0-ROADMAP.md)
 
 ---
 
@@ -39,7 +39,7 @@
 
 ---
 
-### v4.0 Salesforce Merge Integration (In Progress)
+### v4.0 Salesforce Merge Integration — SHIPPED 2026-02-10
 
 **Milestone Goal:** Send merge instructions from Quantico to Salesforce so customers can use Quantico as a standalone dedup/merge tool that syncs results back to their Salesforce org.
 
@@ -90,11 +90,11 @@ Plans:
   4. Admin page shows Salesforce connection status (connected/disconnected/token expired) and allows testing connection
   5. Admin can enable or disable Salesforce sync for an org via toggle control
   6. Admin can manually trigger immediate merge instruction delivery via admin UI button
-**Plans:** 2 plans
+**Plans:** 2 plans — completed 2026-02-10
 
 Plans:
-- [ ] 19-01-PLAN.md -- Backend: Salesforce audit event types, delivery logging, batch_id/success filters, retention service
-- [ ] 19-02-PLAN.md -- Frontend: audit log Salesforce filters and descriptions, test connection button, admin controls
+- [x] 19-01-PLAN.md -- Backend: Salesforce audit event types, delivery logging, batch_id/success filters, retention service
+- [x] 19-02-PLAN.md -- Frontend: audit log Salesforce filters and descriptions, test connection button, admin controls
 
 ---
 
@@ -110,10 +110,10 @@ Phases execute in numeric order: 17 → 18 → 19
 | 11-16 | v3.0 | 22/22 | Complete | 2026-02-09 |
 | 17 | v4.0 | 5/5 | Complete | 2026-02-10 |
 | 18 | v4.0 | 2/2 | Complete | 2026-02-10 |
-| 19 | v4.0 | 0/2 | Not started | - |
+| 19 | v4.0 | 2/2 | Complete | 2026-02-10 |
 
-**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (7/9 plans complete for Phases 17-18, Phase 19 remaining)
+**Totals:** 4 milestones shipped (62 plans)
 
 ---
 
-*Last updated: 2026-02-10 — Phase 19 planned (2 plans in 2 waves)*
+*Last updated: 2026-02-10 — v4.0 Salesforce Merge Integration complete (9/9 plans)*
