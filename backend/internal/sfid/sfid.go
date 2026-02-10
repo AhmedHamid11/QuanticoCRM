@@ -50,6 +50,7 @@ const (
 	PrefixIngestKey          = "0Ik" // Ingest API key
 	PrefixIngestJob          = "0Ij" // Ingest job
 	PrefixMirror             = "0Mi" // Mirror config
+	PrefixMirrorField        = "0Mf" // Mirror source field
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -326,4 +327,9 @@ func NewIngestJob() string {
 // NewMirror generates a new Mirror Config ID (prefix: 0Mi)
 func NewMirror() string {
 	return New(PrefixMirror)
+}
+
+// NewMirrorField generates a new Mirror Source Field ID (prefix: 0Mf)
+func NewMirrorField() string {
+	return New(PrefixMirrorField)
 }

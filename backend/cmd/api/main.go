@@ -140,6 +140,7 @@ func main() {
 	notificationRepo := repo.NewNotificationRepo(masterDBConn)
 	salesforceRepo := repo.NewSalesforceRepo(masterDBConn)
 	ingestAPIKeyRepo := repo.NewIngestAPIKeyRepo(masterDBConn)
+	mirrorRepo := repo.NewMirrorRepo(masterDBConn)
 
 	// Initialize dedup services
 	defaultRegion := "US" // Default region for phone normalization
@@ -311,6 +312,7 @@ func main() {
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
 	ingestHandler := handler.NewIngestHandler()
 	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
+	mirrorHandler := handler.NewMirrorHandler(mirrorRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -606,6 +608,9 @@ func main() {
 
 	// Salesforce integration - admin can configure OAuth and manage sync
 	salesforceHandler.RegisterRoutes(adminProtected)
+
+	// Mirror management (admin only - create/configure schema contracts)
+	mirrorHandler.RegisterRoutes(adminProtected)
 
 	// PDF Template public routes (read-only for all authenticated users)
 	pdfTemplateHandler.RegisterPublicRoutes(protected)
