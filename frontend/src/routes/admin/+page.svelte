@@ -200,6 +200,25 @@
 			</div>
 		</a>
 
+		<a
+			href="/admin/integrations"
+			class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 border-blue-600"
+		>
+			<div class="flex items-start">
+				<div class="flex-shrink-0">
+					<svg class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+					</svg>
+				</div>
+				<div class="ml-4">
+					<h3 class="text-lg font-medium text-gray-900">Integrations</h3>
+					<p class="mt-1 text-sm text-gray-500">
+						Connect external systems like Salesforce for data sync
+					</p>
+				</div>
+			</div>
+		</a>
+
 		<!-- System Section -->
 		<div class="col-span-full mt-6">
 			<h2 class="text-lg font-medium text-gray-700 mb-4">System</h2>
