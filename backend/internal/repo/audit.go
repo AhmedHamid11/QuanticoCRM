@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
@@ -206,6 +207,22 @@ func (r *AuditRepo) List(ctx context.Context, orgID string, filters *entity.Audi
 		args = append(args, filters.DateTo.Format("2006-01-02 15:04:05"))
 	}
 
+	// Filter by batch ID (search in details JSON)
+	if filters.BatchID != "" {
+		whereClauses = append(whereClauses, "details LIKE ?")
+		args = append(args, "%\"batchId\":\""+filters.BatchID+"\"%")
+	}
+
+	// Filter by success status
+	if filters.Success != nil {
+		successVal := 0
+		if *filters.Success {
+			successVal = 1
+		}
+		whereClauses = append(whereClauses, "success = ?")
+		args = append(args, successVal)
+	}
+
 	whereClause := strings.Join(whereClauses, " AND ")
 
 	// Get total count
@@ -378,6 +395,128 @@ func (r *AuditRepo) VerifyChainIntegrity(ctx context.Context, orgID string) (*en
 	}
 
 	return result, nil
+}
+
+// VerifyChainSince verifies the hash chain for an org starting from a specific date
+// This is useful for verifying chain after cleanup operations that break the chain
+func (r *AuditRepo) VerifyChainSince(ctx context.Context, orgID string, sinceDate time.Time) (*entity.ChainVerificationResult, error) {
+	result := &entity.ChainVerificationResult{
+		Valid:  true,
+		Errors: []string{},
+	}
+
+	// Get all entries after the cutoff date, ordered by creation time (oldest first)
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, org_id, event_type, actor_id, actor_email,
+		        target_id, target_type, ip_address, user_agent,
+		        details, success, error_msg, prev_hash, entry_hash, created_at
+		 FROM audit_logs
+		 WHERE org_id = ? AND created_at >= ?
+		 ORDER BY created_at ASC`,
+		orgID,
+		sinceDate.Format("2006-01-02 15:04:05"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query audit logs: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []entity.AuditLogEntry
+	for rows.Next() {
+		var entry entity.AuditLogEntry
+		var successInt int
+
+		err := rows.Scan(
+			&entry.ID,
+			&entry.OrgID,
+			&entry.EventType,
+			&entry.ActorID,
+			&entry.ActorEmail,
+			&entry.TargetID,
+			&entry.TargetType,
+			&entry.IPAddress,
+			&entry.UserAgent,
+			&entry.Details,
+			&successInt,
+			&entry.ErrorMsg,
+			&entry.PrevHash,
+			&entry.EntryHash,
+			&entry.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan audit log: %w", err)
+		}
+
+		entry.Success = successInt == 1
+		entries = append(entries, entry)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	if len(entries) == 0 {
+		// No entries to verify
+		return result, nil
+	}
+
+	result.FirstEntryID = entries[0].ID
+	result.LastEntryID = entries[len(entries)-1].ID
+
+	// For partial chain verification, use the first entry's prev_hash as the expected starting point
+	// (instead of "GENESIS" which is only for full chain verification)
+	expectedPrevHash := entries[0].PrevHash
+	for i, entry := range entries {
+		result.EntriesVerified++
+
+		// Check prev_hash matches expected (skip the first entry's prev_hash check)
+		if i > 0 && entry.PrevHash != expectedPrevHash {
+			result.Valid = false
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("Entry %s (index %d): prev_hash mismatch. Expected %s, got %s",
+					entry.ID, i, expectedPrevHash, entry.PrevHash))
+			if result.FirstBrokenEntry == "" {
+				result.FirstBrokenEntry = entry.ID
+			}
+		}
+
+		// Verify entry_hash is correctly computed
+		computedHash := entry.ComputeEntryHash()
+		if entry.EntryHash != computedHash {
+			result.Valid = false
+			result.Errors = append(result.Errors,
+				fmt.Sprintf("Entry %s (index %d): hash computation mismatch. Stored %s, computed %s",
+					entry.ID, i, entry.EntryHash, computedHash))
+			if result.FirstBrokenEntry == "" {
+				result.FirstBrokenEntry = entry.ID
+			}
+		}
+
+		// Next entry should have this entry's hash as prev_hash
+		expectedPrevHash = entry.EntryHash
+	}
+
+	return result, nil
+}
+
+// DeleteOlderThan deletes audit logs older than the specified cutoff date
+// Returns the number of rows deleted
+func (r *AuditRepo) DeleteOlderThan(ctx context.Context, orgID string, cutoffDate time.Time) (int, error) {
+	result, err := r.db.ExecContext(ctx,
+		`DELETE FROM audit_logs WHERE org_id = ? AND created_at < ?`,
+		orgID,
+		cutoffDate.Format("2006-01-02 15:04:05"),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete old audit logs: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return int(rowsAffected), nil
 }
 
 // ConvertEventToEntry converts an AuditEvent to an AuditLogEntry for persistence

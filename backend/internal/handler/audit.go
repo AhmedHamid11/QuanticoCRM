@@ -98,6 +98,22 @@ func (h *AuditHandler) List(c *fiber.Ctx) error {
 		}
 	}
 
+	// Parse batch ID
+	if batchID := c.Query("batchId"); batchID != "" {
+		filters.BatchID = batchID
+	}
+
+	// Parse success filter
+	if successStr := c.Query("success"); successStr != "" {
+		if successStr == "true" {
+			successVal := true
+			filters.Success = &successVal
+		} else if successStr == "false" {
+			successVal := false
+			filters.Success = &successVal
+		}
+	}
+
 	// Query audit logs
 	response, err := auditRepo.List(c.Context(), orgID, filters)
 	if err != nil {
@@ -293,6 +309,10 @@ func (h *AuditHandler) GetEventTypes(c *fiber.Ctx) error {
 		{"value": string(entity.AuditEventAPITokenRevoke), "label": "API Token Revoked"},
 		{"value": string(entity.AuditEventAuthorizationDenied), "label": "Authorization Denied"},
 		{"value": string(entity.AuditEventOrgSettingsChange), "label": "Organization Settings Changed"},
+		{"value": "SALESFORCE_MERGE_DELIVERY", "label": "Salesforce Merge Delivery"},
+		{"value": "SALESFORCE_MERGE_DELIVERY_ERROR", "label": "Salesforce Delivery Error"},
+		{"value": "SALESFORCE_MERGE_DELIVERY_RETRY", "label": "Salesforce Delivery Retry"},
+		{"value": "SALESFORCE_CONNECTION_STATUS_CHANGE", "label": "Salesforce Connection Change"},
 	}
 
 	return c.JSON(fiber.Map{

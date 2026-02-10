@@ -43,6 +43,12 @@ const (
 	// Merge events
 	AuditEventRecordMerge AuditEventType = "RECORD_MERGE"
 	AuditEventMergeUndo   AuditEventType = "MERGE_UNDO"
+
+	// Salesforce integration events
+	AuditEventSalesforceMergeDelivery      AuditEventType = "SALESFORCE_MERGE_DELIVERY"
+	AuditEventSalesforceMergeDeliveryError AuditEventType = "SALESFORCE_MERGE_DELIVERY_ERROR"
+	AuditEventSalesforceMergeDeliveryRetry AuditEventType = "SALESFORCE_MERGE_DELIVERY_RETRY"
+	AuditEventSalesforceConnectionChange   AuditEventType = "SALESFORCE_CONNECTION_STATUS_CHANGE"
 )
 
 // AuditEvent represents a security audit event (input format)
@@ -118,6 +124,8 @@ type AuditLogFilters struct {
 	ActorID    string     `json:"actorId,omitempty"`
 	DateFrom   *time.Time `json:"dateFrom,omitempty"`
 	DateTo     *time.Time `json:"dateTo,omitempty"`
+	BatchID    string     `json:"batchId,omitempty"`
+	Success    *bool      `json:"success,omitempty"`
 	Page       int        `json:"page"`
 	PageSize   int        `json:"pageSize"`
 }

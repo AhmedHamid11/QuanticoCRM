@@ -31,9 +31,13 @@ const (
 	AuditEventAPITokenCreate      = entity.AuditEventAPITokenCreate
 	AuditEventAPITokenRevoke      = entity.AuditEventAPITokenRevoke
 	AuditEventAuthorizationDenied = entity.AuditEventAuthorizationDenied
-	AuditEventOrgSettingsChange   = entity.AuditEventOrgSettingsChange
-	AuditEventRecordMerge         = entity.AuditEventRecordMerge
-	AuditEventMergeUndo           = entity.AuditEventMergeUndo
+	AuditEventOrgSettingsChange          = entity.AuditEventOrgSettingsChange
+	AuditEventRecordMerge                = entity.AuditEventRecordMerge
+	AuditEventMergeUndo                  = entity.AuditEventMergeUndo
+	AuditEventSalesforceMergeDelivery    = entity.AuditEventSalesforceMergeDelivery
+	AuditEventSalesforceMergeDeliveryError = entity.AuditEventSalesforceMergeDeliveryError
+	AuditEventSalesforceMergeDeliveryRetry = entity.AuditEventSalesforceMergeDeliveryRetry
+	AuditEventSalesforceConnectionChange = entity.AuditEventSalesforceConnectionChange
 )
 
 // Re-export AuditEvent from entity package
@@ -339,6 +343,42 @@ func (a *AuditLogger) LogMergeUndo(ctx context.Context, actorID, orgID, snapshot
 		Details: map[string]interface{}{
 			"snapshotId": snapshotID,
 			"survivorId": survivorID,
+		},
+	})
+}
+
+// LogSalesforceMergeDelivery logs a Salesforce merge delivery attempt with detailed metadata
+func (a *AuditLogger) LogSalesforceMergeDelivery(ctx context.Context, orgID, batchID, instructionID, winnerID, loserID, deliveryStatus string, statusCode int, responseBody string, retryCount int, errorMsg string) {
+	eventType := AuditEventSalesforceMergeDelivery
+	success := true
+	if deliveryStatus == "error" {
+		eventType = AuditEventSalesforceMergeDeliveryError
+		success = false
+	} else if deliveryStatus == "retry" {
+		eventType = AuditEventSalesforceMergeDeliveryRetry
+		success = false
+	}
+
+	// Truncate responseBody to 1KB
+	if len(responseBody) > 1024 {
+		responseBody = responseBody[:1024] + "...[truncated]"
+	}
+
+	a.Log(ctx, AuditEvent{
+		EventType: eventType,
+		ActorID:   "system",
+		OrgID:     orgID,
+		Success:   success,
+		ErrorMsg:  errorMsg,
+		Details: map[string]interface{}{
+			"batchId":        batchID,
+			"instructionId":  instructionID,
+			"winnerId":       winnerID,
+			"loserId":        loserID,
+			"deliveryStatus": deliveryStatus,
+			"statusCode":     statusCode,
+			"retryCount":     retryCount,
+			"responseBody":   responseBody,
 		},
 	})
 }
