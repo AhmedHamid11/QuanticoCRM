@@ -470,6 +470,8 @@ func isMasterOnlyStatement(stmt string) bool {
 		"api_tokens",
 		"audit_log",
 		"_migrations",
+		"salesforce_connections",
+		"salesforce_field_mappings",
 	}
 
 	upper := strings.ToUpper(stmt)

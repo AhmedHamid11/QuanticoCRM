@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -453,6 +454,10 @@ func (s *SFDeliveryService) ListJobs(ctx context.Context, orgID string, limit, o
 
 	jobs, total, err := s.repo.WithDB(tenantDB).ListSyncJobs(ctx, orgID, limit, offset)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			log.Printf("[SALESFORCE] sync_jobs table not found for org %s, returning empty list", orgID)
+			return []entity.SyncJob{}, 0, nil
+		}
 		return nil, 0, fmt.Errorf("failed to list sync jobs: %w", err)
 	}
 
