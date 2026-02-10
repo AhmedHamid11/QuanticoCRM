@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber backend with SvelteKit frontend, using Turso (SQLite edge) for per-tenant databases. Focuses on speed (<50ms perceived), optimistic UI, security hardened for production, transparent platform updates, and built-in data quality tools including deduplication and merge.
+A high-performance, multi-tenant CRM rebuilt from EspoCRM concepts. Go/Fiber backend with SvelteKit frontend, using Turso (SQLite edge) for per-tenant databases. Focuses on speed (<50ms perceived), optimistic UI, security hardened for production, transparent platform updates, built-in data quality tools including deduplication and merge, and Salesforce integration for syncing merge instructions back to customer orgs.
 
 ## Core Value
 
@@ -10,14 +10,15 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 
 ## Current State
 
-**Shipped:** v3.0 Deduplication System (2026-02-09)
-**Codebase:** ~96,000 LOC (58K Go, 38K TypeScript/Svelte)
-**Status:** Production-ready with security hardening, platform updates, and data quality tools
+**Shipped:** v4.0 Salesforce Merge Integration (2026-02-10)
+**Codebase:** ~100,000 LOC (61K Go, 39K TypeScript/Svelte)
+**Status:** Production-ready with security hardening, platform updates, data quality tools, and Salesforce merge delivery
 
 **Milestones shipped:**
 - v1.0 Platform Update System (2026-02-01)
 - v2.0 Security Hardening (2026-02-04)
 - v3.0 Deduplication System (2026-02-09)
+- v4.0 Salesforce Merge Integration (2026-02-10)
 
 ## Requirements
 
@@ -56,17 +57,18 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 - ✓ Entity-agnostic deduplication engine — v3.0
 - ✓ Background duplicate scanning jobs — v3.0
 - ✓ Duplicate management admin UI — v3.0
+- ✓ Merge instruction payload builder from dedup results — v4.0
+- ✓ Salesforce OAuth 2.0 integration with Connected App — v4.0
+- ✓ Batch merge instruction delivery to Salesforce staging object — v4.0
+- ✓ Rate limiting & exponential backoff for Salesforce API — v4.0
+- ✓ Audit logging for merge instruction delivery (SOX-compliant) — v4.0
+- ✓ Admin UI: integration configuration, test connection, delivery monitoring — v4.0
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Merge instruction payload builder from dedup results — v4.0
-- [ ] Salesforce OAuth 2.0 integration with Connected App — v4.0
-- [ ] Batch merge instruction delivery to Salesforce staging object — v4.0
-- [ ] Rate limiting & exponential backoff for Salesforce API — v4.0
-- [ ] Audit logging for merge instruction delivery — v4.0
-- [ ] Admin UI: integration configuration and delivery monitoring — v4.0
+(No active milestone — planning next)
 
 ### Out of Scope
 
@@ -82,11 +84,15 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 - ML-based matching algorithms — Jaro-Winkler sufficient for now
 - Auto-merge without review — Risk of data loss, manual review preferred
 - Negative signal scoring (DETECT-07) — Framework ready in scorer.go, logic not yet implemented
+- Bidirectional sync (Salesforce to Quantico) — Complex conflict resolution, Quantico is system of record for merges
+- Salesforce package deployment — Customers build/deploy own Apex trigger
+- Multi-CRM support in v4.0 — Salesforce only, framework deferred
+- Real-time UI updates (SSE/WebSocket) — Polling sufficient for now
 
 ## Context
 
 **Tech Stack:**
-- Backend: Go 1.22 / Fiber v2.52.0
+- Backend: Go 1.24 / Fiber v2.52.0
 - Frontend: SvelteKit 2.x / TypeScript
 - Database: Turso (SQLite edge) with per-tenant isolation
 - Deployment: Railway (backend), Vercel (frontend)
@@ -104,9 +110,18 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 - Background scanning with checkpoint recovery
 - Full admin UI for rule management, review queue, merge wizard
 
+**Salesforce Integration (v4.0):**
+- OAuth 2.0 authentication with proactive token refresh
+- Merge instruction payload builder (18-char ID conversion, field mapping)
+- Async batch delivery with per-org concurrency control
+- Rate limiting with 24-hour sliding window, 80% auto-pause
+- Exponential backoff (5s→40s with jitter, max 5 retries)
+- SOX-compliant audit logging with 7-year retention and tamper-evident hash chain
+- Admin UI: configure connection, test, toggle sync, trigger delivery, filter audit logs
+
 ## Constraints
 
-- **Stack**: Go 1.22+/Fiber, SvelteKit 2.x, Turso — no changes
+- **Stack**: Go 1.24+/Fiber, SvelteKit 2.x, Turso — no changes
 - **Deployment**: Railway (backend), Vercel (frontend)
 - **Performance**: <50ms response time target
 - **Backwards compatibility**: Must maintain existing integrations
@@ -131,17 +146,15 @@ Fast, secure multi-tenant CRM where customer data is protected and platform upda
 | 30-day undo window for merges | Safety net without indefinite storage | ✓ Good |
 | Checkpoint-based background scanning | Handles Turso 5-second timeout, resume on failure | ✓ Good |
 | Frequency presets over cron | Covers 95% of use cases, much simpler UX | ✓ Good |
-
-## Current Milestone: v4.0 Salesforce Merge Integration
-
-**Goal:** Send merge instructions from Quantico to Salesforce so customers can use Quantico as a standalone dedup/merge tool that syncs results back to their Salesforce org.
-
-**Target features:**
-- Payload builder: construct merge instructions from dedup results (winner, loser, field values)
-- Salesforce integration: OAuth 2.0 authentication, REST API delivery to staging object
-- Batch delivery: group instructions for efficiency, rate limiting, exponential backoff
-- Audit tracking: log all merge instructions sent, delivery status, outcomes
-- Admin UI: configure Salesforce org, test connection, monitor delivery status
+| Staging object pattern for SF integration | External system inserts, Apex processes merges | ✓ Good |
+| OAuth 2.0 with proactive token refresh | Avoids mid-batch token expiration | ✓ Good |
+| AES-256-GCM for OAuth token encryption | Industry standard, env var key storage | ✓ Good |
+| Master DB for OAuth, tenant DB for jobs | Clean separation of config vs operational data | ✓ Good |
+| 15-to-18 char SF ID checksum in Go | Avoids external dependency for ID conversion | ✓ Good |
+| Async delivery with per-org concurrency | Prevents request flooding, max 1 concurrent per org | ✓ Good |
+| 24-hour sliding window for API usage | More accurate than fixed daily reset | ✓ Good |
+| Exponential backoff with jitter | Prevents thundering herd on rate limits | ✓ Good |
+| 7-year audit retention (SOX) | Compliance boundary with partial chain verification | ✓ Good |
 
 ---
-*Last updated: 2026-02-09 after starting v4.0 milestone*
+*Last updated: 2026-02-10 after v4.0 milestone*
