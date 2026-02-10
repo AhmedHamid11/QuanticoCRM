@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
-# Cache bust: 2026-02-03-v2
+# Cache bust: 2026-02-10-v3-salesforce-fix
 COPY . .
 RUN CGO_ENABLED=1 go build -o api ./cmd/api
 RUN CGO_ENABLED=1 go build -o migrate ./cmd/migrate
