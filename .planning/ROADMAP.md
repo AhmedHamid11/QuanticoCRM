@@ -57,11 +57,11 @@
 **Plans:** 5 plans
 
 Plans:
-- [ ] 17-01-PLAN.md -- Foundation: database schema, entity types, SFID prefixes, repository, encryption utility
-- [ ] 17-02-PLAN.md -- OAuth 2.0: service with token management, handler with config/connect endpoints
-- [ ] 17-03-PLAN.md -- Payload: merge instruction builder, batch assembler with unique IDs
-- [ ] 17-04-PLAN.md -- Delivery: async batch delivery service, queue/trigger/status endpoints
-- [ ] 17-05-PLAN.md -- Admin UI: integrations hub, Salesforce config page, connection flow, job table
+- [x] 17-01-PLAN.md -- Foundation: database schema, entity types, SFID prefixes, repository, encryption utility
+- [x] 17-02-PLAN.md -- OAuth 2.0: service with token management, handler with config/connect endpoints
+- [x] 17-03-PLAN.md -- Payload: merge instruction builder, batch assembler with unique IDs
+- [x] 17-04-PLAN.md -- Delivery: async batch delivery service, queue/trigger/status endpoints
+- [x] 17-05-PLAN.md -- Admin UI: integrations hub, Salesforce config page, connection flow, job table
 
 #### Phase 18: Rate Limiting & Error Handling
 **Goal**: Quantico respects Salesforce API limits and handles errors intelligently
@@ -73,11 +73,11 @@ Plans:
   3. Quantico pauses batch delivery automatically when org reaches 80% API capacity (80,000 calls) to prevent hitting hard limit
   4. Quantico implements exponential backoff for 429 Too Many Requests errors (5s, 10s, 20s, 40s delays with max 5 retries)
   5. Admin can manually trigger merge delivery to override rate limiting pauses (for testing or recovery scenarios)
-**Plans:** 2 plans
+**Plans:** 2 plans — completed 2026-02-10
 
 Plans:
-- [ ] 18-01-PLAN.md -- Foundation: API usage tracking migration, entity types, RateLimitService with sliding window
-- [ ] 18-02-PLAN.md -- Integration: exponential backoff in delivery, quota check, force flag, quota endpoint, main.go wiring
+- [x] 18-01-PLAN.md -- Foundation: API usage tracking migration, entity types, RateLimitService with sliding window
+- [x] 18-02-PLAN.md -- Integration: exponential backoff in delivery, quota check, force flag, quota endpoint, main.go wiring
 
 #### Phase 19: Audit Logging & Admin Configuration
 **Goal**: Quantico logs all merge instruction delivery for compliance and provides admin UI for configuration and monitoring
@@ -107,12 +107,12 @@ Phases execute in numeric order: 17 → 18 → 19
 | 01-05 | v1.0 | 9/9 | Complete | 2026-02-01 |
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
 | 11-16 | v3.0 | 22/22 | Complete | 2026-02-09 |
-| 17 | v4.0 | 0/5 | Planned | - |
-| 18 | v4.0 | 0/2 | Planned | - |
+| 17 | v4.0 | 5/5 | Complete | 2026-02-10 |
+| 18 | v4.0 | 2/2 | Complete | 2026-02-10 |
 | 19 | v4.0 | 0/TBD | Not started | - |
 
-**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (3 phases, 7 plans planned for Phases 17-18)
+**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (7/7 plans complete for Phases 17-18, Phase 19 remaining)
 
 ---
 
-*Last updated: 2026-02-10 — Phase 18 planned (2 plans in 2 waves)*
+*Last updated: 2026-02-10 — Phase 18 complete (2/2 plans, verified)*
