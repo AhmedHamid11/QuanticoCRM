@@ -439,9 +439,16 @@ func (s *SFDeliveryService) ListJobs(ctx context.Context, orgID string, limit, o
 		return nil, 0, fmt.Errorf("failed to get organization: %w", err)
 	}
 
-	tenantDB, err := s.dbManager.GetTenantDB(ctx, orgID, org.DatabaseURL, org.DatabaseToken)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get tenant database: %w", err)
+	// Use master DB if no tenant DB configured
+	var tenantDB db.DBConn
+	if org.DatabaseURL != "" {
+		var err error
+		tenantDB, err = s.dbManager.GetTenantDB(ctx, orgID, org.DatabaseURL, org.DatabaseToken)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get tenant database: %w", err)
+		}
+	} else {
+		tenantDB = s.dbManager.GetMasterDB()
 	}
 
 	jobs, total, err := s.repo.WithDB(tenantDB).ListSyncJobs(ctx, orgID, limit, offset)
@@ -459,9 +466,16 @@ func (s *SFDeliveryService) RetryJob(ctx context.Context, orgID, jobID string) e
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
 
-	tenantDB, err := s.dbManager.GetTenantDB(ctx, orgID, org.DatabaseURL, org.DatabaseToken)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant database: %w", err)
+	// Use master DB if no tenant DB configured
+	var tenantDB db.DBConn
+	if org.DatabaseURL != "" {
+		var err error
+		tenantDB, err = s.dbManager.GetTenantDB(ctx, orgID, org.DatabaseURL, org.DatabaseToken)
+		if err != nil {
+			return fmt.Errorf("failed to get tenant database: %w", err)
+		}
+	} else {
+		tenantDB = s.dbManager.GetMasterDB()
 	}
 
 	// Load job
