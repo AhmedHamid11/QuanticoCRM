@@ -223,10 +223,11 @@ func (h *MirrorHandler) ListJobs(c *fiber.Ctx) error {
 
 // RegisterRoutes registers all mirror routes
 func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
-	router.Post("/mirrors", h.Create)
-	router.Get("/mirrors", h.List)
-	router.Get("/mirrors/:id", h.Get)
-	router.Put("/mirrors/:id", h.Update)
-	router.Delete("/mirrors/:id", h.Delete)
-	router.Get("/mirrors/:id/jobs", h.ListJobs)
+	mirrors := router.Group("/admin/mirrors")
+	mirrors.Post("/", h.Create)
+	mirrors.Get("/", h.List)
+	mirrors.Get("/:id", h.Get)
+	mirrors.Put("/:id", h.Update)
+	mirrors.Delete("/:id", h.Delete)
+	mirrors.Get("/:id/jobs", h.ListJobs)
 }
