@@ -54,10 +54,14 @@
   4. Quantico batches up to 200 merge instructions per API call with unique batch_id (QTC-YYYYMMDD-NNN) and instruction_ids (MI-NNNN)
   5. Quantico POSTs batched merge instructions to Salesforce staging object via REST API and handles API errors gracefully
   6. Quantico proactively refreshes OAuth access tokens before expiry (avoids mid-batch token expiration)
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 17-01: TBD
+- [ ] 17-01-PLAN.md -- Foundation: database schema, entity types, SFID prefixes, repository, encryption utility
+- [ ] 17-02-PLAN.md -- OAuth 2.0: service with token management, handler with config/connect endpoints
+- [ ] 17-03-PLAN.md -- Payload: merge instruction builder, batch assembler with unique IDs
+- [ ] 17-04-PLAN.md -- Delivery: async batch delivery service, queue/trigger/status endpoints
+- [ ] 17-05-PLAN.md -- Admin UI: integrations hub, Salesforce config page, connection flow, job table
 
 #### Phase 18: Rate Limiting & Error Handling
 **Goal**: Quantico respects Salesforce API limits and handles errors intelligently
@@ -102,12 +106,12 @@ Phases execute in numeric order: 17 → 18 → 19
 | 01-05 | v1.0 | 9/9 | Complete | 2026-02-01 |
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
 | 11-16 | v3.0 | 22/22 | Complete | 2026-02-09 |
-| 17 | v4.0 | 0/TBD | Not started | - |
+| 17 | v4.0 | 0/5 | Planned | - |
 | 18 | v4.0 | 0/TBD | Not started | - |
 | 19 | v4.0 | 0/TBD | Not started | - |
 
-**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (3 phases, TBD plans)
+**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (3 phases, 5 plans planned for Phase 17)
 
 ---
 
-*Last updated: 2026-02-09 — v4.0 roadmap created*
+*Last updated: 2026-02-09 — Phase 17 planned (5 plans in 4 waves)*
