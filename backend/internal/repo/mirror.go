@@ -65,12 +65,25 @@ func (r *MirrorRepo) Create(ctx context.Context, tenantDB db.DBConn, orgID strin
 				fieldType = "text"
 			}
 
+			// Handle map_field - use NULL if empty string
+			var mapFieldArg interface{}
+			if fieldInput.MapField != "" {
+				mapFieldArg = fieldInput.MapField
+			} else {
+				mapFieldArg = nil
+			}
+
 			_, err = tx.ExecContext(ctx, `
-				INSERT INTO mirror_source_fields (id, mirror_id, field_name, field_type, is_required, description, sort_order, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, fieldID, mirrorID, fieldInput.FieldName, fieldType, fieldInput.IsRequired, fieldInput.Description, i, now.Format(time.RFC3339))
+				INSERT INTO mirror_source_fields (id, mirror_id, field_name, field_type, is_required, description, map_field, sort_order, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, fieldID, mirrorID, fieldInput.FieldName, fieldType, fieldInput.IsRequired, fieldInput.Description, mapFieldArg, i, now.Format(time.RFC3339))
 			if err != nil {
 				return nil, fmt.Errorf("insert source field: %w", err)
+			}
+
+			var mapFieldPtr *string
+			if fieldInput.MapField != "" {
+				mapFieldPtr = &fieldInput.MapField
 			}
 
 			sourceFields = append(sourceFields, entity.MirrorSourceField{
@@ -80,6 +93,7 @@ func (r *MirrorRepo) Create(ctx context.Context, tenantDB db.DBConn, orgID strin
 				FieldType:   fieldType,
 				IsRequired:  fieldInput.IsRequired,
 				Description: fieldInput.Description,
+				MapField:    mapFieldPtr,
 				SortOrder:   i,
 				CreatedAt:   now,
 			})
@@ -143,7 +157,7 @@ func (r *MirrorRepo) GetByID(ctx context.Context, tenantDB db.DBConn, orgID, mir
 // getSourceFields retrieves all source fields for a mirror
 func (r *MirrorRepo) getSourceFields(ctx context.Context, tenantDB db.DBConn, mirrorID string) ([]entity.MirrorSourceField, error) {
 	rows, err := tenantDB.QueryContext(ctx, `
-		SELECT id, mirror_id, field_name, field_type, is_required, description, sort_order, created_at
+		SELECT id, mirror_id, field_name, field_type, is_required, description, map_field, sort_order, created_at
 		FROM mirror_source_fields
 		WHERE mirror_id = ?
 		ORDER BY sort_order ASC
@@ -158,14 +172,21 @@ func (r *MirrorRepo) getSourceFields(ctx context.Context, tenantDB db.DBConn, mi
 		var field entity.MirrorSourceField
 		var isRequiredInt int
 		var createdAt string
+		var mapField sql.NullString
 
-		err := rows.Scan(&field.ID, &field.MirrorID, &field.FieldName, &field.FieldType, &isRequiredInt, &field.Description, &field.SortOrder, &createdAt)
+		err := rows.Scan(&field.ID, &field.MirrorID, &field.FieldName, &field.FieldType, &isRequiredInt, &field.Description, &mapField, &field.SortOrder, &createdAt)
 		if err != nil {
 			return nil, err
 		}
 
 		field.IsRequired = isRequiredInt == 1
 		field.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+
+		// Convert sql.NullString to *string
+		if mapField.Valid {
+			field.MapField = &mapField.String
+		}
+
 		fields = append(fields, field)
 	}
 
@@ -291,10 +312,18 @@ func (r *MirrorRepo) Update(ctx context.Context, tenantDB db.DBConn, orgID, mirr
 				fieldType = "text"
 			}
 
+			// Handle map_field - use NULL if empty string
+			var mapFieldArg interface{}
+			if fieldInput.MapField != "" {
+				mapFieldArg = fieldInput.MapField
+			} else {
+				mapFieldArg = nil
+			}
+
 			_, err = tx.ExecContext(ctx, `
-				INSERT INTO mirror_source_fields (id, mirror_id, field_name, field_type, is_required, description, sort_order, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			`, fieldID, mirrorID, fieldInput.FieldName, fieldType, fieldInput.IsRequired, fieldInput.Description, i, now.Format(time.RFC3339))
+				INSERT INTO mirror_source_fields (id, mirror_id, field_name, field_type, is_required, description, map_field, sort_order, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, fieldID, mirrorID, fieldInput.FieldName, fieldType, fieldInput.IsRequired, fieldInput.Description, mapFieldArg, i, now.Format(time.RFC3339))
 			if err != nil {
 				return nil, fmt.Errorf("insert source field: %w", err)
 			}
