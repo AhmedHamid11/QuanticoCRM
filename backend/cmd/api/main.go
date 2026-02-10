@@ -138,6 +138,7 @@ func main() {
 	mergeRepo := repo.NewMergeRepo(masterDBConn)
 	scanJobRepo := repo.NewScanJobRepo(masterDBConn)
 	notificationRepo := repo.NewNotificationRepo(masterDBConn)
+	salesforceRepo := repo.NewSalesforceRepo(masterDBConn)
 
 	// Initialize dedup services
 	defaultRegion := "US" // Default region for phone normalization
@@ -167,6 +168,14 @@ func main() {
 	authService := service.NewAuthService(authRepo, authConfig, provisioningService)
 	apiTokenService := service.NewAPITokenService(apiTokenRepo)
 	versionService := service.NewVersionService()
+
+	// Initialize Salesforce OAuth service
+	sfEncryptionKey, err := util.GetEncryptionKey()
+	if err != nil {
+		log.Printf("Warning: Salesforce encryption key not configured: %v", err)
+		sfEncryptionKey = nil // Service will error on token operations
+	}
+	salesforceOAuthService := service.NewSalesforceOAuthService(salesforceRepo, sfEncryptionKey)
 
 	// Initialize tenant provisioning service for per-org databases
 	// This creates dedicated Turso databases for each new organization
@@ -277,6 +286,7 @@ func main() {
 	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
+	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, salesforceRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -389,6 +399,10 @@ func main() {
 	api.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok", "version": "v13"})
 	})
+
+	// Salesforce OAuth callback (public - user redirected back from Salesforce)
+	// State parameter provides CSRF protection (verified by service)
+	salesforceHandler.RegisterCallbackRoute(api)
 
 	// CRITICAL: Register stop-impersonate BEFORE the /auth group to ensure Fiber matches it first.
 	// This route must use Required() middleware (not PlatformAdminRequired) because during
@@ -553,6 +567,9 @@ func main() {
 
 	// Background scanning - admin can manage schedules and jobs
 	scanJobHandler.RegisterAdminRoutes(adminProtected)
+
+	// Salesforce integration - admin can configure OAuth and manage sync
+	salesforceHandler.RegisterRoutes(adminProtected)
 
 	// PDF Template public routes (read-only for all authenticated users)
 	pdfTemplateHandler.RegisterPublicRoutes(protected)
