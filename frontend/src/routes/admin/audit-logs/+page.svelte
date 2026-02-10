@@ -74,7 +74,7 @@
 	// Load event types for filter dropdown
 	async function loadEventTypes() {
 		try {
-			const response = await get<{ eventTypes: EventType[] }>('/admin/audit-logs/event-types');
+			const response = await get<{ eventTypes: EventType[] }>('/audit-logs/event-types');
 			eventTypes = response.eventTypes || [];
 		} catch (err) {
 			// Non-critical - filter dropdown will just be empty
@@ -111,7 +111,7 @@
 				params.set('success', filters.successFilter === 'success' ? 'true' : 'false');
 			}
 
-			const response = await get<AuditLogListResponse>(`/admin/audit-logs?${params.toString()}`);
+			const response = await get<AuditLogListResponse>(`/audit-logs?${params.toString()}`);
 			logs = response.data || [];
 			total = response.total;
 			hasMore = response.hasMore;
@@ -171,7 +171,7 @@
 			}
 
 			// Trigger download
-			const url = `/api/v1/admin/audit-logs/export?${params.toString()}`;
+			const url = `/api/v1/audit-logs/export?${params.toString()}`;
 			const link = document.createElement('a');
 			link.href = url;
 			link.download = `audit-logs-export.${format}`;
@@ -197,7 +197,7 @@
 				firstEntryId?: string;
 				lastEntryId?: string;
 				firstBrokenEntry?: string;
-			}>('/admin/audit-logs/verify');
+			}>('/audit-logs/verify');
 
 			verifyResult = result;
 			showVerifyModal = true;
