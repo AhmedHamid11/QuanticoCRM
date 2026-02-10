@@ -717,6 +717,9 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	// Create default matching rules for duplicate detection
 	s.createDefaultMatchingRules(ctx, orgID, now)
 
+	// Create default related list configurations
+	s.createDefaultRelatedListConfigs(ctx, orgID, now)
+
 	log.Printf("[Provisioning] Completed metadata provisioning for org %s", orgID)
 	return nil
 }
@@ -1170,4 +1173,120 @@ func (s *ProvisioningService) createBearing(ctx context.Context, orgID, entityTy
 	if err != nil {
 		log.Printf("Warning: failed to create bearing %s for %s: %v", name, entityType, err)
 	}
+}
+
+// createDefaultRelatedListConfigs creates default related list configurations for standard entities
+func (s *ProvisioningService) createDefaultRelatedListConfigs(ctx context.Context, orgID, now string) {
+	log.Printf("[Provisioning] Creating default related list configs for org %s", orgID)
+
+	// Define default related lists for each entity
+	type relatedListDef struct {
+		entityType     string
+		relatedEntity  string
+		lookupField    string
+		label          string
+		displayFields  string // JSON array
+		sortOrder      int
+		defaultSort    string
+		defaultSortDir string
+		pageSize       int
+	}
+
+	configs := []relatedListDef{
+		// Account → Contacts (contacts with accountId lookup)
+		{
+			entityType:     "Account",
+			relatedEntity:  "Contact",
+			lookupField:    "accountId",
+			label:          "Contacts",
+			displayFields:  `[{"field":"firstName","label":"First Name","position":1},{"field":"lastName","label":"Last Name","position":2},{"field":"emailAddress","label":"Email","position":3},{"field":"phoneNumber","label":"Phone","position":4}]`,
+			sortOrder:      1,
+			defaultSort:    "createdAt",
+			defaultSortDir: "desc",
+			pageSize:       5,
+		},
+		// Account → Quotes (quotes with accountId lookup)
+		{
+			entityType:     "Account",
+			relatedEntity:  "Quote",
+			lookupField:    "accountId",
+			label:          "Quotes",
+			displayFields:  `[{"field":"name","label":"Name","position":1},{"field":"quoteNumber","label":"Quote Number","position":2},{"field":"status","label":"Status","position":3},{"field":"grandTotal","label":"Total","position":4}]`,
+			sortOrder:      2,
+			defaultSort:    "createdAt",
+			defaultSortDir: "desc",
+			pageSize:       5,
+		},
+		// Account → Tasks (tasks with accountId via polymorphic parent)
+		{
+			entityType:     "Account",
+			relatedEntity:  "Task",
+			lookupField:    "parentId",
+			label:          "Tasks",
+			displayFields:  `[{"field":"subject","label":"Subject","position":1},{"field":"status","label":"Status","position":2},{"field":"priority","label":"Priority","position":3},{"field":"dueDate","label":"Due Date","position":4}]`,
+			sortOrder:      3,
+			defaultSort:    "dueDate",
+			defaultSortDir: "asc",
+			pageSize:       5,
+		},
+		// Contact → Tasks (tasks with contactId via polymorphic parent)
+		{
+			entityType:     "Contact",
+			relatedEntity:  "Task",
+			lookupField:    "parentId",
+			label:          "Tasks",
+			displayFields:  `[{"field":"subject","label":"Subject","position":1},{"field":"status","label":"Status","position":2},{"field":"priority","label":"Priority","position":3},{"field":"dueDate","label":"Due Date","position":4}]`,
+			sortOrder:      1,
+			defaultSort:    "dueDate",
+			defaultSortDir: "asc",
+			pageSize:       5,
+		},
+		// Contact → Quotes (quotes with contactId lookup)
+		{
+			entityType:     "Contact",
+			relatedEntity:  "Quote",
+			lookupField:    "contactId",
+			label:          "Quotes",
+			displayFields:  `[{"field":"name","label":"Name","position":1},{"field":"quoteNumber","label":"Quote Number","position":2},{"field":"status","label":"Status","position":3},{"field":"grandTotal","label":"Total","position":4}]`,
+			sortOrder:      2,
+			defaultSort:    "createdAt",
+			defaultSortDir: "desc",
+			pageSize:       5,
+		},
+		// Quote → QuoteLineItems (line items with quoteId lookup)
+		{
+			entityType:     "Quote",
+			relatedEntity:  "QuoteLineItem",
+			lookupField:    "quoteId",
+			label:          "Line Items",
+			displayFields:  `[{"field":"name","label":"Name","position":1},{"field":"quantity","label":"Qty","position":2},{"field":"unitPrice","label":"Unit Price","position":3},{"field":"total","label":"Total","position":4}]`,
+			sortOrder:      1,
+			defaultSort:    "sortOrder",
+			defaultSortDir: "asc",
+			pageSize:       10,
+		},
+	}
+
+	// Insert each related list config using INSERT OR REPLACE for safe re-provisioning
+	for _, cfg := range configs {
+		id := sfid.New("0Rl")
+		_, err := s.db.ExecContext(ctx, `
+			INSERT OR REPLACE INTO related_list_configs
+			(id, org_id, entity_type, related_entity, lookup_field, label, enabled,
+			 display_fields, sort_order, default_sort, default_sort_dir, page_size,
+			 created_at, modified_at)
+			VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+		`, id, orgID, cfg.entityType, cfg.relatedEntity, cfg.lookupField, cfg.label,
+			cfg.displayFields, cfg.sortOrder, cfg.defaultSort, cfg.defaultSortDir, cfg.pageSize,
+			now, now)
+		if err != nil {
+			log.Printf("[Provisioning] Warning: failed to create related list %s → %s for org %s: %v",
+				cfg.entityType, cfg.relatedEntity, orgID, err)
+		} else {
+			log.Printf("[Provisioning] Created related list %s → %s for org %s",
+				cfg.entityType, cfg.relatedEntity, orgID)
+		}
+	}
+
+	log.Printf("[Provisioning] Completed default related list config creation for org %s", orgID)
 }
