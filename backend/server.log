@@ -1,0 +1,765 @@
+2026/02/05 21:35:24 Loaded environment from .env
+2026/02/05 21:35:24 Using local database: ../fastcrm.db
+2026/02/05 21:35:24 Connection pool configured: MaxOpen=25, MaxIdle=10, MaxLifetime=5m
+2026/02/05 21:35:24 WARNING: Using default JWT secret. Set JWT_SECRET in production!
+2026/02/05 21:35:24 Ensured clientId field definition for 2 Submittal entities
+2026/02/05 21:35:24 Tenant provisioning: TURSO MODE (per-org databases)
+2026/02/05 21:35:24 [STARTUP] Running migration propagation for all organizations...
+2026/02/05 21:35:24 [MIGRATION] Target platform version: v0.1.0
+2026/02/05 21:35:24 [MIGRATION] All organizations already at version v0.1.0
+2026/02/05 21:35:24 [STARTUP] Migration propagation complete: 0 success, 0 failed, 0 skipped
+2026/02/05 21:35:24 Rate limiting disabled (development mode)
+2026/02/05 21:35:24 Starting FastCRM API on port 8080
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                   Fiber v2.52.0                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │       (bound on host 0.0.0.0 and port 8080)       │ 
+ │                                                   │ 
+ │ Handlers ........... 315  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............. 17123 │ 
+ └───────────────────────────────────────────────────┘ 
+
+21:35:38 | 200 |     2.17125ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:35:38 | 200 |    1.036666ms | 127.0.0.1 | GET | /api/v1/admin/entities | -
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [ERROR 4e4033732b075464] [external] no such column: idle_timeout_minutes
+21:35:38 | 500 |    3.969541ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+21:35:38 | 200 |    4.074541ms | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:38 [ERROR 389bc572cfb17205] [external] no such column: idle_timeout_minutes
+21:35:38 | 500 |     231.958µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/05 21:35:39 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:39 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:39 [ERROR 5d11fef46af3ad7d] [external] no such column: idle_timeout_minutes
+21:35:38 | 500 |     496.958µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/05 21:35:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:35:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:35:59 | 200 |    2.634375ms | 127.0.0.1 | POST | /api/v1/entities/Contact/import/csv/preview | -
+2026/02/05 21:36:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:36:16 | 200 |    2.881458ms | 127.0.0.1 | POST | /api/v1/entities/Contact/import/csv/analyze-lookups | -
+2026/02/05 21:36:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:36:22 | 200 |     515.667µs | 127.0.0.1 | POST | /api/v1/entities/Contact/import/csv/analyze | -
+2026/02/05 21:36:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:29 [DEBUG] Before resolveLookups - record[0] keys: [firstName lastName emailAddress accountId]
+2026/02/05 21:36:29 [DEBUG] resolveLookups: field.Name=accountId, baseName=account, idKey=accountId, setting record[accountId]=RecKGRCXQM4000FA1R, record[accountName]=Final Fix Corp
+2026/02/05 21:36:29 [DEBUG] resolveLookups: after setting, record keys: [firstName lastName emailAddress accountId accountName]
+2026/02/05 21:36:29 [DEBUG] After resolveLookups - record[0] keys: [firstName lastName emailAddress accountId accountName]
+2026/02/05 21:36:29 [DEBUG] insertRecord: checking link field accountId (baseName=account), idKey=accountId, record has key: true, record keys: [firstName lastName emailAddress accountId accountName]
+2026/02/05 21:36:29 [DEBUG] insertRecord: found accountId=RecKGRCXQM4000FA1R, adding to insert
+21:36:29 | 201 |    3.345667ms | 127.0.0.1 | POST | /api/v1/entities/Contact/import/csv | -
+21:36:49 | 200 |    3.066667ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:36:49 | 2002026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+ |    1.351084ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+21:36:49 | 200 |    2.509291ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+21:36:49 | 200 |    3.543667ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:49 [ERROR 937419265f5e3d7f] [external] no such column: idle_timeout_minutes
+21:36:49 | 500 |    7.038959ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:36:49 | 200 |    7.790958ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+21:36:49 | 200 |    7.559333ms | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/05 21:36:49 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+21:36:49 | 200 |     416.875µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/05 21:36:50 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:50 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:50 [ERROR f4e0e071eb7255ba] [external] no such column: idle_timeout_minutes
+21:36:50 | 500 |     193.083µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/05 21:36:50 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:50 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 21:36:50 [ERROR 790c770f762588a7] [external] no such column: idle_timeout_minutes
+21:36:50 | 500 |     275.625µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+22:24:29 | 200 |   34.355208ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+22:24:29 | 200 |    2.858708ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+22:24:29 | 200 |    5.496792ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [ERROR 12e1e1a36648caad] [external] no such column: idle_timeout_minutes
+22:24:29 | 200 |    8.405292ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+22:24:29 | 500 |       8.719ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+22:24:29 | 200 |    9.784166ms | 127.0.0.1 | GET | /api/v1/navigation | -
+22:24:29 | 200 |   10.994917ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+22:24:29 | 200 |     594.042µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:29 [ERROR bab78ce58f404c92] [external] no such column: idle_timeout_minutes
+22:24:29 | 500 |     286.625µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/05 22:24:30 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:30 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/05 22:24:30 [ERROR d84ada538b2952b0] [external] no such column: idle_timeout_minutes
+22:24:29 | 500 |     485.667µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:46:10 | 200 |   19.630833ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [ERROR d12328f5b7543dc9] [external] no such column: idle_timeout_minutes
+07:46:10 | 500 |    1.904333ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:46:10 | 200 |   10.653792ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:46:10 | 200 |   11.210083ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:46:10 | 200 |    11.32625ms | 127.0.0.1 | GET | /api/v1/navigation | -
+07:46:10 | 200 |   11.467875ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+07:46:10 | 200 |   11.676542ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:46:10 | 200 |     470.375µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [ERROR 5ca250b7d132bbe2] [external] no such column: idle_timeout_minutes
+07:46:10 | 500 |     154.541µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:11 [ERROR 392c0476190229fe] [external] no such column: idle_timeout_minutes
+07:46:11 | 500 |     415.875µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:46:46 | 200 |    4.500625ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:46:46 | 200 |    1.693833ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [ERROR 7212f4b59f458774] [external] no such column: idle_timeout_minutes
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:46:46 | 500 |    2.387375ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:46:46 | 200 |    3.842167ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:46:46 | 200 |    6.022167ms | 127.0.0.1 | GET | /api/v1/navigation | -
+07:46:46 | 200 |   11.062708ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:46:46 | 200 |   11.556958ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:46:46 | 200 |    1.004583ms | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [ERROR e19d4e5e7448b97f] [external] no such column: idle_timeout_minutes
+07:46:47 | 500 |     203.833µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:46:47 [ERROR 2a4190331826a722] [external] no such column: idle_timeout_minutes
+07:46:47 | 500 |       375.5µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:47:35 | 200 |    3.483458ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [ERROR 0be45e68ac59e39a] [external] no such column: idle_timeout_minutes
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:35 | 500 |     467.083µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:35 | 200 |     718.667µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:47:35 | 200 |     794.708µs | 127.0.0.1 | GET | /api/v1/navigation | -
+07:47:35 | 200 |     1.00025ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:35 | 200 |    1.259625ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:47:35 | 200 |    1.725875ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:35 | 200 |     536.666µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [ERROR b5b9860ef3d486a9] [external] no such column: idle_timeout_minutes
+07:47:36 | 500 |     221.833µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:36 [ERROR a39a72f980784621] [external] no such column: idle_timeout_minutes
+07:47:36 | 500 |     449.167µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:47:42 | 200 |    1.804792ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:42 | 200 |    1.473167ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:42 | 200 |     331.708µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:42 | 200 |    1.111208ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+07:47:42 | 200 |    1.068833ms | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [ERROR f380f2bb38e25fa7] [external] no such column: idle_timeout_minutes
+07:47:42 | 500 |     110.292µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:42 | 200 |    4.923125ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:42 | 200 |       671.5µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:42 [ERROR b779cd864f6f75e9] [external] no such column: idle_timeout_minutes
+07:47:42 | 500 |     205.084µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:47:43 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:43 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:43 [ERROR ffe14f977a7a22c1] [external] no such column: idle_timeout_minutes
+07:47:43 | 500 |     474.625µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:47:58 | 200 |    3.721625ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:58 | 200 |    2.370625ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [ERROR d91f6713b2a697ec] [external] no such column: idle_timeout_minutes
+07:47:58 | 500 |    2.266375ms | 127.0.0.1 | 2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:47:58 | 200 |      2.4335ms | 127.0.0.1 | GET | /api/v1/navigation | -
+07:47:58 | 200 |     3.36575ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:47:58 | 200 |    2.866125ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:47:58 | 200 |    5.680083ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:47:58 | 200 |         852µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:58 [ERROR 65b456cd7d5c771c] [external] no such column: idle_timeout_minutes
+07:47:58 | 500 |     215.667µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:47:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:47:59 [ERROR 194fad2ce1697935] [external] no such column: idle_timeout_minutes
+07:47:58 | 500 |     220.584µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:48:09 | 200 |    2.180125ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:48:09 | 200 |     269.916µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [ERROR 79fb427f33b56f25] [external] no such column: idle_timeout_minutes
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:48:09 | 500 |     284.875µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:48:09 | 200 |      851.75µs | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:48:09 | 200 |       1.024ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+07:48:09 | 200 |    1.319042ms | 127.0.0.1 | GET | /api/v1/navigation | -
+07:48:09 | 200 |    3.528083ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:48:09 | 200 |    1.221167ms | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [ERROR c4254b9858386e6c] [external] no such column: idle_timeout_minutes
+07:48:09 | 500 |     577.416µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:09 [ERROR 07574b874ae2e4a5] [external] no such column: idle_timeout_minutes
+07:48:09 | 500 |     500.041µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:48:35 | 200 |    6.040834ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:48:35 | 200 |     401.417µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [ERROR 0f826fa27e9197dc] [external] no such column: idle_timeout_minutes
+07:48:35 | 500 |      489.25µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:48:35 | 200 |       1.563ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+07:48:35 | 200 |    1.965458ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+07:48:35 | 200 |    1.916375ms | 127.0.0.1 | GET | /api/v1/navigation | -
+07:48:35 | 200 |    2.034541ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:48:35 | 200 |    2.543375ms | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:35 [ERROR c96be39086827faf] [external] no such column: idle_timeout_minutes
+07:48:35 | 500 |     192.708µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:48:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:36 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:48:36 [ERROR 9254fc2f34eba566] [external] no such column: idle_timeout_minutes
+07:48:36 | 500 |       589.5µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:51:58 | 200 |     5.86625ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:51:58 | 200 |    2.232208ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [ERROR 99d912319d510172] [external] no such column: idle_timeout_minutes
+07:51:58 | 500 |      11.851ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:51:58 | 200 |   11.957459ms | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:51:58 | 200 |   12.507625ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:51:58 | 200 |      12.397ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:51:58 | 200 |   13.187542ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:51:58 | 200 |     370.875µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [ERROR 6f4eaeff3066bfb6] [external] no such column: idle_timeout_minutes
+07:51:58 | 500 |      189.25µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:51:59 [ERROR 1a2707e1dcb79771] [external] no such column: idle_timeout_minutes
+07:51:59 | 500 |     513.583µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:52:51 | 200 |    2.449959ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:52:51 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:51 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:51 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:51 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:51 [ERROR 704013f05dfa0ffa] [external] no such column: idle_timeout_minutes
+07:52:51 | 500 |     205.083µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:52:51 | 200 |     912.541µs | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:52:51 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:51 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:51 [ERROR fd1e72c6ed2759e4] [external] no such column: idle_timeout_minutes
+07:52:51 | 500 |     347.209µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:52:52 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:52 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:52 [ERROR cc1da79cd95ac812] [external] no such column: idle_timeout_minutes
+07:52:52 | 500 |     524.167µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:52:58 | 200 |    2.391167ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:52:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:58 [ERROR 6267cbc6dde3ca65] [external] no such column: idle_timeout_minutes
+07:52:58 | 500 |     272.583µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:52:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:52:58 | 200 |      830.75µs | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:52:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:58 [ERROR 2d44f75a6980a1ec] [external] no such column: idle_timeout_minutes
+07:52:58 | 500 |     278.666µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:52:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:59 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:52:59 [ERROR 4404771ae3ae2ceb] [external] no such column: idle_timeout_minutes
+07:52:59 | 500 |     683.666µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:53:05 | 200 |        4.28ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [ERROR 780e1da43832ec3b] [external] no such column: idle_timeout_minutes
+07:53:05 | 500 |     202.958µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:53:05 | 200 |     605.667µs | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [ERROR f6f3c568d7a08d5e] [external] no such column: idle_timeout_minutes
+07:53:05 | 500 |     225.416µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:05 [ERROR 77b94701f3c5b1f6] [external] no such column: idle_timeout_minutes
+07:53:05 | 500 |       436.5µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:53:15 | 200 |     777.708µs | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:53:15 | 200 |     712.333µs | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:53:15 | 200 |         577µs | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:53:15 | 200 |     550.084µs | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:53:15 [ERROR 8af34e8f70c40fe7] [external] no such column: idle_timeout_minutes
+07:53:15 | 500 |     260.292µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:53:15 | 200 |     313.875µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:53:15 | 200 |    2.281708ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [ERROR e9732700031aed0f] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:15 | 500 |     478.667µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:15 | 200 |      617.75µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [ERROR 75a08a36a298f840] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:15 | 500 |     383.417µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [ERROR b86119ebd35855c3] [external] no such column: idle_timeout_minutes
+07:53:15 | 500 |     209.458µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [ERROR 61d1b4298056ec3d] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:15 | 500 |      163.25µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:15 [ERROR 4dfc8e8e90b4b544] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:15 | 500 |     191.292µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [ERROR 7eb78a57b981e248] [external] no such column: idle_timeout_minutes
+07:53:16 | 5002026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+ |     914.167µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:53:16 [ERROR 2723f1e55d9f9b1c] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:16 | 500 |     991.417µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:16 [ERROR 653c5ded80e4e635] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:16 | 500 |     453.375µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 200 |    2.172792ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:53:22 | 200 |    1.328666ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:53:22 | 200 |     2.07875ms | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:53:22 [ERROR 04a1adf4003cbce9] [external] no such column: idle_timeout_minutes
+07:53:22 | 200 |    2.157333ms | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:53:22 | 500 |    2.190791ms | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:53:22 | 200 |    1.969625ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:53:22 | 200 |    4.746167ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR c149bc8590062b32] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 500 |      525.75µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 200 |    1.657209ms | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR f711e9da2435ee19] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 500 |     598.334µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR 649e764c88b6a1a1] [external] no such column: idle_timeout_minutes
+07:53:22 | 500 |     193.042µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR 9387dcd3a6d0fc16] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 500 |     212.459µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR 8cc756155b53f858] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 500 |     165.417µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR 6898440320564fed] [external] no such column: idle_timeout_minutes
+07:53:22 | 500 |      155.25µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR b8a4e92c7c72919a] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 500 |       184.5µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:53:22 [ERROR 104d620ba053454d] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:53:22 | 500 |         158µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 200 |    2.092333ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:55:57 | 200 |     340.292µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [ERROR 7bdbaf6f2d0e2ceb] [external] no such column: idle_timeout_minutes
+07:55:57 | 500 |     427.625µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:55:57 | 200 |     737.917µs | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:55:57 | 200 |     800.375µs | 127.0.0.1 | GET | /api/v1/navigation | -
+07:55:57 | 200 |    1.159583ms | 127.0.0.1 | GET | /api/v1/contacts/RecKGRCXQM50005RE0 | -
+07:55:57 | 200 |    7.066375ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [ERROR 5686803deefd00be] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 500 |       211.5µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 200 |     552.792µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [ERROR 47bc7b1c92a988d4] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 500 |     274.583µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [ERROR f62006d1d7200d7d] [external] no such column: idle_timeout_minutes
+07:55:57 | 500 |     371.916µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [ERROR b90768795212c4c8] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 500 |     451.583µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:57 [ERROR e400c57fe7466a3a] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 500 |     265.167µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [ERROR 27ff7af1eaa38fea] [external] no such column: idle_timeout_minutes
+07:55:57 | 500 |     598.667µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [ERROR e14649158d3b307e] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 500 |     690.333µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:55:58 [ERROR c8588cf8a0e2ef2f] [external] Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+07:55:57 | 500 |     492.416µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert | Cannot GET /api/v1/dedup/Contact/RecKGRCXQM50005RE0/pending-alert
+2026/02/06 07:56:01 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:01 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:00 | 200 |    4.158459ms | 127.0.0.1 | GET | /api/v1/list-views/Contact | -
+2026/02/06 07:56:01 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:00 | 200 |   10.456167ms | 127.0.0.1 | GET | /api/v1/contacts | -
+2026/02/06 07:56:02 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:01 | 200 |    1.703292ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:56:02 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:01 | 200 |         321µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:12 | 201 |    2.423333ms | 127.0.0.1 | POST | /api/v1/contacts | -
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:12 | 200 |     285.541µs | 127.0.0.1 | GET | /api/v1/contacts/003KGSGCEZK0002V00 | -
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:12 | 200 |     507.625µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:56:12 | 200 |     775.333µs | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:56:12 | 200 |     1.27725ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [ERROR ce7f0c35e4346e53] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 500 |     221.084µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 200 |       445.5µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [ERROR f80c179951645b77] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 500 |     462.083µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [ERROR a54f3aede22290df] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 500 |     393.625µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:12 [ERROR 6078085e7db1d891] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 500 |     259.417µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:13 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:13 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:13 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:13 [ERROR dbf5a1f17d85cfc1] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 500 |     663.584µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:13 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:13 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:13 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:13 [ERROR 07450cb7cf3f9daa] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:12 | 500 |     547.625µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 200 |     873.125µs | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:23 | 2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2002026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+ |     422.791µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+2026/02/06 07:56:23 [ERROR 507eb1616b74072a] [external] no such column: idle_timeout_minutes
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:23 | 500 |     415.083µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:56:23 | 200 |    1.159834ms | 127.0.0.1 | GET | /api/v1/navigation | -
+07:56:23 | 200 |    1.249875ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+07:56:23 | 200 |       1.517ms | 127.0.0.1 | GET | /api/v1/contacts/003KGSGCEZK0002V00 | -
+07:56:23 | 200 |      1.9665ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [ERROR 0c74d58340ec9f03] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 500 |     324.875µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 200 |     523.917µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [ERROR 1d8b6cc704f0b056] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 500 |     117.208µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [ERROR c0919744a51fd52b] [external] no such column: idle_timeout_minutes
+07:56:23 | 500 |       316.5µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [ERROR dbf534a57a08e70b] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 500 |     309.459µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:23 [ERROR 5a83c0ff44797508] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 500 |     210.833µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR 1b0bba73183fb6fd] [external] no such column: idle_timeout_minutes
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:23 | 500 |     418.083µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:56:24 [ERROR 17000dc29ad99458] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 500 |     455.083µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR 8562073b11973f36] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:23 | 500 |     430.959µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 200 |    1.213625ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:24 | 200 |     261.875µs | 127.0.0.1 | GET | /api/v1/contacts/003KGSGCEZK0002V00 | -
+07:56:24 | 200 |      253.25µs | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:24 | 200 |     320.041µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+07:56:24 | 200 |     457.833µs | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR e05d0a1a124d223f] [external] no such column: idle_timeout_minutes
+07:56:24 | 500 |     266.042µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+07:56:24 | 200 |       895.5µs | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+07:56:24 | 200 |     560.042µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR b1a707e9a7fca981] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 500 |     593.292µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR dbc4b56a3216e408] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 500 |     161.416µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR 390f215abf4a0057] [external] no such column: idle_timeout_minutes
+07:56:24 | 500 |     223.209µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR 132e7f3b37c7920d] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 500 |     218.667µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:24 [ERROR 538e3378a0c1cf56] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 500 |     193.916µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [ERROR cd518b38da841dc4] [external] no such column: idle_timeout_minutes
+07:56:24 | 500 |     443.042µs | 127.0.0.1 | GET | /api/v1/settings | An external service error occurred. Please try again later.
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [ERROR 5645ec5a4aa35223] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 500 |     432.292µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 07:56:25 [ERROR 6bbbce7434e77c12] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:56:24 | 500 |     355.375µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+07:57:09 | 401 |      84.667µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | -
+07:57:10 | 401 |      12.334µs | 127.0.0.1 | GET | /api/v1/dedup/rules | -
+08:01:37 | 200 |    7.065959ms | 127.0.0.1 | POST | /api/v1/auth/refresh | -
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+08:01:37 | 200 |     637.375µs | 127.0.0.1 | GET | /api/v1/entities/Contact/def | -
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+08:01:37 | 200 |    9.680333ms | 127.0.0.1 | GET | /api/v1/entities/Contact/related-list-configs | -
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+08:01:37 | 200 |   10.145417ms | 127.0.0.1 | GET | /api/v1/contacts/003KGSGCEZK0002V00 | -
+08:01:37 | 200 |   10.111542ms | 127.0.0.1 | GET | /api/v1/navigation | -
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+08:01:37 | 200 |   10.596875ms | 127.0.0.1 | GET | /api/v1/entities/Contact/fields | -
+08:01:37 | 200 |   10.448875ms | 127.0.0.1 | GET | /api/v1/settings | -
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [ERROR f083d87dbf63dc43] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:37 | 500 |     227.167µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:37 | 200 |     488.875µs | 127.0.0.1 | GET | /api/v1/entities/Contact/layouts/detail | -
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:37 [ERROR 6cce1755cf6601be] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:37 | 500 |     184.625µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [ERROR 9af6c0fb20761297] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:38 | 500 |      298.25µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [ERROR a93ef9a4657d5af9] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:38 | 500 |         213µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [ERROR 4afbe2c3c64bf5b3] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:38 | 500 |     410.292µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [TENANT-MW] Org=00DKGRA8CWM0005PR8 WARNING: No database URL configured, using master DB
+2026/02/06 08:01:38 [ERROR f4ef28f2d8c30c09] [external] Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert
+08:01:38 | 500 |     214.417µs | 127.0.0.1 | GET | /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert | Cannot GET /api/v1/dedup/Contact/003KGSGCEZK0002V00/pending-alert

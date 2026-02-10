@@ -1,0 +1,618 @@
+
+> fastcrm-frontend@0.0.1 dev
+> vite dev
+
+1:03:57 PM [vite-plugin-svelte] You are using Svelte 5.46.1 with vite-plugin-svelte@3. Active Svelte 5 support has moved to vite-plugin-svelte@4.
+	To receive bug fixes and new features update your devDependencies to "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6" and install.
+	For framework integrations that depend on it, you might have to add an override:
+	"overrides": {"@sveltejs/vite-plugin-svelte": "^4.0.0-next.6"}
+
+  VITE v5.4.21  ready in 504 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+1:03:57 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:301:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:03:57 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:301:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:03:57 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:307:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:03:57 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:346:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:03:57 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:349:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:03:58 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:230:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:03:58 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:301:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:03:58 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:301:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:03:58 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:307:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:03:58 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:346:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:03:58 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:349:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:217:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:217:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:223:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:288:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:293:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:217:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:217:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:223:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:288:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:04:51 PM [vite-plugin-svelte] src/routes/admin/entity-manager/+page.svelte:293:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:07:07 PM [vite] page reload src/routes/admin/entity-manager/[entity]/+page.svelte
+Internal server error: src/routes/admin/entity-manager/[entity]/+page.svelte:365:23 Can only bind to state or props
+https://svelte.dev/e/bind_invalid_value
+  Plugin: vite-plugin-svelte
+  File: src/routes/admin/entity-manager/[entity]/+page.svelte:365:23
+   363 |                  <input
+   364 |                    type="checkbox"
+   365 |                    bind:checked={editHasStream}
+                                                       ^
+   366 |                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+   367 |                  />
+
+[1;31m[500] GET /admin/entity-manager/TestObject[0m
+
+1:08:15 PM [vite] page reload src/routes/admin/entity-manager/[entity]/+page.svelte
+Internal server error: src/routes/admin/entity-manager/[entity]/+page.svelte:364:23 Can only bind to state or props
+https://svelte.dev/e/bind_invalid_value
+  Plugin: vite-plugin-svelte
+  File: src/routes/admin/entity-manager/[entity]/+page.svelte:364:23
+   362 |                  <input
+   363 |                    type="checkbox"
+   364 |                    bind:checked={editHasStream}
+                                                       ^
+   365 |                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+   366 |                  />
+
+[1;31m[500] GET /admin/entity-manager/TestObject[0m
+
+1:08:25 PM [vite] page reload src/routes/admin/entity-manager/[entity]/+page.svelte
+Internal server error: src/routes/admin/entity-manager/[entity]/+page.svelte:362:23 Can only bind to state or props
+https://svelte.dev/e/bind_invalid_value
+  Plugin: vite-plugin-svelte
+  File: src/routes/admin/entity-manager/[entity]/+page.svelte:362:23
+   360 |                  <input
+   361 |                    type="checkbox"
+   362 |                    bind:checked={editHasStream}
+                                                       ^
+   363 |                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+   364 |                  />
+
+[1;31m[500] GET /admin/entity-manager/TestObject[0m
+
+1:08:35 PM [vite] page reload src/routes/admin/entity-manager/[entity]/+page.svelte
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:297:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:297:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:303:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:342:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:345:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:297:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:297:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:303:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:342:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:08:35 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:345:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:45 PM [vite] page reload src/routes/admin/entity-manager/[entity]/+page.svelte
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:289:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:289:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:295:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:334:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:337:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:289:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:289:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:295:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:334:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:08:45 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/+page.svelte:337:9 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:11:58 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:230:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:12:01 PM [vite-plugin-svelte] src/lib/components/RelatedList.svelte:9:23 This reference only captures the initial value of `config`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1:12:01 PM [vite-plugin-svelte] src/lib/components/RelatedList.svelte:10:21 This reference only captures the initial value of `config`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1:12:01 PM [vite-plugin-svelte] src/lib/components/SectionRenderer.svelte:3:25 This reference only captures the initial value of `section`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+1:12:01 PM [vite-plugin-svelte] src/lib/components/SectionRenderer.svelte:24:2 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+1:12:01 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:89:1 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:12:01 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:89:1 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:12:01 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:90:2 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:12:01 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:90:2 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:12:07 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/fields/+page.svelte:247:5 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:12:07 PM [vite-plugin-svelte] src/lib/components/EnumOptionsEditor.svelte:35:1 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:12:07 PM [vite-plugin-svelte] src/lib/components/EnumOptionsEditor.svelte:41:3 `<div>` with a dragstart, dragover or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:12:50 PM [vite-plugin-svelte] src/lib/components/MultiLookupField.svelte:70:1 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:12:50 PM [vite-plugin-svelte] src/lib/components/MultiLookupField.svelte:7:4 `inputElement` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+1:12:50 PM [vite-plugin-svelte] src/lib/components/LookupField.svelte:72:1 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:12:50 PM [vite-plugin-svelte] src/lib/components/LookupField.svelte:7:4 `inputElement` is updated, but is not declared with `$state(...)`. Changing its value will not correctly trigger updates
+https://svelte.dev/e/non_reactive_update
+1:14:24 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/bearings/+page.svelte:171:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:14:24 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/bearings/+page.svelte:183:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:14:29 PM [vite-plugin-svelte] src/routes/admin/navigation/+page.svelte:215:3 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+1:14:29 PM [vite-plugin-svelte] src/routes/admin/navigation/+page.svelte:215:3 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:14:29 PM [vite-plugin-svelte] src/routes/admin/navigation/+page.svelte:222:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:14:29 PM [vite-plugin-svelte] src/routes/admin/navigation/+page.svelte:231:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:14:29 PM [vite-plugin-svelte] src/routes/admin/navigation/+page.svelte:244:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:14:34 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:229:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:14:34 PM [vite-plugin-svelte] src/lib/components/SectionEditor.svelte:149:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:14:34 PM [vite-plugin-svelte] src/lib/components/SectionEditor.svelte:206:6 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:14:34 PM [vite-plugin-svelte] src/lib/components/VisibilityRuleEditor.svelte:64:2 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:16:42 PM [vite] page reload src/routes/[entity=customentity]/+page.svelte
+1:16:43 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:236:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:16:43 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:236:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:35:48 PM [vite] page reload src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte
+1:35:48 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:233:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:35:48 PM [vite-plugin-svelte] src/lib/components/SectionEditor.svelte:149:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:35:48 PM [vite-plugin-svelte] src/lib/components/SectionEditor.svelte:206:6 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:35:48 PM [vite-plugin-svelte] src/lib/components/VisibilityRuleEditor.svelte:64:2 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+1:35:48 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:233:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:02 PM [vite] page reload src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte
+1:36:02 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:251:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:02 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:251:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:08 PM [vite] page reload src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte
+1:36:08 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:257:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:08 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:257:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:21 PM [vite] page reload src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte
+1:36:21 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:297:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:21 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:297:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:29 PM [vite] page reload src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte
+1:36:29 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:299:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:36:29 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:299:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:37:11 PM [vite] page reload src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte
+1:37:11 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:304:7 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:37:11 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:322:8 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:37:11 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:410:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:37:11 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:304:7 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:37:11 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:322:8 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:37:11 PM [vite-plugin-svelte] src/routes/admin/entity-manager/[entity]/layouts/[type]/+page.svelte:410:4 `<div>` with a dragstart, dragover, dragleave, drop or dragend handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/1.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/7.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/8.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/9.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/10.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/16.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/19.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/20.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/21.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/22.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/23.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/24.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/26.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/29.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/nodes/43.js
+1:49:23 PM [vite] page reload .svelte-kit/generated/client/app.js
+1:49:35 PM [vite] page reload src/routes/+layout.svelte
+1:49:39 PM [vite] page reload src/routes/+layout.svelte
+1:49:51 PM [vite] page reload src/routes/contacts/+page.svelte
+1:49:55 PM [vite] page reload src/routes/contacts/+page.svelte
+1:50:09 PM [vite] page reload src/routes/contacts/[id]/+page.svelte
+1:50:13 PM [vite] page reload src/routes/contacts/[id]/+page.svelte
+1:50:37 PM [vite] page reload src/routes/contacts/new/+page.svelte
+1:50:52 PM [vite] page reload src/routes/contacts/new/+page.svelte
+1:50:57 PM [vite] page reload src/routes/contacts/new/+page.svelte
+1:51:06 PM [vite] page reload src/routes/contacts/new/+page.svelte
+1:51:16 PM [vite] page reload src/routes/contacts/new/+page.svelte
+1:51:23 PM [vite] page reload src/routes/contacts/[id]/edit/+page.svelte
+1:51:28 PM [vite] page reload src/routes/contacts/[id]/edit/+page.svelte
+1:51:37 PM [vite] page reload src/routes/contacts/[id]/edit/+page.svelte
+1:51:45 PM [vite] page reload src/routes/contacts/[id]/edit/+page.svelte
+1:51:59 PM [vite] page reload src/lib/components/RelatedList.svelte
+1:52:04 PM [vite] page reload src/lib/components/RelatedList.svelte
+1:52:31 PM [vite] page reload src/routes/accounts/+page.svelte
+1:52:35 PM [vite] page reload src/routes/accounts/+page.svelte
+1:52:45 PM [vite] page reload src/routes/tasks/+page.svelte
+1:52:50 PM [vite] page reload src/routes/tasks/+page.svelte
+1:53:02 PM [vite] page reload src/routes/[entity=customentity]/+page.svelte
+1:53:02 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:237:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:53:02 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:237:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:53:07 PM [vite] page reload src/routes/[entity=customentity]/+page.svelte
+1:53:07 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:237:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:53:07 PM [vite-plugin-svelte] src/routes/[entity=customentity]/+page.svelte:237:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:54:01 PM [vite] page reload src/lib/components/ui/Button.svelte
+7:08:27 PM [vite-plugin-svelte] src/lib/components/RelatedList.svelte:10:23 This reference only captures the initial value of `config`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+7:08:27 PM [vite-plugin-svelte] src/lib/components/RelatedList.svelte:11:21 This reference only captures the initial value of `config`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+7:31:25 PM [vite-plugin-svelte] src/lib/components/RelatedList.svelte:10:23 This reference only captures the initial value of `config`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+7:31:25 PM [vite-plugin-svelte] src/lib/components/RelatedList.svelte:11:21 This reference only captures the initial value of `config`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+7:31:25 PM [vite-plugin-svelte] src/lib/components/SectionRenderer.svelte:3:25 This reference only captures the initial value of `section`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally
+7:31:25 PM [vite-plugin-svelte] src/lib/components/SectionRenderer.svelte:24:2 noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex
+7:31:25 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:89:1 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+7:31:25 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:89:1 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+7:31:25 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:90:2 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+7:31:25 PM [vite-plugin-svelte] src/lib/components/Bearing.svelte:90:2 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+1:52:12 PM [vite-plugin-svelte] src/routes/contacts/+page.svelte:123:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:52:12 PM [vite-plugin-svelte] src/routes/contacts/+page.svelte:123:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:52:42 PM [vite-plugin-svelte] src/routes/accounts/+page.svelte:200:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+1:52:42 PM [vite-plugin-svelte] src/routes/accounts/+page.svelte:200:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:45:33 PM [vite-plugin-svelte] src/lib/components/ActivitiesStream.svelte:144:7 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+2:45:33 PM [vite-plugin-svelte] src/lib/components/ActivitiesStream.svelte:144:7 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+2:45:33 PM [vite-plugin-svelte] src/lib/components/ActivitiesStream.svelte:144:7 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+2:45:33 PM [vite-plugin-svelte] src/lib/components/ActivitiesStream.svelte:144:7 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+2:48:08 PM [vite-plugin-svelte] src/routes/tasks/[id]/edit/+page.svelte:167:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:57:12 PM [vite-plugin-svelte] src/routes/accounts/+page.svelte:200:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+9:41:40 PM [vite-plugin-svelte] src/routes/contacts/+page.svelte:123:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+10:10:33 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:340:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+10:10:33 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:375:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+10:10:33 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:455:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+10:10:33 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:488:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/30.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/30.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/33.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/40.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/41.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/42.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/43.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/44.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/47.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/48.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/nodes/49.js
+2:37:49 PM [vite] page reload .svelte-kit/generated/client/app.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/33.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/40.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/41.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/42.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/43.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/44.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/47.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/48.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/nodes/49.js
+2:40:25 PM [vite] page reload .svelte-kit/generated/client/app.js
+2:40:25 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:340:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:40:25 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:375:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:40:25 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:455:4 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:40:25 PM [vite-plugin-svelte] src/routes/admin/api-tokens/+page.svelte:488:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/33.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/40.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/41.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/42.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/43.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/44.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/47.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/48.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/nodes/49.js
+2:41:22 PM [vite] page reload .svelte-kit/generated/client/app.js
+2:41:46 PM [vite] page reload src/routes/admin/+page.svelte
+2:42:43 PM [vite] page reload src/lib/components/flow/StepEditor.svelte
+2:42:47 PM [vite] page reload src/lib/components/flow/StepEditor.svelte
+2:42:51 PM [vite] page reload src/lib/components/flow/StepEditor.svelte
+
+[1;31m[404] GET //Contact[0m
+
+[1;31m[404] GET //Contact[0m
+
+[1;31m[404] GET //Contact[0m
+
+[1;31m[404] GET //Contact[0m
+
+[1;31m[404] GET //Contact[0m
+2:43:37 PM [vite-plugin-svelte] src/routes/admin/tripwires/+page.svelte:252:8 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:43:45 PM [vite-plugin-svelte] src/routes/admin/flows/+page.svelte:234:8 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:243:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:256:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:266:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:397:9 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:397:9 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:405:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:43:56 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:415:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:122:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:158:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:287:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:304:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:349:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:367:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:415:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:431:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:445:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:462:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:473:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:490:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:504:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:515:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:531:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:548:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:562:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:573:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:584:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:601:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:612:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:635:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:647:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:664:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:675:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:122:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:158:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:287:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:304:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:349:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:367:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:415:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:431:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:445:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:462:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:473:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:490:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:504:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:515:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:531:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:548:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:562:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:573:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:584:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:601:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:612:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:635:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:647:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:664:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+2:43:56 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:675:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:243:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:256:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:266:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:397:9 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:397:9 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:405:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+3:22:01 PM [vite-plugin-svelte] src/routes/admin/flows/new/+page.svelte:415:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:122:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:158:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:287:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:304:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:349:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:367:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:415:3 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:431:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:445:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:462:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:473:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:490:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:504:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:515:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:531:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:548:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:562:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:573:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:584:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:601:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:612:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:635:5 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:647:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:664:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+3:22:01 PM [vite-plugin-svelte] src/lib/components/flow/StepEditor.svelte:675:4 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+4:16:37 PM [vite-plugin-svelte] src/routes/admin/flows/+page.svelte:234:8 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:277:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:290:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:300:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:431:9 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:431:9 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:439:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+8:41:49 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:449:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:277:6 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:290:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:300:7 A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:431:9 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:431:9 `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:439:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+8:45:24 AM [vite-plugin-svelte] src/routes/admin/flows/[id]/+page.svelte:449:11 Buttons and links should either contain text or have an `aria-label`, `aria-labelledby` or `title` attribute
+https://svelte.dev/e/a11y_consider_explicit_label
+9:04:17 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:04:23 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:04:27 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:04:32 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:04:39 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:04:53 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:04:57 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:05:01 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:05:17 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:05:21 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:05:24 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte
+9:05:29 AM [vite] page reload src/routes/[entity=customentity]/[id]/+page.svelte

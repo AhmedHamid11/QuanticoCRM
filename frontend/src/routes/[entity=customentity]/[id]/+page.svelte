@@ -1,0 +1,429 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { get, del } from '$lib/utils/api';
+	import { getEntityNameFromPath } from '$lib/stores/navigation.svelte';
+	import { fieldNameToKey, getRecordValue as getRecordValueUtil } from '$lib/utils/fieldMapping';
+	import RelatedList from '$lib/components/RelatedList.svelte';
+	import Bearing from '$lib/components/Bearing.svelte';
+	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
+	import FlowButton from '$lib/components/flow/FlowButton.svelte';
+	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
+	import type { EntityDef, FieldDef } from '$lib/types/admin';
+	import type { RelatedListConfig } from '$lib/types/related-list';
+	import type { BearingWithStages } from '$lib/types/bearing';
+	import type { LayoutDataV2, LayoutV2Response } from '$lib/types/layout';
+	import { parseLayoutData, convertV1ToV2, getVisibleSections } from '$lib/types/layout';
+
+	type TabId = 'details' | 'activities';
+
+	// Read initial tab from URL query param
+	let initialTab = $derived($page.url.searchParams.get('tab') as TabId | null);
+	let activeTab = $state<TabId>('details');
+
+	// Set initial tab from URL on first load
+	$effect(() => {
+		if (initialTab && (initialTab === 'details' || initialTab === 'activities')) {
+			activeTab = initialTab;
+		}
+	});
+
+	let entitySlug = $derived($page.params.entity!);
+	let entityName = $derived(getEntityNameFromPath(entitySlug) || toPascalCase(entitySlug));
+	let recordId = $derived($page.params.id!);
+
+	function toPascalCase(slug: string): string {
+		let singular = slug;
+		if (slug.endsWith('s') && slug.length > 1) {
+			singular = slug.slice(0, -1);
+		}
+		return singular.charAt(0).toUpperCase() + singular.slice(1);
+	}
+
+	// Get value from record, using centralized utility for snake_case to camelCase conversion
+	function getRecordValue(fieldName: string): unknown {
+		if (!record) return undefined;
+		return getRecordValueUtil(record, fieldName);
+	}
+
+	let entityDef = $state<EntityDef | null>(null);
+	let fields = $state<FieldDef[]>([]);
+	let layout = $state<LayoutDataV2 | null>(null);
+	let record = $state<Record<string, unknown> | null>(null);
+	let relatedListConfigs = $state<RelatedListConfig[]>([]);
+	let bearings = $state<BearingWithStages[]>([]);
+	let entityFlows = $state<Array<{ id: string; name: string; buttonLabel?: string; refreshOnComplete?: boolean }>>([]);
+	let loading = $state(true);
+	let error = $state<string | null>(null);
+
+	// Filter to only enabled configs, sorted by sortOrder
+	let enabledRelatedLists = $derived(
+		relatedListConfigs
+			.filter((c) => c.enabled)
+			.sort((a, b) => a.sortOrder - b.sortOrder)
+	);
+
+	// Get visible sections based on record data
+	let visibleSections = $derived(() => {
+		if (!layout || !record) return [];
+		return getVisibleSections(layout, record);
+	});
+
+	async function loadEntityDef() {
+		try {
+			// Use public endpoint (doesn't require admin role)
+			entityDef = await get<EntityDef>(`/entities/${entityName}/def`);
+		} catch {
+			entityDef = null;
+		}
+	}
+
+	async function loadFields() {
+		try {
+			// Use public endpoint (doesn't require admin role)
+			fields = await get<FieldDef[]>(`/entities/${entityName}/fields`);
+		} catch {
+			fields = [];
+		}
+	}
+
+	async function loadLayout() {
+		// Use public endpoint (doesn't require admin role)
+		try {
+			const layoutResponse = await get<{ layoutData: string }>(
+				`/entities/${entityName}/layouts/detail`
+			);
+			layout = parseLayoutData(layoutResponse.layoutData, fields.map(f => f.name));
+		} catch {
+			layout = null; // Will be set after fields load
+		}
+	}
+
+	async function loadRelatedListConfigs() {
+		try {
+			relatedListConfigs = await get<RelatedListConfig[]>(`/entities/${entityName}/related-list-configs`);
+		} catch {
+			relatedListConfigs = [];
+		}
+	}
+
+	async function loadBearings() {
+		try {
+			bearings = await get<BearingWithStages[]>(`/entities/${entityName}/bearings`);
+		} catch {
+			bearings = [];
+		}
+	}
+
+	async function loadEntityFlows() {
+		try {
+			const response = await get<{ flows: Array<{ id: string; name: string; buttonLabel?: string }> }>(`/flows/entity/${entityName}`);
+			entityFlows = response.flows || [];
+		} catch {
+			entityFlows = [];
+		}
+	}
+
+	async function loadRecord() {
+		try {
+			loading = true;
+			error = null;
+			record = await get<Record<string, unknown>>(`/entities/${entityName}/records/${recordId}`);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to load record';
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function deleteRecord() {
+		if (!confirm('Are you sure you want to delete this record?')) return;
+
+		try {
+			await del(`/entities/${entityName}/records/${recordId}`);
+			goto(`/${entitySlug}`);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to delete record';
+		}
+	}
+
+	function getFieldDef(fieldName: string): FieldDef | undefined {
+		return fields.find(f => f.name === fieldName);
+	}
+
+	function formatFieldValue(fieldName: string, value: unknown): string {
+		if (value === null || value === undefined || value === '') return '-';
+
+		const field = getFieldDef(fieldName);
+		if (!field) return String(value);
+
+		switch (field.type) {
+			case 'date':
+				return new Date(String(value)).toLocaleDateString();
+			case 'datetime':
+				return new Date(String(value)).toLocaleString();
+			case 'bool':
+				return value ? 'Yes' : 'No';
+			case 'currency':
+				return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value));
+			case 'enum':
+			case 'multiEnum':
+				const strValue = String(value);
+				if (strValue.startsWith('[')) {
+					try {
+						const parsed = JSON.parse(strValue);
+						if (Array.isArray(parsed)) {
+							return parsed.join(', ');
+						}
+					} catch {
+						// Not valid JSON
+					}
+				}
+				return strValue;
+			default:
+				return String(value);
+		}
+	}
+
+	function getLinkInfo(fieldName: string, value: unknown): { href: string; text: string } | null {
+		const field = getFieldDef(fieldName);
+		if (!field || !record) return null;
+
+		if (field.type === 'link') {
+			// Try camelCase versions of the field name for link/name values
+			const linkValue = getRecordValue(`${fieldName}Link`);
+			const nameValue = getRecordValue(`${fieldName}Name`);
+			if (linkValue && nameValue) {
+				return { href: String(linkValue), text: String(nameValue) };
+			}
+		} else if (field.type === 'linkMultiple') {
+			// Multi-lookup is handled differently - return null here
+			return null;
+		} else if (field.type === 'email' && value) {
+			return { href: `mailto:${value}`, text: String(value) };
+		} else if (field.type === 'phone' && value) {
+			return { href: `tel:${value}`, text: String(value) };
+		} else if (field.type === 'url' && value) {
+			return { href: String(value), text: String(value) };
+		}
+
+		return null;
+	}
+
+	function handleBearingUpdate(fieldName: string, newValue: string) {
+		if (record) {
+			// Update local state optimistically
+			record[fieldName] = newValue;
+			record = { ...record }; // Trigger reactivity
+		}
+	}
+
+	function handleRecordUpdate(updatedRecord: Record<string, unknown>) {
+		// Update the local record state with the server response
+		record = updatedRecord;
+	}
+
+	// Reload all data when entity or record changes (handles navigation between entities)
+	$effect(() => {
+		// Track these reactive values to trigger reload on navigation
+		const _entity = entityName;
+		const _recordId = recordId;
+
+		// Reset state
+		entityDef = null;
+		fields = [];
+		layout = null;
+		record = null;
+		relatedListConfigs = [];
+		bearings = [];
+		entityFlows = [];
+		loading = true;
+		error = null;
+		activeTab = 'details';
+
+		// Load all data
+		(async () => {
+			await Promise.all([loadEntityDef(), loadFields(), loadLayout(), loadRelatedListConfigs(), loadBearings(), loadEntityFlows()]);
+			// If no layout configured, fallback to showing all fields
+			if (!layout && fields.length > 0) {
+				layout = convertV1ToV2(fields.filter(f => f.name !== 'id').map(f => f.name));
+			}
+			await loadRecord();
+		})();
+	});
+</script>
+
+<div class="space-y-6">
+	<!-- Breadcrumb & Actions -->
+	<div class="flex justify-between items-start">
+		<div>
+			<nav class="text-sm text-gray-500 mb-2">
+				<a href="/{entitySlug}" class="hover:text-gray-700">{entityDef?.labelPlural || entityName + 's'}</a>
+				<span class="mx-2">/</span>
+				<span class="text-gray-900">{record?.name || recordId}</span>
+			</nav>
+			<div class="flex items-center gap-3">
+				{#if entityDef}
+					<div
+						class="w-10 h-10 rounded flex items-center justify-center text-white text-lg font-semibold"
+						style="background-color: {entityDef.color}"
+					>
+						{entityDef.label.charAt(0)}
+					</div>
+				{/if}
+				<h1 class="text-2xl font-bold text-gray-900">
+					{#if record}
+						{record.name || recordId}
+					{:else}
+						Loading...
+					{/if}
+				</h1>
+			</div>
+		</div>
+		<div class="flex gap-2">
+			<a
+				href="/admin/entity-manager/{entityName}"
+				class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+				title="Entity Settings"
+			>
+				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+				</svg>
+			</a>
+			{#each entityFlows as flow (flow.id)}
+				<FlowButton
+					flowId={flow.id}
+					label={flow.buttonLabel || flow.name}
+					entity={entityName}
+					recordId={recordId}
+					variant="secondary"
+					refreshOnComplete={flow.refreshOnComplete}
+				/>
+			{/each}
+			<a
+				href="/{entitySlug}/{recordId}/edit"
+				class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+			>
+				Edit
+			</a>
+			<button
+				onclick={deleteRecord}
+				class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+			>
+				Delete
+			</button>
+		</div>
+	</div>
+
+	<!-- Tabs (only show if entity has activities enabled) -->
+	{#if entityDef?.hasActivities}
+		<div class="border-b border-gray-200">
+			<nav class="-mb-px flex space-x-8">
+				<button
+					onclick={() => activeTab = 'details'}
+					class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Details
+				</button>
+				<button
+					onclick={() => activeTab = 'activities'}
+					class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Activities
+				</button>
+			</nav>
+		</div>
+	{/if}
+
+	{#if activeTab === 'details'}
+	<!-- Bearings (Stage Progress Indicators) -->
+	{#if bearings.length > 0 && record}
+		<div class="space-y-4">
+			{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
+				<Bearing
+					{bearing}
+					currentValue={getRecordValue(bearing.sourcePicklist) as string | null}
+					recordId={String(record.id)}
+					entityType={entityName}
+					fieldName={bearing.sourcePicklist}
+					onUpdate={(newValue) => handleBearingUpdate(bearing.sourcePicklist, newValue)}
+				/>
+			{/each}
+		</div>
+	{/if}
+
+	{#if loading}
+		<div class="text-center py-12 text-gray-500">Loading...</div>
+	{:else if error}
+		<div class="text-center py-12 text-red-500">{error}</div>
+	{:else if record}
+		<!-- Dynamic Sections from Layout -->
+		{#each visibleSections() as section (section.id)}
+			<SectionRenderer
+				{section}
+				{fields}
+				{record}
+				formatValue={formatFieldValue}
+				renderLink={getLinkInfo}
+				entityName={entityName}
+				recordId={String(record.id)}
+				onRecordUpdate={handleRecordUpdate}
+			/>
+		{/each}
+
+		<!-- System Info -->
+		<div class="bg-white shadow rounded-lg overflow-hidden">
+			<div class="px-6 py-4 border-b border-gray-200">
+				<h2 class="text-lg font-medium text-gray-900">System Information</h2>
+			</div>
+			<div class="px-6 py-4">
+				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+					<div>
+						<dt class="text-sm font-medium text-gray-500">Created</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							{record.createdAt ? new Date(String(record.createdAt)).toLocaleString() : '-'}
+							{#if record.createdByName}
+								<span class="text-gray-500"> by {record.createdByName}</span>
+							{/if}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-gray-500">Modified</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							{record.modifiedAt ? new Date(String(record.modifiedAt)).toLocaleString() : '-'}
+							{#if record.modifiedByName}
+								<span class="text-gray-500"> by {record.modifiedByName}</span>
+							{/if}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-gray-500">ID</dt>
+						<dd class="mt-1 text-sm text-gray-500 font-mono">{record.id}</dd>
+					</div>
+				</dl>
+			</div>
+		</div>
+
+		<!-- Related Lists -->
+		{#if enabledRelatedLists.length > 0}
+			{#each enabledRelatedLists as config (config.id)}
+				<RelatedList
+					{config}
+					parentEntity={entityName}
+					parentId={String(record.id)}
+				/>
+			{/each}
+		{/if}
+	{/if}
+	{:else if activeTab === 'activities'}
+		<!-- Activities Tab -->
+		{#if record}
+			<ActivitiesStream
+				parentEntity={entityName}
+				parentId={String(record.id)}
+				parentName={String(record.name || recordId)}
+			/>
+		{/if}
+	{/if}
+</div>
