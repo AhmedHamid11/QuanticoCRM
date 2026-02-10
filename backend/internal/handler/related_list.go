@@ -488,14 +488,16 @@ func (h *RelatedListHandler) GetRelatedRecords(c *fiber.Ctx) error {
 		customColumn := snakeCaseLookupField + "_id"
 
 		// Try columns in order of precedence - use schema introspection to find actual column
-		if tableHasColumnWithDB(dbConn, tableName, customColumn) {
-			// Table has {field_name}_id column (standard custom entity pattern)
-			lookupColumn = customColumn
-		} else if tableHasColumnWithDB(dbConn, tableName, snakeCaseLookupField) {
-			// Table has {field_name} column directly (some legacy patterns)
+		// IMPORTANT: Check simple snake_case version FIRST before trying _id suffix
+		// This prevents using legacy duplicate columns like "account_id_id" when "account_id" exists
+		if tableHasColumnWithDB(dbConn, tableName, snakeCaseLookupField) {
+			// Table has {field_name} column directly (e.g., "account_id")
 			lookupColumn = snakeCaseLookupField
+		} else if tableHasColumnWithDB(dbConn, tableName, customColumn) {
+			// Table has {field_name}_id column (custom entity pattern, e.g., "form433_d_id")
+			lookupColumn = customColumn
 		} else if !strings.HasSuffix(lookupField, "Id") {
-			// Try with "_id" appended for standard entities
+			// Fallback: try with "_id" appended for edge cases
 			lookupColumn = snakeCaseLookupField + "_id"
 		}
 
@@ -604,11 +606,11 @@ func (h *RelatedListHandler) GetRelatedRecords(c *fiber.Ctx) error {
 		lookupColumn := snakeCaseLookupField
 		customColumn := snakeCaseLookupField + "_id"
 
-		// Match column discovery logic from count query
-		if tableHasColumnWithDB(dbConn, tableName, customColumn) {
-			lookupColumn = customColumn
-		} else if tableHasColumnWithDB(dbConn, tableName, snakeCaseLookupField) {
+		// Match column discovery logic from count query - check simple snake_case FIRST
+		if tableHasColumnWithDB(dbConn, tableName, snakeCaseLookupField) {
 			lookupColumn = snakeCaseLookupField
+		} else if tableHasColumnWithDB(dbConn, tableName, customColumn) {
+			lookupColumn = customColumn
 		} else if !strings.HasSuffix(lookupField, "Id") {
 			lookupColumn = snakeCaseLookupField + "_id"
 		}

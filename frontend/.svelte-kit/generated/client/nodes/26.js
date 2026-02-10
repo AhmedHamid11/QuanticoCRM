@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/entity-manager/[entity]/bearings/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/data-quality/duplicate-rules/+page.svelte";

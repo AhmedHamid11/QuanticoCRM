@@ -107,7 +107,7 @@ function _layout($$renderer, $$props) {
           $$renderer2.push(`<!--]--></div></div> <div class="flex items-center space-x-2">`);
           if (auth.memberships.length > 1) {
             $$renderer2.push("<!--[-->");
-            $$renderer2.push(`<div class="relative org-switcher-container"><button class="flex items-center px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"><span class="font-medium">${escape_html(auth.currentOrg?.orgName)}</span> <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button> `);
+            $$renderer2.push(`<div class="relative org-switcher-container"><button class="flex items-center px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"><span class="font-medium whitespace-nowrap truncate max-w-[200px]">${escape_html(auth.currentOrg?.orgName)}</span> <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button> `);
             {
               $$renderer2.push("<!--[!-->");
             }
@@ -116,7 +116,7 @@ function _layout($$renderer, $$props) {
             $$renderer2.push("<!--[!-->");
             if (auth.currentOrg) {
               $$renderer2.push("<!--[-->");
-              $$renderer2.push(`<span class="text-sm text-gray-600">${escape_html(auth.currentOrg.orgName)}</span>`);
+              $$renderer2.push(`<span class="text-sm text-gray-600 whitespace-nowrap truncate max-w-[200px]">${escape_html(auth.currentOrg.orgName)}</span>`);
             } else {
               $$renderer2.push("<!--[!-->");
             }

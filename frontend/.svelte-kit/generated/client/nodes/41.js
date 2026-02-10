@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/pdf-templates/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/entity-manager/[entity]/validation-rules/new/+page.svelte";

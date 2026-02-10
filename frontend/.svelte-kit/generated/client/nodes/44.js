@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/settings/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/flows/new/+page.svelte";

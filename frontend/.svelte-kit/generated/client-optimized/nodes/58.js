@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/quotes/[id]/edit/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/tripwires/+page.svelte";

@@ -83,7 +83,7 @@
       "_attributes.js"
     ],
     "css": [
-      "_app/immutable/assets/Toast.COI55SRk.css"
+      "_app/immutable/assets/Toast.fILxSsas.css"
     ]
   },
   "_api.js": {
@@ -100,6 +100,13 @@
   "_auth.svelte.js": {
     "file": "chunks/auth.svelte.js",
     "name": "auth.svelte"
+  },
+  "_data-quality.js": {
+    "file": "chunks/data-quality.js",
+    "name": "data-quality",
+    "imports": [
+      "_api.js"
+    ]
   },
   "_environment.js": {
     "file": "chunks/environment.js",
@@ -527,6 +534,103 @@
       "_auth.svelte.js"
     ]
   },
+  "src/routes/admin/data-quality/+layout.svelte": {
+    "file": "entries/pages/admin/data-quality/_layout.svelte.js",
+    "name": "entries/pages/admin/data-quality/_layout.svelte",
+    "src": "src/routes/admin/data-quality/+layout.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_stores.js",
+      "_attributes.js"
+    ]
+  },
+  "src/routes/admin/data-quality/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/_page.svelte",
+    "src": "src/routes/admin/data-quality/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_exports.js",
+      "_utils.js",
+      "_state.svelte.js"
+    ]
+  },
+  "src/routes/admin/data-quality/duplicate-rules/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/duplicate-rules/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/duplicate-rules/_page.svelte",
+    "src": "src/routes/admin/data-quality/duplicate-rules/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_auth.svelte.js",
+      "_attributes.js"
+    ]
+  },
+  "src/routes/admin/data-quality/merge-history/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/merge-history/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/merge-history/_page.svelte",
+    "src": "src/routes/admin/data-quality/merge-history/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_data-quality.js",
+      "_toast.svelte.js",
+      "_attributes.js"
+    ]
+  },
+  "src/routes/admin/data-quality/merge/[groupId]/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/merge/_groupId_/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/merge/_groupId_/_page.svelte",
+    "src": "src/routes/admin/data-quality/merge/[groupId]/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_exports.js",
+      "_utils.js",
+      "_attributes.js",
+      "_state.svelte.js",
+      "_stores.js",
+      "_auth.svelte.js"
+    ]
+  },
+  "src/routes/admin/data-quality/merge/history/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/merge/history/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/merge/history/_page.svelte",
+    "src": "src/routes/admin/data-quality/merge/history/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_data-quality.js",
+      "_toast.svelte.js",
+      "_attributes.js"
+    ]
+  },
+  "src/routes/admin/data-quality/review-queue/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/review-queue/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/review-queue/_page.svelte",
+    "src": "src/routes/admin/data-quality/review-queue/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_exports.js",
+      "_utils.js",
+      "_attributes.js",
+      "_state.svelte.js",
+      "_data-quality.js",
+      "_auth.svelte.js",
+      "_toast.svelte.js"
+    ]
+  },
+  "src/routes/admin/data-quality/scan-jobs/+page.svelte": {
+    "file": "entries/pages/admin/data-quality/scan-jobs/_page.svelte.js",
+    "name": "entries/pages/admin/data-quality/scan-jobs/_page.svelte",
+    "src": "src/routes/admin/data-quality/scan-jobs/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_auth.svelte.js"
+    ]
+  },
   "src/routes/admin/entity-manager/+page.svelte": {
     "file": "entries/pages/admin/entity-manager/_page.svelte.js",
     "name": "entries/pages/admin/entity-manager/_page.svelte",
@@ -709,6 +813,48 @@
       "_utils.js",
       "_state.svelte.js",
       "_auth.svelte.js"
+    ]
+  },
+  "src/routes/admin/integrations/+page.svelte": {
+    "file": "entries/pages/admin/integrations/_page.svelte.js",
+    "name": "entries/pages/admin/integrations/_page.svelte",
+    "src": "src/routes/admin/integrations/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_auth.svelte.js"
+    ]
+  },
+  "src/routes/admin/integrations/salesforce/+page.svelte": {
+    "file": "entries/pages/admin/integrations/salesforce/_page.svelte.js",
+    "name": "entries/pages/admin/integrations/salesforce/_page.svelte",
+    "src": "src/routes/admin/integrations/salesforce/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_exports.js",
+      "_utils.js",
+      "_state.svelte.js",
+      "_auth.svelte.js"
+    ]
+  },
+  "src/routes/admin/mirrors/+page.svelte": {
+    "file": "entries/pages/admin/mirrors/_page.svelte.js",
+    "name": "entries/pages/admin/mirrors/_page.svelte",
+    "src": "src/routes/admin/mirrors/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_auth.svelte.js"
+    ]
+  },
+  "src/routes/admin/mirrors/[id]/+page.svelte": {
+    "file": "entries/pages/admin/mirrors/_id_/_page.svelte.js",
+    "name": "entries/pages/admin/mirrors/_id_/_page.svelte",
+    "src": "src/routes/admin/mirrors/[id]/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_index.js",
+      "_stores.js",
+      "_auth.svelte.js",
+      "_attributes.js"
     ]
   },
   "src/routes/admin/navigation/+page.svelte": {

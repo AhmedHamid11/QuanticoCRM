@@ -388,12 +388,16 @@ func main() {
 		IsProduction: cfg.IsProduction(),
 	}))
 
-	// Rate limiting to prevent abuse and DDoS
-	// 100 requests per minute per IP address in production
-	// Disabled in development (GO_ENV=development) to avoid issues during rapid testing
+	// Global rate limiting to prevent DDoS
+	// Set to 1000 requests per minute per IP in production to allow normal usage
+	// Specific rate limits are applied at endpoint level:
+	//   - Auth endpoints: 20 req/min (line 452)
+	//   - Ingest endpoints: per-mirror rate limiting (handler/ingest.go)
+	//   - Salesforce endpoints: quota-based limiting (service/salesforce_delivery.go)
+	// This global limiter is a safety net against extreme abuse, not normal traffic control
 	if os.Getenv("GO_ENV") != "development" {
 		app.Use(limiter.New(limiter.Config{
-			Max:        100,
+			Max:        1000, // Increased from 100 to prevent false positives during normal usage
 			Expiration: 1 * time.Minute,
 			KeyGenerator: func(c *fiber.Ctx) string {
 				// Use X-Forwarded-For if behind a proxy, otherwise use remote IP
@@ -417,7 +421,7 @@ func main() {
 				return c.Path() == "/api/v1/health" || c.Method() == "OPTIONS"
 			},
 		}))
-		log.Println("Rate limiting enabled: 100 requests/minute per IP")
+		log.Println("Global rate limiting enabled: 1000 requests/minute per IP (DDoS protection)")
 	} else {
 		log.Println("Rate limiting disabled (development mode)")
 	}

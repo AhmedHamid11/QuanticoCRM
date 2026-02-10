@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/entity-manager/[entity]/fields/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/data-quality/merge/[groupId]/+page.svelte";

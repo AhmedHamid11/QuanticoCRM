@@ -6,7 +6,7 @@ function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     var $$store_subs;
     let entityName = store_get($$store_subs ??= {}, "$page", page).params.entity;
-    let layoutType = store_get($$store_subs ??= {}, "$page", page).params.type;
+    let layoutType = store_get($$store_subs ??= {}, "$page", page).params.type ?? "";
     let isListLayout = layoutType === "list";
     let fields = [];
     let listColumns = [];

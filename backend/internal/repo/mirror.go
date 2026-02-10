@@ -52,6 +52,10 @@ func (r *MirrorRepo) Create(ctx context.Context, tenantDB db.DBConn, orgID strin
 		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
 	`, mirrorID, orgID, input.Name, input.TargetEntity, input.UniqueKeyField, unmappedFieldMode, rateLimit, now.Format(time.RFC3339), now.Format(time.RFC3339))
 	if err != nil {
+		// Handle missing mirrors table gracefully - this can happen when org uses master DB
+		if strings.Contains(err.Error(), "no such table") {
+			return nil, fmt.Errorf("mirrors feature not available for this organization - database schema not initialized. Please contact support to provision your organization")
+		}
 		return nil, fmt.Errorf("insert mirror: %w", err)
 	}
 
@@ -202,6 +206,11 @@ func (r *MirrorRepo) ListByOrg(ctx context.Context, tenantDB db.DBConn, orgID st
 		ORDER BY created_at DESC
 	`, orgID)
 	if err != nil {
+		// Handle missing mirrors table gracefully - return empty list
+		// This can happen when org uses master DB and mirrors table doesn't exist there yet
+		if strings.Contains(err.Error(), "no such table") {
+			return []*entity.Mirror{}, nil
+		}
 		return nil, fmt.Errorf("list mirrors: %w", err)
 	}
 	defer rows.Close()

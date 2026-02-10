@@ -1,1 +1,1 @@
-export { default as component } from "../../../../src/routes/admin/tripwires/[id]/logs/+page.svelte";
+export { default as component } from "../../../../src/routes/admin/mirrors/+page.svelte";

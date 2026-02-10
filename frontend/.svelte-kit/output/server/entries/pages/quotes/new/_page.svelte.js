@@ -1,4 +1,4 @@
-import { X as ensure_array_like, Y as attr_class, Z as stringify, a2 as bind_props } from "../../../../chunks/index.js";
+import { X as ensure_array_like, Y as attr_class, Z as stringify, a3 as bind_props } from "../../../../chunks/index.js";
 import "@sveltejs/kit/internal";
 import "../../../../chunks/exports.js";
 import "../../../../chunks/utils.js";
