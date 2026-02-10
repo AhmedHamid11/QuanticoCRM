@@ -37,6 +37,8 @@
 		userId: string;
 		dateFrom: string;
 		dateTo: string;
+		batchId: string;
+		successFilter: string;
 	}
 
 	let logs = $state<AuditLogEntry[]>([]);
@@ -51,7 +53,9 @@
 		eventType: '',
 		userId: '',
 		dateFrom: '',
-		dateTo: ''
+		dateTo: '',
+		batchId: '',
+		successFilter: 'all'
 	});
 
 	let verifyingChain = $state(false);
@@ -100,6 +104,12 @@
 			if (filters.dateTo) {
 				params.set('dateTo', filters.dateTo);
 			}
+			if (filters.batchId) {
+				params.set('batchId', filters.batchId);
+			}
+			if (filters.successFilter && filters.successFilter !== 'all') {
+				params.set('success', filters.successFilter === 'success' ? 'true' : 'false');
+			}
 
 			const response = await get<AuditLogListResponse>(`/admin/audit-logs?${params.toString()}`);
 			logs = response.data || [];
@@ -128,6 +138,8 @@
 		filters.userId = '';
 		filters.dateFrom = '';
 		filters.dateTo = '';
+		filters.batchId = '';
+		filters.successFilter = 'all';
 		page = 1;
 		loadLogs();
 	}
@@ -229,6 +241,22 @@
 				const fields = d.changedFields as string[] | undefined;
 				return `changed settings: ${fields?.join(', ') || 'unknown'}`;
 			},
+			'SALESFORCE_MERGE_DELIVERY': (l, d) => {
+				const batchId = d.batchId || 'unknown';
+				return `delivered merge instructions (batch ${batchId}) to Salesforce`;
+			},
+			'SALESFORCE_MERGE_DELIVERY_ERROR': (l, d) => {
+				const batchId = d.batchId || 'unknown';
+				return `failed to deliver merge instructions (batch ${batchId}) to Salesforce`;
+			},
+			'SALESFORCE_MERGE_DELIVERY_RETRY': (l, d) => {
+				const batchId = d.batchId || 'unknown';
+				const retryCount = d.retryCount || '?';
+				return `retrying merge delivery (batch ${batchId}, attempt ${retryCount})`;
+			},
+			'SALESFORCE_CONNECTION_STATUS_CHANGE': (l, d) => {
+				return `Salesforce connection status changed`;
+			},
 		};
 
 		const fn = descriptions[log.eventType];
@@ -295,6 +323,13 @@
 			return {
 				icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', // Settings icon
 				color: 'text-gray-600 bg-gray-100'
+			};
+		}
+
+		if (eventType.includes('SALESFORCE')) {
+			return {
+				icon: 'M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4', // Sync/arrows icon
+				color: success ? 'text-blue-600 bg-blue-100' : 'text-orange-600 bg-orange-100'
 			};
 		}
 
@@ -376,7 +411,7 @@
 	<!-- Filters -->
 	<div class="bg-white shadow rounded-lg p-6">
 		<h2 class="text-lg font-medium text-gray-900 mb-4">Filters</h2>
-		<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
 				<label for="eventType" class="block text-sm font-medium text-gray-700 mb-1">
 					Event Type
@@ -415,6 +450,30 @@
 					bind:value={filters.dateTo}
 					class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
 				/>
+			</div>
+
+			<div>
+				<label for="batchId" class="block text-sm font-medium text-gray-700 mb-1">Batch ID</label>
+				<input
+					type="text"
+					id="batchId"
+					bind:value={filters.batchId}
+					placeholder="e.g. QTC-20260210-001"
+					class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+				/>
+			</div>
+
+			<div>
+				<label for="successFilter" class="block text-sm font-medium text-gray-700 mb-1">Result</label>
+				<select
+					id="successFilter"
+					bind:value={filters.successFilter}
+					class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+				>
+					<option value="all">All Results</option>
+					<option value="success">Success Only</option>
+					<option value="error">Errors Only</option>
+				</select>
 			</div>
 
 			<div class="flex items-end space-x-2">
@@ -490,6 +549,15 @@
 									{/if}
 									{#if !log.success && log.errorMsg}
 										<span class="text-red-600">Error: {log.errorMsg}</span>
+									{/if}
+									{#if log.eventType.includes('SALESFORCE') && log.details}
+										{@const details = (() => { try { return JSON.parse(log.details); } catch { return {}; } })()}
+										{#if details.statusCode}
+											<span class="text-xs text-gray-400">HTTP {details.statusCode}</span>
+										{/if}
+										{#if details.deliveryStatus}
+											<span class="text-xs text-gray-400">Status: {details.deliveryStatus}</span>
+										{/if}
 									{/if}
 								</div>
 							</div>
