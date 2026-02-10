@@ -47,3 +47,51 @@ type IngestResponse struct {
 	MirrorID        string `json:"mirror_id"`
 	Message         string `json:"message"`
 }
+
+// IngestJob entity status constants
+const (
+	IngestJobStatusAccepted   = "accepted"
+	IngestJobStatusProcessing = "processing"
+	IngestJobStatusComplete   = "complete"
+	IngestJobStatusPartial    = "partial" // Some records failed
+	IngestJobStatusFailed     = "failed"
+)
+
+// IngestJob represents an async ingest job for tracking processing status
+type IngestJob struct {
+	ID               string        `json:"id" db:"id"`
+	OrgID            string        `json:"orgId" db:"org_id"`
+	MirrorID         string        `json:"mirrorId" db:"mirror_id"`
+	KeyID            string        `json:"keyId" db:"key_id"` // Which API key created this job
+	Status           string        `json:"status" db:"status"`
+	RecordsReceived  int           `json:"recordsReceived" db:"records_received"`
+	RecordsProcessed int           `json:"recordsProcessed" db:"records_processed"`
+	RecordsPromoted  int           `json:"recordsPromoted" db:"records_promoted"`
+	RecordsSkipped   int           `json:"recordsSkipped" db:"records_skipped"`
+	RecordsFailed    int           `json:"recordsFailed" db:"records_failed"`
+	Errors           []RecordError `json:"errors" db:"errors"` // Stored as JSON TEXT
+	Warnings         []string      `json:"warnings" db:"warnings"` // Stored as JSON TEXT
+	StartedAt        *time.Time    `json:"startedAt,omitempty" db:"started_at"`
+	CompletedAt      *time.Time    `json:"completedAt,omitempty" db:"completed_at"`
+	CreatedAt        time.Time     `json:"createdAt" db:"created_at"`
+	UpdatedAt        time.Time     `json:"updatedAt" db:"updated_at"`
+}
+
+// RecordError represents a per-record error during ingest processing
+type RecordError struct {
+	Index     int    `json:"index"`     // Position in batch (0-indexed)
+	UniqueKey string `json:"uniqueKey"` // The unique key value that failed
+	Field     string `json:"field"`     // Which field caused the error (if applicable)
+	Message   string `json:"message"`   // Human-readable error message
+	Code      string `json:"code"`      // Error code (e.g., "validation_failed", "duplicate_key", "type_mismatch")
+}
+
+// IngestJobResult is used to set the final result of a job in one call
+type IngestJobResult struct {
+	RecordsProcessed int           `json:"recordsProcessed"`
+	RecordsPromoted  int           `json:"recordsPromoted"`
+	RecordsSkipped   int           `json:"recordsSkipped"`
+	RecordsFailed    int           `json:"recordsFailed"`
+	Errors           []RecordError `json:"errors"`
+	Warnings         []string      `json:"warnings"`
+}

@@ -51,6 +51,7 @@ const (
 	PrefixIngestJob          = "0Ij" // Ingest job
 	PrefixMirror             = "0Mi" // Mirror config
 	PrefixMirrorField        = "0Mf" // Mirror source field
+	PrefixDeltaKey           = "0Dk" // Delta key for deduplication
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -332,4 +333,9 @@ func NewMirror() string {
 // NewMirrorField generates a new Mirror Source Field ID (prefix: 0Mf)
 func NewMirrorField() string {
 	return New(PrefixMirrorField)
+}
+
+// NewDeltaKey generates a new Delta Key ID (prefix: 0Dk)
+func NewDeltaKey() string {
+	return New(PrefixDeltaKey)
 }

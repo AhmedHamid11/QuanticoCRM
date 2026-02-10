@@ -25,6 +25,7 @@ type MirrorSourceField struct {
 	FieldType   string    `json:"fieldType"`   // Expected type: "text", "number", "date", "boolean", "email", "phone"
 	IsRequired  bool      `json:"isRequired"`  // Whether this field must be present in every record
 	Description string    `json:"description"` // Optional human-readable description
+	MapField    *string   `json:"mapField,omitempty"` // The Quantico target field name this source field maps to (nil = not mapped)
 	SortOrder   int       `json:"sortOrder"`   // Display order
 	CreatedAt   time.Time `json:"createdAt"`
 }
@@ -45,6 +46,7 @@ type MirrorSourceFieldInput struct {
 	FieldType   string `json:"fieldType"`   // Defaults to "text"
 	IsRequired  bool   `json:"isRequired"`  // Defaults to false
 	Description string `json:"description"` // Optional
+	MapField    string `json:"mapField"`    // The Quantico target field name this source field maps to
 }
 
 // MirrorUpdateInput is the input for updating a mirror
