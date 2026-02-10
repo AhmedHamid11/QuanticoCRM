@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { get, put } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
@@ -41,6 +41,33 @@
 		isRequired?: boolean;
 	}
 
+	interface RecordError {
+		index: number;
+		uniqueKey: string;
+		field: string;
+		message: string;
+		code: string;
+	}
+
+	interface IngestJob {
+		id: string;
+		orgId: string;
+		mirrorId: string;
+		keyId: string;
+		status: 'accepted' | 'processing' | 'complete' | 'partial' | 'failed';
+		recordsReceived: number;
+		recordsProcessed: number;
+		recordsPromoted: number;
+		recordsSkipped: number;
+		recordsFailed: number;
+		errors: RecordError[];
+		warnings: string[];
+		startedAt?: string;
+		completedAt?: string;
+		createdAt: string;
+		updatedAt: string;
+	}
+
 	// Mirror ID from URL params
 	const mirrorId = $derived($page.params.id);
 
@@ -52,6 +79,12 @@
 	let savingSettings = $state(false);
 	let savingSourceFields = $state(false);
 	let savingMappings = $state(false);
+
+	// Job history state
+	let jobs = $state<IngestJob[]>([]);
+	let loadingJobs = $state(false);
+	let expandedJobs = $state<Set<string>>(new Set());
+	let refreshInterval: number | null = null;
 
 	// Local editing state for settings
 	let editedSettings = $state({
@@ -299,6 +332,104 @@
 		}
 	}
 
+	async function loadJobs() {
+		try {
+			loadingJobs = true;
+			const response = await get<{ jobs: IngestJob[]; total: number }>(
+				`/admin/mirrors/${mirrorId}/jobs?limit=50`
+			);
+			jobs = response.jobs || [];
+		} catch (err) {
+			toast.error('Failed to load job history');
+		} finally {
+			loadingJobs = false;
+		}
+	}
+
+	function toggleJobExpanded(jobId: string) {
+		const newExpanded = new Set(expandedJobs);
+		if (newExpanded.has(jobId)) {
+			newExpanded.delete(jobId);
+		} else {
+			newExpanded.add(jobId);
+		}
+		expandedJobs = newExpanded;
+	}
+
+	function getStatusBadgeColor(status: string): string {
+		switch (status) {
+			case 'complete':
+				return 'bg-green-100 text-green-800';
+			case 'partial':
+				return 'bg-yellow-100 text-yellow-800';
+			case 'failed':
+				return 'bg-red-100 text-red-800';
+			case 'processing':
+				return 'bg-blue-100 text-blue-800 animate-pulse';
+			case 'accepted':
+				return 'bg-gray-100 text-gray-800';
+			default:
+				return 'bg-gray-100 text-gray-800';
+		}
+	}
+
+	function formatDuration(startedAt?: string, completedAt?: string): string {
+		if (!startedAt || !completedAt) return '-';
+		const start = new Date(startedAt).getTime();
+		const end = new Date(completedAt).getTime();
+		const diffMs = end - start;
+		const diffSec = Math.floor(diffMs / 1000);
+
+		if (diffSec < 60) {
+			return `${diffSec}s`;
+		}
+		const mins = Math.floor(diffSec / 60);
+		const secs = diffSec % 60;
+		return `${mins}m ${secs}s`;
+	}
+
+	function formatTimestamp(timestamp: string): string {
+		const date = new Date(timestamp);
+		const now = new Date();
+		const diffMs = now.getTime() - date.getTime();
+		const diffMin = Math.floor(diffMs / 60000);
+
+		if (diffMin < 60) {
+			return `${diffMin} min ago`;
+		}
+		if (diffMin < 1440) {
+			const hours = Math.floor(diffMin / 60);
+			return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+		}
+
+		// Format as "Feb 10, 2:30 PM"
+		return date.toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+			hour12: true
+		});
+	}
+
+	function setupAutoRefresh() {
+		// Clear existing interval if any
+		if (refreshInterval !== null) {
+			clearInterval(refreshInterval);
+			refreshInterval = null;
+		}
+
+		// Check if any jobs are in progress
+		const hasActiveJobs = jobs.some((job) => job.status === 'accepted' || job.status === 'processing');
+
+		if (hasActiveJobs) {
+			// Auto-refresh every 30 seconds
+			refreshInterval = setInterval(() => {
+				loadJobs();
+			}, 30000) as unknown as number;
+		}
+	}
+
 	// Re-fetch target fields when target entity changes
 	$effect(() => {
 		if (editedSettings.targetEntity) {
@@ -306,9 +437,23 @@
 		}
 	});
 
-	onMount(() => {
-		loadMirror();
-		loadEntities();
+	// Setup auto-refresh when jobs change
+	$effect(() => {
+		if (jobs.length > 0) {
+			setupAutoRefresh();
+		}
+	});
+
+	onMount(async () => {
+		await loadMirror();
+		await loadEntities();
+		await loadJobs();
+	});
+
+	onDestroy(() => {
+		if (refreshInterval !== null) {
+			clearInterval(refreshInterval);
+		}
 	});
 </script>
 
@@ -738,6 +883,259 @@
 					>
 						{savingMappings ? 'Saving...' : 'Save Mappings'}
 					</button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Section 4: Job History -->
+		<div class="bg-white shadow rounded-lg p-6">
+			<div class="flex items-center justify-between mb-4">
+				<div class="flex items-center gap-3">
+					<h2 class="text-lg font-medium text-gray-900">Job History</h2>
+					<span class="text-sm text-gray-500">({jobs.length} jobs)</span>
+				</div>
+				<button
+					onclick={loadJobs}
+					disabled={loadingJobs}
+					class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<svg
+						class="w-4 h-4 mr-1.5 {loadingJobs ? 'animate-spin' : ''}"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+						/>
+					</svg>
+					Refresh
+				</button>
+			</div>
+
+			{#if loadingJobs && jobs.length === 0}
+				<!-- Loading skeleton -->
+				<div class="space-y-3">
+					{#each Array(3) as _}
+						<div class="animate-pulse flex space-x-4 py-3 border-b">
+							<div class="flex-1 space-y-2">
+								<div class="h-4 bg-gray-200 rounded w-1/4"></div>
+								<div class="h-3 bg-gray-200 rounded w-1/2"></div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{:else if jobs.length === 0}
+				<!-- Empty state -->
+				<div class="text-center py-12">
+					<svg
+						class="mx-auto h-12 w-12 text-gray-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+						/>
+					</svg>
+					<h3 class="mt-2 text-sm font-medium text-gray-900">No ingest jobs yet</h3>
+					<p class="mt-1 text-sm text-gray-500">
+						Jobs appear here when external systems push data through this mirror.
+					</p>
+				</div>
+			{:else}
+				<!-- Job table -->
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-50">
+							<tr>
+								<th
+									scope="col"
+									class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+									>Status</th
+								>
+								<th
+									scope="col"
+									class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+									>Records</th
+								>
+								<th
+									scope="col"
+									class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+									>Started</th
+								>
+								<th
+									scope="col"
+									class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+									>Completed</th
+								>
+								<th
+									scope="col"
+									class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+									>Duration</th
+								>
+								<th scope="col" class="relative px-4 py-3">
+									<span class="sr-only">Expand</span>
+								</th>
+							</tr>
+						</thead>
+						<tbody class="bg-white divide-y divide-gray-200">
+							{#each jobs as job (job.id)}
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-3 whitespace-nowrap">
+										<span
+											class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {getStatusBadgeColor(
+												job.status
+											)}"
+										>
+											{job.status}
+										</span>
+									</td>
+									<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+										<div class="space-y-0.5">
+											<div>
+												{job.recordsReceived} recv / {job.recordsProcessed} ok
+											</div>
+											<div class="text-xs text-gray-500">
+												{job.recordsSkipped} skip / {job.recordsFailed} err
+											</div>
+										</div>
+									</td>
+									<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+										{job.startedAt ? formatTimestamp(job.startedAt) : '-'}
+									</td>
+									<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+										{job.completedAt ? formatTimestamp(job.completedAt) : '-'}
+									</td>
+									<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+										{formatDuration(job.startedAt, job.completedAt)}
+									</td>
+									<td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+										<button
+											onclick={() => toggleJobExpanded(job.id)}
+											class="text-blue-600 hover:text-blue-900"
+										>
+											{#if expandedJobs.has(job.id)}
+												<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M5 15l7-7 7 7"
+													/>
+												</svg>
+											{:else}
+												<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M19 9l-7 7-7-7"
+													/>
+												</svg>
+											{/if}
+										</button>
+									</td>
+								</tr>
+
+								{#if expandedJobs.has(job.id)}
+									<tr>
+										<td colspan="6" class="px-4 py-4 bg-gray-50">
+											<div class="space-y-4">
+												<!-- Errors -->
+												{#if job.errors && job.errors.length > 0}
+													<div>
+														<h4 class="text-sm font-medium text-gray-900 mb-2">
+															Errors ({job.errors.length})
+														</h4>
+														<div class="overflow-x-auto">
+															<table class="min-w-full divide-y divide-gray-200">
+																<thead class="bg-white">
+																	<tr>
+																		<th
+																			scope="col"
+																			class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+																			>Record #</th
+																		>
+																		<th
+																			scope="col"
+																			class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+																			>Unique Key</th
+																		>
+																		<th
+																			scope="col"
+																			class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+																			>Field</th
+																		>
+																		<th
+																			scope="col"
+																			class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+																			>Code</th
+																		>
+																		<th
+																			scope="col"
+																			class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+																			>Message</th
+																		>
+																	</tr>
+																</thead>
+																<tbody class="bg-white divide-y divide-gray-200">
+																	{#each job.errors as error}
+																		<tr>
+																			<td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+																				{error.index}
+																			</td>
+																			<td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+																				{error.uniqueKey}
+																			</td>
+																			<td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+																				{error.field || '-'}
+																			</td>
+																			<td class="px-3 py-2 whitespace-nowrap text-sm font-mono text-gray-600">
+																				{error.code}
+																			</td>
+																			<td class="px-3 py-2 text-sm text-gray-700">
+																				{error.message}
+																			</td>
+																		</tr>
+																	{/each}
+																</tbody>
+															</table>
+														</div>
+													</div>
+												{/if}
+
+												<!-- Warnings -->
+												{#if job.warnings && job.warnings.length > 0}
+													<div>
+														<h4 class="text-sm font-medium text-gray-900 mb-2">
+															Warnings ({job.warnings.length})
+														</h4>
+														<ul class="list-disc list-inside space-y-1">
+															{#each job.warnings as warning}
+																<li class="text-sm text-gray-700">{warning}</li>
+															{/each}
+														</ul>
+													</div>
+												{/if}
+
+												<!-- No errors or warnings -->
+												{#if (!job.errors || job.errors.length === 0) && (!job.warnings || job.warnings.length === 0)}
+													<p class="text-sm text-gray-500">No errors or warnings</p>
+												{/if}
+											</div>
+										</td>
+									</tr>
+								{/if}
+							{/each}
+						</tbody>
+					</table>
 				</div>
 			{/if}
 		</div>
