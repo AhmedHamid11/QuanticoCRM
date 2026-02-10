@@ -73,10 +73,11 @@ Plans:
   3. Quantico pauses batch delivery automatically when org reaches 80% API capacity (80,000 calls) to prevent hitting hard limit
   4. Quantico implements exponential backoff for 429 Too Many Requests errors (5s, 10s, 20s, 40s delays with max 5 retries)
   5. Admin can manually trigger merge delivery to override rate limiting pauses (for testing or recovery scenarios)
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 18-01: TBD
+- [ ] 18-01-PLAN.md -- Foundation: API usage tracking migration, entity types, RateLimitService with sliding window
+- [ ] 18-02-PLAN.md -- Integration: exponential backoff in delivery, quota check, force flag, quota endpoint, main.go wiring
 
 #### Phase 19: Audit Logging & Admin Configuration
 **Goal**: Quantico logs all merge instruction delivery for compliance and provides admin UI for configuration and monitoring
@@ -107,11 +108,11 @@ Phases execute in numeric order: 17 → 18 → 19
 | 06-10 | v2.0 | 22/22 | Complete | 2026-02-04 |
 | 11-16 | v3.0 | 22/22 | Complete | 2026-02-09 |
 | 17 | v4.0 | 0/5 | Planned | - |
-| 18 | v4.0 | 0/TBD | Not started | - |
+| 18 | v4.0 | 0/2 | Planned | - |
 | 19 | v4.0 | 0/TBD | Not started | - |
 
-**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (3 phases, 5 plans planned for Phase 17)
+**Totals:** 3 milestones shipped (53 plans), v4.0 in progress (3 phases, 7 plans planned for Phases 17-18)
 
 ---
 
-*Last updated: 2026-02-09 — Phase 17 planned (5 plans in 4 waves)*
+*Last updated: 2026-02-10 — Phase 18 planned (2 plans in 2 waves)*
