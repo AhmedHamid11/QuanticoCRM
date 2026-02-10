@@ -1,7 +1,12 @@
 package handler
 
 import (
+	"context"
+	"time"
+
 	"github.com/fastcrm/backend/internal/entity"
+	"github.com/fastcrm/backend/internal/middleware"
+	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/service"
 	"github.com/fastcrm/backend/internal/sfid"
 	"github.com/gofiber/fiber/v2"
@@ -9,12 +14,18 @@ import (
 
 // IngestHandler handles ingest API endpoints
 type IngestHandler struct {
-	// No dependencies needed for Phase 20 - mirror validation comes in Phase 21
+	ingestService *service.IngestService
+	mirrorRepo    *repo.MirrorRepo
+	jobRepo       *repo.IngestJobRepo
 }
 
 // NewIngestHandler creates a new IngestHandler
-func NewIngestHandler() *IngestHandler {
-	return &IngestHandler{}
+func NewIngestHandler(ingestService *service.IngestService, mirrorRepo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo) *IngestHandler {
+	return &IngestHandler{
+		ingestService: ingestService,
+		mirrorRepo:    mirrorRepo,
+		jobRepo:       jobRepo,
+	}
 }
 
 // Ingest handles POST /api/ingest
@@ -27,6 +38,9 @@ func (h *IngestHandler) Ingest(c *fiber.Ctx) error {
 			"error": "Missing organization context",
 		})
 	}
+
+	// Get ingest key ID from context
+	ingestKeyID, _ := c.Locals("ingestKeyID").(string)
 
 	// Parse request body
 	var req entity.IngestRequest
@@ -65,17 +79,62 @@ func (h *IngestHandler) Ingest(c *fiber.Ctx) error {
 		})
 	}
 
-	// Phase 20: Mirror validation is a placeholder
-	// In Phase 21, we'll validate mirror_id exists and is active
-	// For now, just check it's non-empty (already done above)
+	// Get tenant DB connection from context
+	tenantDB := middleware.GetTenantDBConn(c)
+	if tenantDB == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Database connection error",
+		})
+	}
 
-	// Generate job ID
-	jobID := sfid.NewIngestJob()
+	// Validate mirror exists and is active (synchronous)
+	mirror, err := h.mirrorRepo.GetActiveByID(c.Context(), tenantDB, ingestOrgID, req.MirrorID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to validate mirror",
+		})
+	}
+	if mirror == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":     "Mirror not found or inactive",
+			"mirror_id": req.MirrorID,
+		})
+	}
 
-	// Return 202 Accepted
+	// Validate mirror has a target entity
+	if mirror.TargetEntity == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":     "Mirror has no target entity configured",
+			"mirror_id": req.MirrorID,
+		})
+	}
+
+	// Create ingest job (synchronous)
+	now := time.Now().UTC()
+	job := &entity.IngestJob{
+		ID:              sfid.NewIngestJob(),
+		OrgID:           ingestOrgID,
+		MirrorID:        req.MirrorID,
+		KeyID:           ingestKeyID,
+		Status:          entity.IngestJobStatusAccepted,
+		RecordsReceived: len(req.Records),
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	if err := h.jobRepo.Create(c.Context(), tenantDB, job); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create ingest job",
+		})
+	}
+
+	// Launch async processing using context.Background() (request context will be canceled when 202 is sent)
+	go h.ingestService.ProcessJob(context.Background(), tenantDB, ingestOrgID, job, req.Records)
+
+	// Return 202 Accepted with real job ID
 	response := entity.IngestResponse{
-		JobID:           jobID,
-		Status:          "accepted",
+		JobID:           job.ID,
+		Status:          entity.IngestJobStatusAccepted,
 		RecordsReceived: len(req.Records),
 		MirrorID:        req.MirrorID,
 		Message:         "Ingest request accepted for processing",
