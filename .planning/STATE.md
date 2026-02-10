@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Milestone:** v4.0 Salesforce Merge Integration
 **Phase:** 17 of 19 (Core Integration)
-**Plan:** 03 of 05
+**Plan:** 02 of 05
 **Status:** Executing Phase 17
 
-**Last activity:** 2026-02-10 — Completed 17-03 (Salesforce Payload Generation)
+**Last activity:** 2026-02-10 — Completed 17-02 (Salesforce OAuth Authentication)
 
-Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (3/15 plans)
+Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (2/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 56 (9 v1.0 + 22 v2.0 + 22 v3.0 + 3 v4.0)
-- Average duration: 3.2 min
-- Total execution time: ~232 min
+- Total plans completed: 55 (9 v1.0 + 22 v2.0 + 22 v3.0 + 2 v4.0)
+- Average duration: 3.5 min
+- Total execution time: ~236 min
 
 **By Milestone:**
 
@@ -32,14 +32,13 @@ Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
 | v3.0 Deduplication | 11-16 | 22 | ~96 min |
-| v4.0 Salesforce Integration | 17-19 | 3/15 | ~4.3 min |
+| v4.0 Salesforce Integration | 17-19 | 2/15 | ~6.8 min |
 
 **Recent Plan Execution:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
-| Phase 17-03 | 1.8 min | 2 | 2 |
-| Phase 17-02 | Skipped | - | - |
+| Phase 17-02 | 4.4 min | 2 | 5 |
 | Phase 17-01 | 2.5 min | 2 | 5 |
 
 ## Accumulated Context
@@ -55,9 +54,10 @@ _All milestone decisions archived. See PROJECT.md Key Decisions table for cumula
 - 80% API capacity threshold (80,000 of 100,000 calls/day) before automatic pause
 - AES-256-GCM encryption for OAuth tokens with environment variable key storage (17-01)
 - Master DB for OAuth config, tenant DB for sync job history (17-01)
-- Field name translation with fallback to as-is for standard fields (17-03)
-- 15-to-18 char Salesforce ID conversion using checksum algorithm (17-03)
-- 200 instruction batch limit aligned with Salesforce Composite API (17-03)
+- Use golang.org/x/oauth2 for token lifecycle (industry-standard, auto-refresh) (17-02)
+- State-based CSRF protection for OAuth callback (base64 encoded orgID + random bytes) (17-02)
+- OAuth callback as public route (no auth cookie required, redirected from Salesforce) (17-02)
+- Support Salesforce sandbox via SALESFORCE_AUTH_URL and SALESFORCE_TOKEN_URL env vars (17-02)
 
 ### Pending Todos
 
@@ -82,9 +82,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 17-03-PLAN.md (Salesforce Payload Generation)
+Stopped at: Completed 17-02-PLAN.md (Salesforce OAuth Authentication)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-10 — Completed Phase 17 Plan 03*
+*Updated: 2026-02-10 — Completed Phase 17 Plan 02*
