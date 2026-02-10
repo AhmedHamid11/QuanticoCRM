@@ -316,7 +316,7 @@ func main() {
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
 	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
-	mirrorHandler := handler.NewMirrorHandler(mirrorRepo)
+	mirrorHandler := handler.NewMirrorHandler(mirrorRepo, ingestJobRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)

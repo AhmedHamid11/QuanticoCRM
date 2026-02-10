@@ -10,12 +10,13 @@ import (
 
 // MirrorHandler handles mirror management endpoints
 type MirrorHandler struct {
-	repo *repo.MirrorRepo
+	repo    *repo.MirrorRepo
+	jobRepo *repo.IngestJobRepo
 }
 
 // NewMirrorHandler creates a new MirrorHandler
-func NewMirrorHandler(repo *repo.MirrorRepo) *MirrorHandler {
-	return &MirrorHandler{repo: repo}
+func NewMirrorHandler(repo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo) *MirrorHandler {
+	return &MirrorHandler{repo: repo, jobRepo: jobRepo}
 }
 
 // getTenantDBConn extracts the tenant DB connection from context
@@ -184,6 +185,42 @@ func (h *MirrorHandler) Delete(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Mirror deleted successfully"})
 }
 
+// ListJobs retrieves ingest jobs for a specific mirror
+// GET /mirrors/:id/jobs
+func (h *MirrorHandler) ListJobs(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	mirrorID := c.Params("id")
+	tenantDB := h.getTenantDBConn(c)
+
+	// Validate mirror exists and belongs to org
+	mirror, err := h.repo.GetByID(c.Context(), tenantDB, orgID, mirrorID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+	if mirror == nil {
+		return c.Status(404).JSON(fiber.Map{"error": "Mirror not found"})
+	}
+
+	// Parse limit query param (default 50, max 200)
+	limit := c.QueryInt("limit", 50)
+	if limit > 200 {
+		limit = 200
+	}
+	if limit < 1 {
+		limit = 1
+	}
+
+	jobs, err := h.jobRepo.ListByMirror(c.Context(), tenantDB, orgID, mirrorID, limit)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"jobs":  jobs,
+		"total": len(jobs),
+	})
+}
+
 // RegisterRoutes registers all mirror routes
 func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
 	router.Post("/mirrors", h.Create)
@@ -191,4 +228,5 @@ func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
 	router.Get("/mirrors/:id", h.Get)
 	router.Put("/mirrors/:id", h.Update)
 	router.Delete("/mirrors/:id", h.Delete)
+	router.Get("/mirrors/:id/jobs", h.ListJobs)
 }
