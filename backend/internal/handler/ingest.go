@@ -17,14 +17,16 @@ type IngestHandler struct {
 	ingestService *service.IngestService
 	mirrorRepo    *repo.MirrorRepo
 	jobRepo       *repo.IngestJobRepo
+	deltaKeyRepo  *repo.DeltaKeyRepo
 }
 
 // NewIngestHandler creates a new IngestHandler
-func NewIngestHandler(ingestService *service.IngestService, mirrorRepo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo) *IngestHandler {
+func NewIngestHandler(ingestService *service.IngestService, mirrorRepo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo, deltaKeyRepo *repo.DeltaKeyRepo) *IngestHandler {
 	return &IngestHandler{
 		ingestService: ingestService,
 		mirrorRepo:    mirrorRepo,
 		jobRepo:       jobRepo,
+		deltaKeyRepo:  deltaKeyRepo,
 	}
 }
 
@@ -143,9 +145,110 @@ func (h *IngestHandler) Ingest(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusAccepted).JSON(response)
 }
 
+// GetJobStatus handles GET /api/v1/ingest/jobs/:id
+func (h *IngestHandler) GetJobStatus(c *fiber.Ctx) error {
+	// Get org ID from context (set by ingest auth middleware)
+	ingestOrgID, ok := c.Locals("ingestOrgID").(string)
+	if !ok || ingestOrgID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing organization context",
+		})
+	}
+
+	// Get job ID from URL params
+	jobID := c.Params("id")
+	if jobID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Job ID is required",
+		})
+	}
+
+	// Get tenant DB connection from context
+	tenantDB := middleware.GetTenantDBConn(c)
+	if tenantDB == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Database connection error",
+		})
+	}
+
+	// Get job by ID
+	job, err := h.jobRepo.GetByID(c.Context(), tenantDB, ingestOrgID, jobID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve job",
+		})
+	}
+
+	if job == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":  "Job not found",
+			"job_id": jobID,
+		})
+	}
+
+	return c.JSON(job)
+}
+
+// ListDeltaKeys handles GET /api/v1/ingest/mirrors/:mirror_id/keys
+func (h *IngestHandler) ListDeltaKeys(c *fiber.Ctx) error {
+	// Get org ID from context (set by ingest auth middleware)
+	ingestOrgID, ok := c.Locals("ingestOrgID").(string)
+	if !ok || ingestOrgID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Missing organization context",
+		})
+	}
+
+	// Get mirror ID from URL params
+	mirrorID := c.Params("mirror_id")
+	if mirrorID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Mirror ID is required",
+		})
+	}
+
+	// Get tenant DB connection from context
+	tenantDB := middleware.GetTenantDBConn(c)
+	if tenantDB == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Database connection error",
+		})
+	}
+
+	// Validate mirror exists and belongs to this org
+	mirror, err := h.mirrorRepo.GetByID(c.Context(), tenantDB, ingestOrgID, mirrorID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to validate mirror",
+		})
+	}
+	if mirror == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error":     "Mirror not found",
+			"mirror_id": mirrorID,
+		})
+	}
+
+	// Parse query params
+	cursor := c.Query("cursor", "")
+	limit := c.QueryInt("limit", 100)
+
+	// List delta keys with pagination
+	page, err := h.deltaKeyRepo.ListByMirror(c.Context(), tenantDB, mirrorID, cursor, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve delta keys",
+		})
+	}
+
+	return c.JSON(page)
+}
+
 // RegisterRoutes registers ingest routes
 func (h *IngestHandler) RegisterRoutes(router fiber.Router) {
 	router.Post("", h.Ingest)
+	router.Get("/jobs/:id", h.GetJobStatus)
+	router.Get("/mirrors/:mirror_id/keys", h.ListDeltaKeys)
 }
 
 // IngestAPIKeyHandler handles ingest API key management endpoints (admin only)

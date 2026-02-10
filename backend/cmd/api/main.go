@@ -313,7 +313,7 @@ func main() {
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
-	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo)
+	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo)
 	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
 	mirrorHandler := handler.NewMirrorHandler(mirrorRepo)
 
