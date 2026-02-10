@@ -9,10 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	backofflib "github.com/cenkalti/backoff/v4"
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
@@ -21,12 +23,13 @@ import (
 
 // SFDeliveryService manages asynchronous delivery of merge instruction batches to Salesforce
 type SFDeliveryService struct {
-	oauthService   *SalesforceOAuthService
-	payloadBuilder *MergeInstructionBuilder
-	batchAssembler *BatchAssembler
-	repo           *repo.SalesforceRepo
-	dbManager      *db.Manager
-	authRepo       *repo.AuthRepo
+	oauthService     *SalesforceOAuthService
+	payloadBuilder   *MergeInstructionBuilder
+	batchAssembler   *BatchAssembler
+	repo             *repo.SalesforceRepo
+	dbManager        *db.Manager
+	authRepo         *repo.AuthRepo
+	rateLimitService *RateLimitService
 
 	// Per-org concurrency control (max 1 concurrent delivery per org)
 	runningJobs map[string]bool
@@ -41,24 +44,51 @@ func NewSFDeliveryService(
 	repo *repo.SalesforceRepo,
 	dbManager *db.Manager,
 	authRepo *repo.AuthRepo,
+	rateLimitService *RateLimitService,
 ) *SFDeliveryService {
 	return &SFDeliveryService{
-		oauthService:   oauthService,
-		payloadBuilder: payloadBuilder,
-		batchAssembler: batchAssembler,
-		repo:           repo,
-		dbManager:      dbManager,
-		authRepo:       authRepo,
-		runningJobs:    make(map[string]bool),
+		oauthService:     oauthService,
+		payloadBuilder:   payloadBuilder,
+		batchAssembler:   batchAssembler,
+		repo:             repo,
+		dbManager:        dbManager,
+		authRepo:         authRepo,
+		rateLimitService: rateLimitService,
+		runningJobs:      make(map[string]bool),
 	}
 }
 
-// QueueMergeInstructions queues merge instructions for async delivery to Salesforce
-func (s *SFDeliveryService) QueueMergeInstructions(
+// DeliveryOptions controls delivery behavior
+type DeliveryOptions struct {
+	Force       bool   // Bypass rate limiting checks
+	TriggerType string // manual, scheduled, realtime
+}
+
+// QueueMergeInstructionsWithOptions queues merge instructions with delivery options
+func (s *SFDeliveryService) QueueMergeInstructionsWithOptions(
 	ctx context.Context,
 	orgID string,
 	inputs []MergeInstructionInput,
+	opts DeliveryOptions,
 ) (string, error) {
+	// Pre-delivery quota check (unless force=true)
+	if !opts.Force {
+		canProceed, err := s.rateLimitService.CanMakeAPICalls(ctx, orgID, len(inputs))
+		if err != nil {
+			// Non-critical - log warning and proceed (graceful degradation)
+			log.Printf("Warning: Failed to check API quota for org %s: %v", orgID, err)
+		} else if !canProceed {
+			// Quota exceeded - return error
+			quota, _ := s.rateLimitService.GetQuotaStatus(ctx, orgID)
+			return "", &entity.QuotaExceededError{
+				OrgID:     orgID,
+				Usage:     quota.Usage,
+				Threshold: quota.Threshold,
+				Message:   fmt.Sprintf("API quota threshold exceeded: %d/%d calls used (threshold: %d)", quota.Usage, quota.Limit, quota.Threshold),
+			}
+		}
+	}
+
 	// 1. Check connection status (must be "connected")
 	status, err := s.oauthService.GetConnectionStatus(ctx, orgID)
 	if err != nil {
@@ -113,6 +143,12 @@ func (s *SFDeliveryService) QueueMergeInstructions(
 		return "", fmt.Errorf("failed to get tenant database: %w", err)
 	}
 
+	// Set trigger type from options
+	triggerType := opts.TriggerType
+	if triggerType == "" {
+		triggerType = entity.SyncTriggerManual
+	}
+
 	// 6. Create sync job records for each batch
 	jobIDs := make([]string, 0, len(batches))
 	for i, batch := range batches {
@@ -149,7 +185,7 @@ func (s *SFDeliveryService) QueueMergeInstructions(
 			TotalInstructions: len(batch.MergeInstructions),
 			BatchPayload:      &batchPayloadStr,
 			IdempotencyKey:    idempotencyKey,
-			TriggerType:       entity.SyncTriggerManual, // Default to manual
+			TriggerType:       triggerType,
 		}
 
 		if err := s.repo.WithDB(tenantDB).CreateSyncJob(ctx, job); err != nil {
@@ -169,6 +205,18 @@ func (s *SFDeliveryService) QueueMergeInstructions(
 
 	// Return first job ID (HTTP 202 pattern)
 	return jobIDs[0], nil
+}
+
+// QueueMergeInstructions queues merge instructions for async delivery to Salesforce
+func (s *SFDeliveryService) QueueMergeInstructions(
+	ctx context.Context,
+	orgID string,
+	inputs []MergeInstructionInput,
+) (string, error) {
+	return s.QueueMergeInstructionsWithOptions(ctx, orgID, inputs, DeliveryOptions{
+		Force:       false,
+		TriggerType: entity.SyncTriggerManual,
+	})
 }
 
 // executeBatchDelivery executes batch delivery in the background (async goroutine)
@@ -214,6 +262,11 @@ func (s *SFDeliveryService) executeBatchDelivery(orgID string, jobIDs []string) 
 		return
 	}
 
+	// Cleanup old API usage records (>25 hours)
+	if err := s.rateLimitService.CleanupOldUsage(ctx, orgID); err != nil {
+		log.Printf("Warning: Failed to cleanup old API usage for org %s: %v", orgID, err)
+	}
+
 	// Process each job
 	for _, jobID := range jobIDs {
 		// Load job
@@ -253,10 +306,21 @@ func (s *SFDeliveryService) executeBatchDelivery(orgID string, jobIDs []string) 
 		// Deliver batch
 		deliveredCount, err := s.deliverBatch(ctx, orgID, httpClient, batchPayload, job)
 		if err != nil {
+			// Record API usage even on failure (calls were made)
+			if recErr := s.rateLimitService.RecordAPIUsage(ctx, orgID, job.ID, 1); recErr != nil {
+				log.Printf("Warning: Failed to record API usage for failed job %s: %v", job.ID, recErr)
+			}
+
 			errMsg := err.Error()
 			log.Printf("Job %s failed: %s", jobID, errMsg)
 			_ = s.repo.WithDB(tenantDB).UpdateSyncJobCompletion(ctx, jobID, entity.SyncStatusFailed, 0, job.TotalInstructions, &errMsg)
 			continue
+		}
+
+		// Record API usage for quota tracking
+		if err := s.rateLimitService.RecordAPIUsage(ctx, orgID, job.ID, deliveredCount); err != nil {
+			log.Printf("Warning: Failed to record API usage for job %s: %v", job.ID, err)
+			// Non-critical - don't fail the job
 		}
 
 		// Mark completed
@@ -265,7 +329,7 @@ func (s *SFDeliveryService) executeBatchDelivery(orgID string, jobIDs []string) 
 	}
 }
 
-// deliverBatch POSTs a batch to Salesforce REST API
+// deliverBatch POSTs a batch to Salesforce REST API with exponential backoff retry
 func (s *SFDeliveryService) deliverBatch(
 	ctx context.Context,
 	orgID string,
@@ -291,87 +355,83 @@ func (s *SFDeliveryService) deliverBatch(
 	// Build Salesforce REST API URL
 	url := fmt.Sprintf("%s/services/data/%s/composite/sobjects", conn.InstanceURL, apiVersion)
 
-	// Create HTTP request with idempotency key
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
+	var deliveredCount int
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Idempotency-Key", job.IdempotencyKey)
+	// Configure exponential backoff: 5s, 10s, 20s, 40s with 50% jitter
+	b := backofflib.NewExponentialBackOff()
+	b.InitialInterval = 5 * time.Second
+	b.Multiplier = 2.0
+	b.MaxInterval = 40 * time.Second
+	b.MaxElapsedTime = 0 // Use max retries instead
+	b.RandomizationFactor = 0.5
 
-	// Execute request with basic retry for 5xx errors
-	maxRetries := 2
-	var lastErr error
+	retryBackoff := backofflib.WithMaxRetries(b, 5) // Max 5 retries
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			log.Printf("Retry attempt %d for job %s", attempt, job.ID)
-			time.Sleep(2 * time.Second) // Fixed 2-second delay (Phase 18 adds exponential backoff)
+	operation := func() error {
+		// Create fresh request each attempt (body reader needs reset)
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+		if err != nil {
+			return backofflib.Permanent(fmt.Errorf("failed to create request: %w", err))
 		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Idempotency-Key", job.IdempotencyKey)
 
 		resp, err := client.Do(req)
 		if err != nil {
-			lastErr = fmt.Errorf("HTTP request failed: %w", err)
-			if isRetryableHTTPError(0) {
-				continue // Network error, retry
-			}
-			return 0, lastErr
+			return fmt.Errorf("HTTP request failed: %w", err) // Network error, retry
 		}
+		defer resp.Body.Close()
 
-		// Read response body
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
 
-		// Handle response status
 		switch resp.StatusCode {
 		case 200, 201:
-			// Success - parse response for record count
-			// Salesforce Composite API returns array of results
+			// Success
 			var results []map[string]interface{}
 			if err := json.Unmarshal(body, &results); err != nil {
-				log.Printf("Warning: Failed to parse Salesforce response for job %s: %v", job.ID, err)
-				return job.TotalInstructions, nil // Assume success
+				deliveredCount = job.TotalInstructions
+				return nil
 			}
-			return len(results), nil
-
-		case 400:
-			// Bad Request - permanent error
-			errMsg := s.parseSalesforceError(body)
-			return 0, fmt.Errorf("bad request (400): %s", errMsg)
-
-		case 401:
-			// Unauthorized - token issue, attempt one refresh then retry
-			if attempt == 0 {
-				log.Printf("Token unauthorized for job %s, attempting refresh", job.ID)
-				// GetHTTPClient already handles token refresh, so just retry
-				continue
-			}
-			errMsg := s.parseSalesforceError(body)
-			return 0, fmt.Errorf("unauthorized (401): %s", errMsg)
+			deliveredCount = len(results)
+			return nil
 
 		case 429:
-			// Rate limit - DO NOT retry here (Phase 18 handles advanced retry)
+			// Rate limit - check Retry-After header
+			retryAfter := resp.Header.Get("Retry-After")
+			if retryAfter != "" {
+				if seconds, parseErr := strconv.Atoi(retryAfter); parseErr == nil {
+					log.Printf("Rate limited for job %s, Salesforce says retry after %ds", job.ID, seconds)
+					time.Sleep(time.Duration(seconds) * time.Second)
+				}
+			}
+			return fmt.Errorf("rate limit exceeded (429)")
+
+		case 400, 403, 404:
+			// Permanent errors - do NOT retry
 			errMsg := s.parseSalesforceError(body)
-			return 0, fmt.Errorf("rate limit exceeded (429): %s", errMsg)
+			return backofflib.Permanent(fmt.Errorf("permanent error (%d): %s", resp.StatusCode, errMsg))
+
+		case 401:
+			// Unauthorized - retry once (oauth2 client may auto-refresh)
+			errMsg := s.parseSalesforceError(body)
+			return fmt.Errorf("unauthorized (401): %s", errMsg)
 
 		case 500, 502, 503, 504:
-			// Server error - retryable
-			if attempt < maxRetries {
-				lastErr = fmt.Errorf("server error (%d): %s", resp.StatusCode, s.parseSalesforceError(body))
-				continue
-			}
+			// Server errors - retry with backoff
 			errMsg := s.parseSalesforceError(body)
-			return 0, fmt.Errorf("server error (%d) after %d retries: %s", resp.StatusCode, maxRetries, errMsg)
+			return fmt.Errorf("server error (%d): %s", resp.StatusCode, errMsg)
 
 		default:
-			// Unexpected status
 			errMsg := s.parseSalesforceError(body)
-			return 0, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, errMsg)
+			return backofflib.Permanent(fmt.Errorf("unexpected status %d: %s", resp.StatusCode, errMsg))
 		}
 	}
 
-	return 0, lastErr
+	if err := backofflib.Retry(operation, retryBackoff); err != nil {
+		return 0, err
+	}
+
+	return deliveredCount, nil
 }
 
 // parseSalesforceError extracts error message from Salesforce API error response

@@ -17,6 +17,7 @@ require (
 	github.com/adrg/strutil v0.3.1 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/go-co-op/gocron/v2 v2.19.1 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
