@@ -139,6 +139,7 @@ func main() {
 	scanJobRepo := repo.NewScanJobRepo(masterDBConn)
 	notificationRepo := repo.NewNotificationRepo(masterDBConn)
 	salesforceRepo := repo.NewSalesforceRepo(masterDBConn)
+	ingestAPIKeyRepo := repo.NewIngestAPIKeyRepo(masterDBConn)
 
 	// Initialize dedup services
 	defaultRegion := "US" // Default region for phone normalization
@@ -167,6 +168,7 @@ func main() {
 	authConfig := service.DefaultAuthConfig(jwtSecret)
 	authService := service.NewAuthService(authRepo, authConfig, provisioningService)
 	apiTokenService := service.NewAPITokenService(apiTokenRepo)
+	ingestAPIKeyService := service.NewIngestAPIKeyService(ingestAPIKeyRepo)
 	versionService := service.NewVersionService()
 
 	// Initialize Salesforce OAuth service
@@ -267,6 +269,7 @@ func main() {
 	})
 
 	tenantMiddleware := middleware.NewTenantMiddleware(dbManager, authRepo)
+	ingestAuthMiddleware := middleware.NewIngestAuthMiddleware(ingestAPIKeyService, dbManager, authRepo)
 
 	// Initialize handlers
 	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, authRepo, tripwireService, validationService, realtimeChecker, masterDBConn)
@@ -306,6 +309,8 @@ func main() {
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
+	ingestHandler := handler.NewIngestHandler()
+	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)
@@ -418,6 +423,11 @@ func main() {
 	api.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok", "version": "v13"})
 	})
+
+	// Ingest API (external system auth via X-API-Key header, bypasses JWT)
+	// This endpoint is separate from JWT auth chain - uses its own middleware
+	ingest := api.Group("/ingest", ingestAuthMiddleware.Authenticate())
+	ingestHandler.RegisterRoutes(ingest)
 
 	// Salesforce OAuth callback (public - user redirected back from Salesforce)
 	// State parameter provides CSRF protection (verified by service)
@@ -548,6 +558,13 @@ func main() {
 	apiTokens.Get("", apiTokenHandler.List)
 	apiTokens.Post("/:id/revoke", apiTokenHandler.Revoke)
 	apiTokens.Delete("/:id", apiTokenHandler.Delete)
+
+	// Ingest API Key management (admin only)
+	ingestKeys := adminProtected.Group("/ingest-keys")
+	ingestKeys.Post("", ingestKeyHandler.Create)
+	ingestKeys.Get("", ingestKeyHandler.List)
+	ingestKeys.Post("/:id/deactivate", ingestKeyHandler.Deactivate)
+	ingestKeys.Delete("/:id", ingestKeyHandler.Delete)
 
 	// Admin-only functionality
 	adminHandler.RegisterRoutes(adminProtected)

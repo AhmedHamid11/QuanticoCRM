@@ -58,6 +58,7 @@ func NewCSRFMiddleware(config CSRFConfig) fiber.Handler {
 			// Pre-authentication endpoints are exempt (no session to protect yet)
 			// Platform admin endpoints (impersonate) are also exempt - they require
 			// strong authentication (platform admin JWT) which provides sufficient protection
+			// Ingest endpoint is exempt - uses X-API-Key header, not cookies
 			authExemptPaths := []string{
 				"/api/v1/auth/login",
 				"/api/v1/auth/register",
@@ -66,6 +67,7 @@ func NewCSRFMiddleware(config CSRFConfig) fiber.Handler {
 				"/api/v1/auth/refresh",
 				"/api/v1/auth/impersonate",
 				"/api/v1/auth/stop-impersonate",
+				"/api/v1/ingest",
 			}
 			for _, exempt := range authExemptPaths {
 				if path == exempt {
