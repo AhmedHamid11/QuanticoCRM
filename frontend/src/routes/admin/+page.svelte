@@ -219,6 +219,25 @@
 			</div>
 		</a>
 
+		<a
+			href="/admin/mirrors"
+			class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 border-violet-500"
+		>
+			<div class="flex items-start">
+				<div class="flex-shrink-0">
+					<svg class="h-8 w-8 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+					</svg>
+				</div>
+				<div class="ml-4">
+					<h3 class="text-lg font-medium text-gray-900">Mirrors</h3>
+					<p class="mt-1 text-sm text-gray-500">
+						Configure data ingestion schema contracts for external systems
+					</p>
+				</div>
+			</div>
+		</a>
+
 		<!-- System Section -->
 		<div class="col-span-full mt-6">
 			<h2 class="text-lg font-medium text-gray-700 mb-4">System</h2>
