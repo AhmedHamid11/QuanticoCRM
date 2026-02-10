@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Milestone:** v4.0 Salesforce Merge Integration
 **Phase:** 18 of 19 (Rate Limiting & Error Handling)
-**Plan:** 01 of 05
+**Plan:** 02 of 05
 **Status:** Executing Phase 18
 
-**Last activity:** 2026-02-10 — Completed 18-01 (API Usage Tracking Foundation)
+**Last activity:** 2026-02-10 — Completed 18-02 (Delivery Integration)
 
-Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (5/15 plans)
+Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (6/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 58 (9 v1.0 + 22 v2.0 + 22 v3.0 + 5 v4.0)
-- Average duration: 3.4 min
-- Total execution time: ~249 min
+- Total plans completed: 59 (9 v1.0 + 22 v2.0 + 22 v3.0 + 6 v4.0)
+- Average duration: 3.5 min
+- Total execution time: ~253 min
 
 **By Milestone:**
 
@@ -32,15 +32,15 @@ Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
 | v3.0 Deduplication | 11-16 | 22 | ~96 min |
-| v4.0 Salesforce Integration | 17-19 | 5/15 | ~13.0 min |
+| v4.0 Salesforce Integration | 17-19 | 6/15 | ~17.3 min |
 
 **Recent Plan Execution:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
+| Phase 18-02 | 4.3 min | 2 | 5 |
 | Phase 18-01 | 1.8 min | 2 | 3 |
 | Phase 17-04 | 4.4 min | 2 | 3 |
-| Phase 17-03 | 1.8 min | 2 | 2 |
 
 ## Accumulated Context
 
@@ -71,6 +71,10 @@ _All milestone decisions archived. See PROJECT.md Key Decisions table for cumula
 - 25-hour cleanup window for stale usage records (1-hour buffer for boundary safety) (18-01)
 - Graceful degradation for missing api_usage_log table in tenant DBs (18-01)
 - Per-job API call tracking via api_calls_made column on sync_jobs (18-01)
+- Exponential backoff: 5s initial, 2x multiplier, 40s max, 50% jitter, max 5 retries (18-02)
+- Force flag on ManualTrigger bypasses quota check for emergency overrides (18-02)
+- Record API usage on both success and failure deliveries (18-02)
+- HTTP 429 with usage/threshold/hint for quota violations (18-02)
 
 ### Pending Todos
 
@@ -95,9 +99,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 18-01-PLAN.md (API Usage Tracking Foundation)
+Stopped at: Completed 18-02-PLAN.md (Delivery Integration)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-10 — Completed Phase 18 Plan 01*
+*Updated: 2026-02-10 — Completed Phase 18 Plan 02*
