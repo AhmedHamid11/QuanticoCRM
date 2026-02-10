@@ -1,6 +1,6 @@
 module github.com/fastcrm/backend
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.0
@@ -34,6 +34,7 @@ require (
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
+	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
