@@ -11,19 +11,19 @@ See: .planning/PROJECT.md (updated 2026-02-09)
 
 **Milestone:** v4.0 Salesforce Merge Integration
 **Phase:** 17 of 19 (Core Integration)
-**Plan:** —
-**Status:** Ready to plan Phase 17
+**Plan:** 01 of 05
+**Status:** Executing Phase 17
 
-**Last activity:** 2026-02-09 — v4.0 roadmap created
+**Last activity:** 2026-02-10 — Completed 17-01 (Salesforce Sync Foundation)
 
-Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 starting (0/TBD plans)
+Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0 in progress (1/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 53 (9 v1.0 + 22 v2.0 + 22 v3.0)
-- Average duration: 3.8 min
-- Total execution time: ~225 min
+- Total plans completed: 54 (9 v1.0 + 22 v2.0 + 22 v3.0 + 1 v4.0)
+- Average duration: 3.7 min
+- Total execution time: ~228 min
 
 **By Milestone:**
 
@@ -32,9 +32,13 @@ Progress: [█████████░] 100% of v1.0-v3.0 (53/53 plans), v4.0
 | v1.0 Platform Update | 01-05 | 9 | ~40 min |
 | v2.0 Security | 06-10 | 22 | ~91 min |
 | v3.0 Deduplication | 11-16 | 22 | ~96 min |
-| v4.0 Salesforce Integration | 17-19 | 0/TBD | — |
+| v4.0 Salesforce Integration | 17-19 | 1/15 | ~2.5 min |
 
-*Updated after each plan completion*
+**Recent Plan Execution:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 17-01 | 2.5 min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -47,6 +51,8 @@ _All milestone decisions archived. See PROJECT.md Key Decisions table for cumula
 - OAuth 2.0 with proactive token refresh (before 5-min expiry) to avoid mid-batch failures
 - 7-year audit log retention for SOX compliance
 - 80% API capacity threshold (80,000 of 100,000 calls/day) before automatic pause
+- AES-256-GCM encryption for OAuth tokens with environment variable key storage (17-01)
+- Master DB for OAuth config, tenant DB for sync job history (17-01)
 
 ### Pending Todos
 
@@ -70,10 +76,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-09
-Stopped at: Created v4.0 roadmap with 3 phases (17-19)
+Last session: 2026-02-10
+Stopped at: Completed 17-01-PLAN.md (Salesforce Sync Foundation)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-09 — v4.0 roadmap created, ready for Phase 17 planning*
+*Updated: 2026-02-10 — Completed Phase 17 Plan 01*
