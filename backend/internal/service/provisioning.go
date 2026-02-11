@@ -1307,7 +1307,7 @@ func (s *ProvisioningService) createEnumField(ctx context.Context, orgID, entity
 func (s *ProvisioningService) createBearing(ctx context.Context, orgID, entityType, name, sourcePicklist string, displayOrder int, now string) {
 	id := sfid.New("0Br")
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO bearing_configs (id, org_id, entity_type, name, source_picklist, display_order, active, confirm_backward, allow_updates, created_at, modified_at)
+		INSERT OR IGNORE INTO bearing_configs (id, org_id, entity_type, name, source_picklist, display_order, active, confirm_backward, allow_updates, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1, ?, ?)
 	`, id, orgID, entityType, name, sourcePicklist, displayOrder, now, now)
 	if err != nil {

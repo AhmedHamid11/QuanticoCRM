@@ -516,7 +516,8 @@ func (s *TenantProvisioningService) runMigrations(ctx context.Context, db *sql.D
 			confirm_backward INTEGER DEFAULT 0,
 			allow_updates INTEGER DEFAULT 1,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-			modified_at TEXT DEFAULT CURRENT_TIMESTAMP
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, entity_type, source_picklist)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_bearing_org ON bearing_configs(org_id, entity_type)`,
 
