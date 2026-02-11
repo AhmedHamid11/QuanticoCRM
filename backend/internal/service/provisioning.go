@@ -1173,7 +1173,7 @@ func (s *ProvisioningService) createSampleData(ctx context.Context, orgID, now s
 		{"id":"footer","label":"Footer","enabled":true,"fields":["validUntil","thankYou"]}
 	]`
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO pdf_templates (id, org_id, name, entity_type, is_default, is_system, base_design, branding, sections, page_size, orientation, margins, created_at, modified_at)
+		INSERT OR IGNORE INTO pdf_templates (id, org_id, name, entity_type, is_default, is_system, base_design, branding, sections, page_size, orientation, margins, created_at, modified_at)
 		VALUES (?, ?, ?, 'Quote', 1, 1, 'professional', ?, ?, 'A4', 'portrait', '10mm,10mm,10mm,10mm', ?, ?)
 	`, pdfTemplateID, orgID, "Standard Quote", defaultBranding, defaultSections, now, now)
 	if err != nil {
@@ -1190,7 +1190,7 @@ func (s *ProvisioningService) createEntity(ctx context.Context, orgID, name, plu
 	displayField, searchFields := getEntityLookupConfig(name)
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO entity_defs (id, org_id, name, label, label_plural, icon, color, is_custom, is_customizable, has_stream, has_activities, display_field, search_fields, created_at, modified_at)
+		INSERT OR IGNORE INTO entity_defs (id, org_id, name, label, label_plural, icon, color, is_custom, is_customizable, has_stream, has_activities, display_field, search_fields, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, '', '', 0, 1, 0, 0, ?, ?, ?, ?)
 	`, id, orgID, name, name, plural, displayField, searchFields, now, now)
 	return err
@@ -1224,7 +1224,7 @@ func (s *ProvisioningService) createField(ctx context.Context, orgID, entity, na
 		reqInt = 1
 	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, created_at, modified_at)
+		INSERT OR IGNORE INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)
 	`, id, orgID, entity, name, label, typ, reqInt, order, now, now)
 	if err != nil {
@@ -1236,7 +1236,7 @@ func (s *ProvisioningService) createField(ctx context.Context, orgID, entity, na
 func (s *ProvisioningService) createLinkField(ctx context.Context, orgID, entity, name, label, linkEntity string, order int, now string) {
 	id := sfid.New("0Fd")
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, link_entity, created_at, modified_at)
+		INSERT OR IGNORE INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, link_entity, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, 'link', 0, 0, 0, 0, ?, ?, ?, ?)
 	`, id, orgID, entity, name, label, order, linkEntity, now, now)
 	if err != nil {
@@ -1295,7 +1295,7 @@ func (s *ProvisioningService) createEnumField(ctx context.Context, orgID, entity
 	optionsJSON += "]"
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, options, created_at, modified_at)
+		INSERT OR IGNORE INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, options, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, 'enum', 0, 0, 0, 0, ?, ?, ?, ?)
 	`, id, orgID, entity, name, label, order, optionsJSON, now, now)
 	if err != nil {

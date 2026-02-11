@@ -643,7 +643,8 @@ func (s *TenantProvisioningService) runMigrations(ctx context.Context, db *sql.D
 			created_by TEXT,
 			modified_by TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-			modified_at TEXT DEFAULT CURRENT_TIMESTAMP
+			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(org_id, entity_type, name)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_pdf_templates_org ON pdf_templates(org_id, entity_type)`,
 
