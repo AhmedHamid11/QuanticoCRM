@@ -485,6 +485,131 @@ func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context)
 	return nil
 }
 
+// ensureIngestTables checks if ingest pipeline tables (mirrors, mirror_source_fields,
+// ingest_jobs, ingest_delta_keys) exist and creates them if they don't.
+// This handles migration gaps where migrations 063/064 failed to propagate to tenant DBs.
+func (s *ProvisioningService) ensureIngestTables(ctx context.Context) error {
+	log.Printf("[Provisioning] Creating ingest pipeline tables...")
+
+	// 1. mirrors table (migration 063)
+	_, err := s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS mirrors (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			target_entity TEXT NOT NULL,
+			unique_key_field TEXT NOT NULL,
+			unmapped_field_mode TEXT NOT NULL DEFAULT 'flexible',
+			rate_limit INTEGER DEFAULT 500,
+			is_active INTEGER DEFAULT 1,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create mirrors table: %w", err)
+	}
+
+	// 2. mirror_source_fields table (migration 063 + map_field from 064)
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS mirror_source_fields (
+			id TEXT PRIMARY KEY,
+			mirror_id TEXT NOT NULL,
+			field_name TEXT NOT NULL,
+			field_type TEXT NOT NULL DEFAULT 'text',
+			is_required INTEGER DEFAULT 0,
+			description TEXT DEFAULT '',
+			sort_order INTEGER DEFAULT 0,
+			map_field TEXT,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (mirror_id) REFERENCES mirrors(id) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create mirror_source_fields table: %w", err)
+	}
+
+	// 3. ingest_jobs table (migration 064)
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS ingest_jobs (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			mirror_id TEXT NOT NULL,
+			key_id TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'accepted',
+			records_received INTEGER NOT NULL DEFAULT 0,
+			records_processed INTEGER NOT NULL DEFAULT 0,
+			records_promoted INTEGER NOT NULL DEFAULT 0,
+			records_skipped INTEGER NOT NULL DEFAULT 0,
+			records_failed INTEGER NOT NULL DEFAULT 0,
+			errors TEXT DEFAULT '[]',
+			warnings TEXT DEFAULT '[]',
+			started_at TEXT,
+			completed_at TEXT,
+			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create ingest_jobs table: %w", err)
+	}
+
+	// 4. ingest_delta_keys table (migration 064)
+	_, err = s.db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS ingest_delta_keys (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			mirror_id TEXT NOT NULL,
+			unique_key TEXT NOT NULL,
+			record_id TEXT,
+			ingested_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(mirror_id, unique_key)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create ingest_delta_keys table: %w", err)
+	}
+
+	// Create indexes
+	indexes := []struct{ name, stmt string }{
+		{"idx_mirrors_org", "CREATE INDEX IF NOT EXISTS idx_mirrors_org ON mirrors(org_id)"},
+		{"idx_mirrors_active", "CREATE INDEX IF NOT EXISTS idx_mirrors_active ON mirrors(org_id, is_active)"},
+		{"idx_mirror_source_fields_mirror", "CREATE INDEX IF NOT EXISTS idx_mirror_source_fields_mirror ON mirror_source_fields(mirror_id)"},
+		{"idx_mirror_source_fields_unique", "CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_source_fields_unique ON mirror_source_fields(mirror_id, field_name)"},
+		{"idx_ingest_jobs_org", "CREATE INDEX IF NOT EXISTS idx_ingest_jobs_org ON ingest_jobs(org_id)"},
+		{"idx_ingest_jobs_mirror", "CREATE INDEX IF NOT EXISTS idx_ingest_jobs_mirror ON ingest_jobs(org_id, mirror_id)"},
+		{"idx_ingest_jobs_status", "CREATE INDEX IF NOT EXISTS idx_ingest_jobs_status ON ingest_jobs(org_id, status)"},
+		{"idx_delta_keys_mirror", "CREATE INDEX IF NOT EXISTS idx_delta_keys_mirror ON ingest_delta_keys(mirror_id)"},
+		{"idx_delta_keys_lookup", "CREATE INDEX IF NOT EXISTS idx_delta_keys_lookup ON ingest_delta_keys(mirror_id, unique_key)"},
+	}
+	for _, idx := range indexes {
+		if _, err := s.db.ExecContext(ctx, idx.stmt); err != nil {
+			return fmt.Errorf("failed to create index %s: %w", idx.name, err)
+		}
+	}
+
+	log.Printf("[Provisioning] Created ingest pipeline tables and indexes")
+	return nil
+}
+
+// EnsureIngestTables is the public wrapper for ensureIngestTables.
+// Called by MirrorHandler for auto-recovery when tables are missing.
+func (s *ProvisioningService) EnsureIngestTables(ctx context.Context) error {
+	return s.ensureIngestTables(ctx)
+}
+
+// EnsureAllTables ensures both metadata tables and ingest pipeline tables exist.
+// Called during reprovision to guarantee all required tables are present.
+func (s *ProvisioningService) EnsureAllTables(ctx context.Context) error {
+	if err := s.ensureMetadataTables(ctx); err != nil {
+		return fmt.Errorf("failed to ensure metadata tables: %w", err)
+	}
+	if err := s.ensureIngestTables(ctx); err != nil {
+		return fmt.Errorf("failed to ensure ingest tables: %w", err)
+	}
+	return nil
+}
+
 // provisionMetadata creates entities, fields, layouts, navigation for a new org
 func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now string) error {
 	log.Printf("[Provisioning] Creating metadata for org %s", orgID)
@@ -492,6 +617,11 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	// Ensure metadata tables exist (fixes migration gaps like Guardare)
 	if err := s.ensureMetadataTables(ctx); err != nil {
 		return fmt.Errorf("failed to ensure metadata tables: %w", err)
+	}
+
+	// Ensure ingest pipeline tables exist (safety net for migrations 063/064)
+	if err := s.ensureIngestTables(ctx); err != nil {
+		log.Printf("[Provisioning] Warning: failed to ensure ingest tables (non-fatal): %v", err)
 	}
 
 	// Create default entities
