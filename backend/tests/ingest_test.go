@@ -1,0 +1,436 @@
+package tests
+
+import (
+	"database/sql"
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"testing"
+)
+
+// TestIngest_E2E tests the complete Salesforce-style ingest flow
+// TEST-01: Salesforce-style payload flows through mirror config to Quantico entity records
+func TestIngest_E2E(t *testing.T) {
+	app := SetupTestApp(t)
+	defer app.Cleanup()
+	user := app.CreateTestUser(t, "ingest-e2e@test.com", "SecureP@ssw0rd!E2E", "E2E Ingest Org")
+
+	var apiKey string
+	var mirrorID string
+
+	// Step 1: Create ingest API key via admin API
+	t.Run("Create API Key", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name":      "Test Ingest Key",
+			"rateLimit": 500,
+		}
+
+		var result map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", body, user.AccessToken, &result)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		// Store the full key (shown only once)
+		fullKey, ok := result["key"].(string)
+		if !ok || fullKey == "" {
+			t.Fatalf("Expected full key in response, got: %v", result)
+		}
+
+		apiKey = fullKey
+	})
+
+	// Step 2: Create mirror via admin API
+	t.Run("Create Mirror", func(t *testing.T) {
+		body := map[string]interface{}{
+			"name":              "Salesforce Contacts",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id", // This is the SOURCE field name used for deduplication
+			"unmappedFieldMode": "flexible",
+			"sourceFields": []map[string]interface{}{
+				{
+					"fieldName":  "sf_id",
+					"fieldType":  "text",
+					"isRequired": true,
+					"mapField":   "description", // Using description to store SF ID for testing
+				},
+				{
+					"fieldName":  "FirstName",
+					"fieldType":  "text",
+					"isRequired": true,
+					"mapField":   "firstName",
+				},
+				{
+					"fieldName":  "LastName",
+					"fieldType":  "text",
+					"isRequired": true,
+					"mapField":   "lastName",
+				},
+				{
+					"fieldName":  "Email",
+					"fieldType":  "email",
+					"isRequired": false,
+					"mapField":   "emailAddress",
+				},
+				{
+					"fieldName":  "Phone",
+					"fieldType":  "phone",
+					"isRequired": false,
+					"mapField":   "phoneNumber",
+				},
+			},
+		}
+
+		var result map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", body, user.AccessToken, &result)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		// Extract mirror ID
+		id, ok := result["id"].(string)
+		if !ok || id == "" {
+			t.Fatalf("Expected mirror ID in response, got: %v", result)
+		}
+		mirrorID = id
+	})
+
+	var jobID string
+	// Step 3: Load testdata fixture and POST to /api/v1/ingest
+	t.Run("POST Ingest Request", func(t *testing.T) {
+		// Load fixture
+		fixtureData, err := os.ReadFile("testdata/salesforce_contacts.json")
+		if err != nil {
+			t.Fatalf("Failed to read fixture: %v", err)
+		}
+
+		var fixture struct {
+			Records []map[string]interface{} `json:"records"`
+		}
+		if err := json.Unmarshal(fixtureData, &fixture); err != nil {
+			t.Fatalf("Failed to parse fixture: %v", err)
+		}
+
+		// Build ingest request
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   fixture.Records,
+		}
+
+		var result map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if err := json.Unmarshal(bodyBytes, &result); err != nil {
+			t.Fatalf("Failed to parse ingest response: %v", err)
+		}
+
+		// Assert response structure
+		if result["status"] != "accepted" {
+			t.Errorf("Expected status 'accepted', got: %v", result["status"])
+		}
+
+		recordsReceived, ok := result["records_received"].(float64)
+		if !ok || int(recordsReceived) != 5 {
+			t.Errorf("Expected 5 records_received, got: %v", result["records_received"])
+		}
+
+		jobID, ok = result["job_id"].(string)
+		if !ok || jobID == "" {
+			t.Fatalf("Expected job_id in response, got: %v", result)
+		}
+	})
+
+	// Step 4: Wait for async processing to complete
+	var job map[string]interface{}
+	t.Run("Wait for Job Completion", func(t *testing.T) {
+		job = app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert job completed successfully
+		if job["status"] != "complete" {
+			t.Errorf("Expected status 'complete', got: %v", job["status"])
+		}
+	})
+
+	// Step 5: Verify job result
+	t.Run("Verify Job Result", func(t *testing.T) {
+		recordsPromoted, ok := job["records_promoted"].(float64)
+		if !ok || int(recordsPromoted) != 5 {
+			t.Errorf("Expected 5 records_promoted, got: %v", job["records_promoted"])
+		}
+
+		recordsSkipped, ok := job["records_skipped"].(float64)
+		if !ok || int(recordsSkipped) != 0 {
+			t.Errorf("Expected 0 records_skipped, got: %v", job["records_skipped"])
+		}
+
+		recordsFailed, ok := job["records_failed"].(float64)
+		if !ok || int(recordsFailed) != 0 {
+			t.Errorf("Expected 0 records_failed, got: %v", job["records_failed"])
+		}
+	})
+
+	// Step 6: Verify records exist in entity table
+	t.Run("Verify Records in Database", func(t *testing.T) {
+		rows, err := app.DB.Query(`
+			SELECT COUNT(*) as count,
+			       GROUP_CONCAT(first_name) as names,
+			       GROUP_CONCAT(email_address) as emails
+			FROM contacts
+			WHERE org_id = ?
+		`, user.OrgID)
+		if err != nil {
+			t.Fatalf("Failed to query contacts: %v", err)
+		}
+		defer rows.Close()
+
+		if !rows.Next() {
+			t.Fatal("Expected at least one row from COUNT query")
+		}
+
+		var count int
+		var names, emails sql.NullString
+		if err := rows.Scan(&count, &names, &emails); err != nil {
+			t.Fatalf("Failed to scan row: %v", err)
+		}
+
+		if count != 5 {
+			t.Errorf("Expected 5 contacts in DB, got: %d", count)
+		}
+
+		// Verify field mapping worked (spot check for expected names)
+		if names.Valid {
+			namesStr := names.String
+			if !contains(namesStr, "John") || !contains(namesStr, "Jane") {
+				t.Errorf("Expected names to include John and Jane, got: %s", namesStr)
+			}
+		}
+
+		if emails.Valid {
+			emailsStr := emails.String
+			if !contains(emailsStr, "john.smith@example.com") {
+				t.Errorf("Expected emails to include john.smith@example.com, got: %s", emailsStr)
+			}
+		}
+	})
+}
+
+// TestIngest_DeltaSync tests that re-pushing the same payload produces no duplicates
+// TEST-02: Delta sync - re-pushing same payload creates 0 new records
+func TestIngest_DeltaSync(t *testing.T) {
+	app := SetupTestApp(t)
+	defer app.Cleanup()
+	user := app.CreateTestUser(t, "delta@test.com", "SecureP@ssw0rd!Delta", "Delta Sync Org")
+
+	// Setup: Create API key and mirror
+	var apiKey, mirrorID string
+
+	t.Run("Setup API Key and Mirror", func(t *testing.T) {
+		// Create API key
+		keyBody := map[string]interface{}{
+			"name":      "Delta Test Key",
+			"rateLimit": 500,
+		}
+
+		var keyResult map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", keyBody, user.AccessToken, &keyResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		apiKey = keyResult["key"].(string)
+
+		// Create mirror
+		mirrorBody := map[string]interface{}{
+			"name":              "Delta Test Mirror",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id",
+			"unmappedFieldMode": "flexible",
+			"sourceFields": []map[string]interface{}{
+				{"fieldName": "sf_id", "fieldType": "text", "isRequired": true, "mapField": "description"},
+				{"fieldName": "FirstName", "fieldType": "text", "isRequired": true, "mapField": "firstName"},
+				{"fieldName": "LastName", "fieldType": "text", "isRequired": true, "mapField": "lastName"},
+				{"fieldName": "Email", "fieldType": "email", "isRequired": false, "mapField": "emailAddress"},
+				{"fieldName": "Phone", "fieldType": "phone", "isRequired": false, "mapField": "phoneNumber"},
+			},
+		}
+
+		var mirrorResult map[string]interface{}
+		resp = app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", mirrorBody, user.AccessToken, &mirrorResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		mirrorID = mirrorResult["id"].(string)
+	})
+
+	// Load fixture once
+	fixtureData, err := os.ReadFile("testdata/salesforce_contacts.json")
+	if err != nil {
+		t.Fatalf("Failed to read fixture: %v", err)
+	}
+
+	var fixture struct {
+		Records []map[string]interface{} `json:"records"`
+	}
+	if err := json.Unmarshal(fixtureData, &fixture); err != nil {
+		t.Fatalf("Failed to parse fixture: %v", err)
+	}
+
+	// Step 2: First ingest - 5 records
+	t.Run("First Ingest - 5 New Records", func(t *testing.T) {
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   fixture.Records,
+		}
+
+		var ingestResult map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &ingestResult)
+
+		jobID := ingestResult["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert all 5 promoted
+		recordsPromoted := int(job["records_promoted"].(float64))
+		recordsSkipped := int(job["records_skipped"].(float64))
+
+		if recordsPromoted != 5 {
+			t.Errorf("Expected 5 promoted on first ingest, got: %d", recordsPromoted)
+		}
+		if recordsSkipped != 0 {
+			t.Errorf("Expected 0 skipped on first ingest, got: %d", recordsSkipped)
+		}
+	})
+
+	// Step 3: Second ingest - same 5 records (should all be skipped)
+	t.Run("Second Ingest - 5 Duplicates (All Skipped)", func(t *testing.T) {
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   fixture.Records,
+		}
+
+		var ingestResult map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &ingestResult)
+
+		jobID := ingestResult["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert all 5 skipped, 0 promoted
+		recordsPromoted := int(job["records_promoted"].(float64))
+		recordsSkipped := int(job["records_skipped"].(float64))
+
+		if recordsPromoted != 0 {
+			t.Errorf("Expected 0 promoted on duplicate ingest, got: %d", recordsPromoted)
+		}
+		if recordsSkipped != 5 {
+			t.Errorf("Expected 5 skipped on duplicate ingest, got: %d", recordsSkipped)
+		}
+
+		if job["status"] != "complete" {
+			t.Errorf("Expected status 'complete' even with all skipped, got: %v", job["status"])
+		}
+	})
+
+	// Step 4: Verify no duplicates in entity table
+	t.Run("Verify Still Only 5 Records", func(t *testing.T) {
+		var count int
+		err := app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, user.OrgID).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count contacts: %v", err)
+		}
+
+		if count != 5 {
+			t.Errorf("Expected still 5 contacts (no duplicates), got: %d", count)
+		}
+	})
+
+	// Step 5: Third ingest - mix of old and new (2 existing + 3 new)
+	t.Run("Third Ingest - Mixed Old and New", func(t *testing.T) {
+		mixedRecords := []map[string]interface{}{
+			// 2 existing records (should be skipped)
+			fixture.Records[0], // sf_id: 003MOCK000001
+			fixture.Records[1], // sf_id: 003MOCK000002
+			// 3 new records (should be promoted)
+			{
+				"sf_id":     "003MOCK000006",
+				"FirstName": "David",
+				"LastName":  "Miller",
+				"Email":     "david.m@example.com",
+				"Phone":     "555-0106",
+			},
+			{
+				"sf_id":     "003MOCK000007",
+				"FirstName": "Emma",
+				"LastName":  "Davis",
+				"Email":     "emma.d@example.com",
+				"Phone":     "555-0107",
+			},
+			{
+				"sf_id":     "003MOCK000008",
+				"FirstName": "Frank",
+				"LastName":  "Wilson",
+				"Email":     "frank.w@example.com",
+				"Phone":     "555-0108",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   mixedRecords,
+		}
+
+		var ingestResult map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &ingestResult)
+
+		jobID := ingestResult["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert 3 promoted, 2 skipped
+		recordsPromoted := int(job["records_promoted"].(float64))
+		recordsSkipped := int(job["records_skipped"].(float64))
+
+		if recordsPromoted != 3 {
+			t.Errorf("Expected 3 promoted on mixed ingest, got: %d", recordsPromoted)
+		}
+		if recordsSkipped != 2 {
+			t.Errorf("Expected 2 skipped on mixed ingest, got: %d", recordsSkipped)
+		}
+	})
+
+	// Step 6: Verify final count is 8 total
+	t.Run("Verify Total 8 Records", func(t *testing.T) {
+		var count int
+		err := app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, user.OrgID).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count contacts: %v", err)
+		}
+
+		if count != 8 {
+			t.Errorf("Expected 8 total contacts (5 original + 3 new), got: %d", count)
+		}
+	})
+}
+
+// Helper function to check if a string contains a substring
+func contains(str, substr string) bool {
+	return len(str) >= len(substr) && (str == substr || len(str) > len(substr) && (str[:len(substr)] == substr || str[len(str)-len(substr):] == substr || containsInMiddle(str, substr)))
+}
+
+func containsInMiddle(str, substr string) bool {
+	for i := 0; i <= len(str)-len(substr); i++ {
+		if str[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

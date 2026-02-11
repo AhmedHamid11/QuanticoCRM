@@ -112,6 +112,16 @@ func SetupTestApp(t *testing.T) *TestApp {
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
 
+	// Test tenant middleware - sets DB for all authenticated requests
+	testTenantMiddleware := func(c *fiber.Ctx) error {
+		// Only apply if orgID is set (by auth middleware) and DB not yet set
+		if orgID := c.Locals("orgID"); orgID != nil && c.Locals("dbConn") == nil {
+			c.Locals("db", db)
+			c.Locals("dbConn", db)
+		}
+		return c.Next()
+	}
+
 	// Initialize handlers
 	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, nil, tripwireService, validationService, nil, nil)
 	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, db, metadataRepo, nil, tripwireService, validationService)
@@ -180,7 +190,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authPlatformAdmin.Post("/stop-impersonate", authHandler.StopImpersonate)
 
 	// Protected API routes
-	protected := api.Group("", authMiddleware.Required())
+	protected := api.Group("", authMiddleware.Required(), testTenantMiddleware)
 
 	// CRM entity routes
 	contactHandler.RegisterRoutes(protected)
@@ -205,7 +215,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	bearingHandler.RegisterPublicRoutes(protected)
 
 	// Admin routes
-	adminProtected := api.Group("", authMiddleware.OrgAdminRequired())
+	adminProtected := api.Group("", authMiddleware.OrgAdminRequired(), testTenantMiddleware)
 	adminHandler.RegisterRoutes(adminProtected)
 	navigationHandler.RegisterAdminRoutes(adminProtected)
 	relatedListHandler.RegisterRoutes(adminProtected)
@@ -219,6 +229,16 @@ func SetupTestApp(t *testing.T) *TestApp {
 	platform.Get("/organizations", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"organizations": []string{"org1", "org2"}})
 	})
+
+	// Ingest admin routes (API key management, mirror management)
+	// MUST be registered BEFORE /ingest group to avoid route conflicts
+	ingestKeys := adminProtected.Group("/ingest-keys")
+	ingestKeys.Post("", ingestKeyHandler.Create)
+	ingestKeys.Get("", ingestKeyHandler.List)
+	ingestKeys.Post("/:id/deactivate", ingestKeyHandler.Deactivate)
+	ingestKeys.Delete("/:id", ingestKeyHandler.Delete)
+
+	mirrorHandler.RegisterRoutes(adminProtected)
 
 	// Ingest routes (separate auth path - X-API-Key, not JWT)
 	// Test middleware that validates X-API-Key and sets up context
@@ -256,24 +276,15 @@ func SetupTestApp(t *testing.T) *TestApp {
 		c.Locals("ingestOrgID", ingestKey.OrgID)
 		c.Locals("ingestKeyID", ingestKey.ID)
 		c.Locals("ingestRateLimit", ingestKey.RateLimit)
-		// For tests, handlers can access DB via GetDB helper that unwraps both *sql.DB and wrappers
-		c.Locals("db", db)
-		c.Locals("dbConn", db)
+		// Set DB connection in Locals - middleware.GetTenantDBConn will find the raw DBConn
+		c.Locals("db", db)      // For backward compatibility with handlers using GetTenantDB
+		c.Locals("dbConn", db)  // For GetTenantDBConn (will match db.DBConn interface check)
 
 		return c.Next()
 	}
 
 	ingestGroup := api.Group("/ingest", testIngestAuth)
 	ingestHandler.RegisterRoutes(ingestGroup)
-
-	// Ingest admin routes (API key management, mirror management)
-	ingestKeys := adminProtected.Group("/ingest-keys")
-	ingestKeys.Post("", ingestKeyHandler.Create)
-	ingestKeys.Get("", ingestKeyHandler.List)
-	ingestKeys.Post("/:id/deactivate", ingestKeyHandler.Deactivate)
-	ingestKeys.Delete("/:id", ingestKeyHandler.Delete)
-
-	mirrorHandler.RegisterRoutes(adminProtected)
 
 	return &TestApp{
 		App:                 app,
