@@ -1,27 +1,38 @@
 package handler
 
 import (
+	"log"
+
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/service"
 	"github.com/gofiber/fiber/v2"
 )
 
 // MirrorHandler handles mirror management endpoints
 type MirrorHandler struct {
-	repo    *repo.MirrorRepo
-	jobRepo *repo.IngestJobRepo
+	repo         *repo.MirrorRepo
+	jobRepo      *repo.IngestJobRepo
+	provisioning *service.ProvisioningService
 }
 
 // NewMirrorHandler creates a new MirrorHandler
-func NewMirrorHandler(repo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo) *MirrorHandler {
-	return &MirrorHandler{repo: repo, jobRepo: jobRepo}
+func NewMirrorHandler(repo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo, provisioning *service.ProvisioningService) *MirrorHandler {
+	return &MirrorHandler{repo: repo, jobRepo: jobRepo, provisioning: provisioning}
 }
 
 // getTenantDBConn extracts the tenant DB connection from context
 func (h *MirrorHandler) getTenantDBConn(c *fiber.Ctx) db.DBConn {
 	return middleware.GetTenantDBConn(c)
+}
+
+// tryEnsureIngestTables creates ingest tables on the tenant DB using provisioning service
+func (h *MirrorHandler) tryEnsureIngestTables(c *fiber.Ctx) error {
+	tenantDB := h.getTenantDBConn(c)
+	ps := service.NewProvisioningService(tenantDB)
+	return ps.EnsureIngestTables(c.Context())
 }
 
 // Create creates a new mirror
@@ -72,8 +83,17 @@ func (h *MirrorHandler) Create(c *fiber.Ctx) error {
 		}
 	}
 
-	// Create mirror
+	// Create mirror (with auto-recovery on missing tables)
 	mirror, err := h.repo.Create(c.Context(), tenantDB, orgID, input)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error, attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		// Retry the operation
+		mirror, err = h.repo.Create(c.Context(), tenantDB, orgID, input)
+	}
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -88,6 +108,14 @@ func (h *MirrorHandler) List(c *fiber.Ctx) error {
 	tenantDB := h.getTenantDBConn(c)
 
 	mirrors, err := h.repo.ListByOrg(c.Context(), tenantDB, orgID)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error on List, attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		mirrors, err = h.repo.ListByOrg(c.Context(), tenantDB, orgID)
+	}
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -103,6 +131,14 @@ func (h *MirrorHandler) Get(c *fiber.Ctx) error {
 	tenantDB := h.getTenantDBConn(c)
 
 	mirror, err := h.repo.GetByID(c.Context(), tenantDB, orgID, mirrorID)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error on Get, attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		mirror, err = h.repo.GetByID(c.Context(), tenantDB, orgID, mirrorID)
+	}
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -154,8 +190,16 @@ func (h *MirrorHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
-	// Update mirror
+	// Update mirror (with auto-recovery on missing tables)
 	mirror, err := h.repo.Update(c.Context(), tenantDB, orgID, mirrorID, input)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error on Update, attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		mirror, err = h.repo.Update(c.Context(), tenantDB, orgID, mirrorID, input)
+	}
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -175,6 +219,14 @@ func (h *MirrorHandler) Delete(c *fiber.Ctx) error {
 	tenantDB := h.getTenantDBConn(c)
 
 	err := h.repo.Delete(c.Context(), tenantDB, orgID, mirrorID)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error on Delete, attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		err = h.repo.Delete(c.Context(), tenantDB, orgID, mirrorID)
+	}
 	if err != nil {
 		if err.Error() == "mirror not found" {
 			return c.Status(404).JSON(fiber.Map{"error": "Mirror not found"})
@@ -194,6 +246,14 @@ func (h *MirrorHandler) ListJobs(c *fiber.Ctx) error {
 
 	// Validate mirror exists and belongs to org
 	mirror, err := h.repo.GetByID(c.Context(), tenantDB, orgID, mirrorID)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error on ListJobs, attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		mirror, err = h.repo.GetByID(c.Context(), tenantDB, orgID, mirrorID)
+	}
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -211,6 +271,14 @@ func (h *MirrorHandler) ListJobs(c *fiber.Ctx) error {
 	}
 
 	jobs, err := h.jobRepo.ListByMirror(c.Context(), tenantDB, orgID, mirrorID, limit)
+	if err != nil && isNoSuchTableError(err) {
+		log.Printf("[MirrorHandler] 'no such table' error on ListJobs (jobs query), attempting to create ingest tables for org %s", orgID)
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			log.Printf("[MirrorHandler] Failed to create ingest tables: %v", ensureErr)
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized. Please contact admin."})
+		}
+		jobs, err = h.jobRepo.ListByMirror(c.Context(), tenantDB, orgID, mirrorID, limit)
+	}
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
