@@ -1120,9 +1120,9 @@ func (s *ProvisioningService) createNavTabWithError(ctx context.Context, orgID, 
 	if isSystem {
 		isSystemVal = 1
 	}
-	// Use INSERT OR REPLACE to fix stale/broken tab data during reprovision
+	// Use INSERT OR IGNORE to preserve existing user-customized tabs during reprovision
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO navigation_tabs (id, org_id, label, href, icon, entity_name, sort_order, is_visible, is_system, created_at, modified_at)
+		INSERT OR IGNORE INTO navigation_tabs (id, org_id, label, href, icon, entity_name, sort_order, is_visible, is_system, created_at, modified_at)
 		VALUES (?, ?, ?, ?, '', ?, ?, 1, ?, ?, ?)
 	`, id, orgID, label, href, entity, order, isSystemVal, now, now)
 	if err != nil {
@@ -1139,9 +1139,9 @@ func (s *ProvisioningService) createNavTab(ctx context.Context, orgID, label, hr
 
 func (s *ProvisioningService) createLayout(ctx context.Context, orgID, entity, layoutType, layoutData, now string) {
 	id := sfid.New("0Ly")
-	// Use INSERT OR REPLACE to handle potential duplicates (e.g., if provisioning runs twice)
+	// Use INSERT OR IGNORE to preserve existing user-customized layouts during reprovision
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR REPLACE INTO layout_defs (id, org_id, entity_name, layout_type, layout_data, created_at, modified_at)
+		INSERT OR IGNORE INTO layout_defs (id, org_id, entity_name, layout_type, layout_data, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, id, orgID, entity, layoutType, layoutData, now, now)
 	if err != nil {
@@ -1277,11 +1277,11 @@ func (s *ProvisioningService) createDefaultRelatedListConfigs(ctx context.Contex
 		},
 	}
 
-	// Insert each related list config using INSERT OR REPLACE for safe re-provisioning
+	// Insert each related list config using INSERT OR IGNORE to preserve existing customizations
 	for _, cfg := range configs {
 		id := sfid.New("0Rl")
 		_, err := s.db.ExecContext(ctx, `
-			INSERT OR REPLACE INTO related_list_configs
+			INSERT OR IGNORE INTO related_list_configs
 			(id, org_id, entity_type, related_entity, lookup_field, label, enabled,
 			 display_fields, sort_order, default_sort, default_sort_dir, page_size,
 			 created_at, modified_at)
