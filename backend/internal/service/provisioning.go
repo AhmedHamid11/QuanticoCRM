@@ -107,24 +107,33 @@ func (s *ProvisioningService) ensureMetadataTables(ctx context.Context) error {
 	}
 
 	if tableExists {
-		// Verify the schema is correct by checking for UNIQUE constraint on (org_id, name)
-		var uniqueConstraintExists int
-		err := s.db.QueryRowContext(ctx, `
-			SELECT COUNT(*) FROM sqlite_master
-			WHERE type='index' AND tbl_name='entity_defs'
-			AND sql LIKE '%org_id%name%'
-		`).Scan(&uniqueConstraintExists)
+		// Use PRAGMA table_info to safely check if org_id column exists
+		// (same pattern used in ensureNavigationTabsTable)
+		var orgIDExists bool
+		rows, err := s.db.QueryContext(ctx, "PRAGMA table_info(entity_defs)")
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var cid int
+				var name, colType string
+				var notNull, pk int
+				var dfltValue *string
+				if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err == nil {
+					if name == "org_id" {
+						orgIDExists = true
+					}
+				}
+			}
+		}
 
-		if err == nil && uniqueConstraintExists > 0 {
+		if orgIDExists {
 			log.Printf("[Provisioning] entity_defs table exists with correct schema, skipping creation")
 			return nil
 		}
 
-		// Schema is wrong or missing constraints - recreate it
-		log.Printf("[Provisioning] entity_defs exists but schema is incorrect, recreating...")
-		if err := s.dropAndRecreateMetadataTables(ctx); err != nil {
-			return fmt.Errorf("failed to fix metadata tables: %w", err)
-		}
+		// org_id column missing — this is a genuinely broken legacy table (pre-migration-019).
+		// The migration system is responsible for schema changes, not provisioning.
+		log.Printf("[Provisioning] WARNING: entity_defs table exists but missing org_id column. Migration system should handle schema updates.")
 		return nil
 	}
 
@@ -325,8 +334,9 @@ func (s *ProvisioningService) ensureNavigationTabsTable(ctx context.Context) err
 	return nil
 }
 
-// dropAndRecreateMetadataTables safely drops and recreates metadata tables with correct schema
-// This fixes schema mismatches in existing databases
+// DEPRECATED: This function is dangerous and should never be called automatically.
+// Retained for emergency manual use only. It drops and recreates metadata tables,
+// which destroys all org metadata (entity_defs, field_defs, layout_defs).
 func (s *ProvisioningService) dropAndRecreateMetadataTables(ctx context.Context) error {
 	log.Printf("[Provisioning] Safely dropping and recreating metadata tables...")
 
