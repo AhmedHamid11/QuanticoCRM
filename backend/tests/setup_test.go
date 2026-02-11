@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fastcrm/backend/internal/handler"
 	"github.com/fastcrm/backend/internal/middleware"
@@ -24,17 +25,25 @@ import (
 
 // TestApp holds all components needed for testing
 type TestApp struct {
-	App               *fiber.App
-	DB                *sql.DB
-	AuthService       *service.AuthService
-	ContactRepo       *repo.ContactRepo
-	AccountRepo       *repo.AccountRepo
-	TaskRepo          *repo.TaskRepo
-	MetadataRepo      *repo.MetadataRepo
-	TripwireRepo      *repo.TripwireRepo
-	ValidationRepo    *repo.ValidationRepo
-	TripwireService   *service.TripwireService
-	ValidationService *service.ValidationService
+	App                 *fiber.App
+	DB                  *sql.DB
+	AuthService         *service.AuthService
+	ContactRepo         *repo.ContactRepo
+	AccountRepo         *repo.AccountRepo
+	TaskRepo            *repo.TaskRepo
+	MetadataRepo        *repo.MetadataRepo
+	TripwireRepo        *repo.TripwireRepo
+	ValidationRepo      *repo.ValidationRepo
+	TripwireService     *service.TripwireService
+	ValidationService   *service.ValidationService
+	IngestAPIKeyService *service.IngestAPIKeyService
+	IngestAPIKeyRepo    *repo.IngestAPIKeyRepo
+	MirrorRepo          *repo.MirrorRepo
+	IngestJobRepo       *repo.IngestJobRepo
+	DeltaKeyRepo        *repo.DeltaKeyRepo
+	IngestService       *service.IngestService
+	RateLimiter         *service.IngestRateLimiter
+	AuthRepo            *repo.AuthRepo
 }
 
 // TestUser represents a test user with tokens
@@ -79,6 +88,12 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authRepo := repo.NewAuthRepo(db)
 	auditRepo := repo.NewAuditRepo(db)
 
+	// Ingest infrastructure repositories
+	ingestAPIKeyRepo := repo.NewIngestAPIKeyRepo(db)
+	mirrorRepo := repo.NewMirrorRepo(db)
+	ingestJobRepo := repo.NewIngestJobRepo(db)
+	deltaKeyRepo := repo.NewDeltaKeyRepo(db)
+
 	// Initialize services
 	tripwireService := service.NewTripwireService(db, tripwireRepo)
 	validationService := service.NewValidationService(db, validationRepo)
@@ -88,6 +103,11 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authService := service.NewAuthService(authRepo, authConfig, provisioningService)
 	apiTokenService := service.NewAPITokenService(repo.NewAPITokenRepo(db))
 	auditLogger := service.NewAuditLogger(auditRepo)
+
+	// Ingest infrastructure services
+	ingestAPIKeyService := service.NewIngestAPIKeyService(ingestAPIKeyRepo)
+	ingestService := service.NewIngestService(mirrorRepo, ingestJobRepo, deltaKeyRepo, metadataRepo, db)
+	ingestRateLimiter := service.NewIngestRateLimiter()
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
@@ -109,6 +129,11 @@ func SetupTestApp(t *testing.T) *TestApp {
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	bulkHandler := handler.NewBulkHandler(db, metadataRepo, tripwireService, validationService)
 	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService, nil)
+
+	// Ingest handlers
+	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
+	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
+	mirrorHandler := handler.NewMirrorHandler(mirrorRepo, ingestJobRepo, provisioningService)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -195,18 +220,81 @@ func SetupTestApp(t *testing.T) *TestApp {
 		return c.JSON(fiber.Map{"organizations": []string{"org1", "org2"}})
 	})
 
+	// Ingest routes (separate auth path - X-API-Key, not JWT)
+	// Test middleware that validates X-API-Key and sets up context
+	testIngestAuth := func(c *fiber.Ctx) error {
+		apiKey := c.Get("X-API-Key")
+		if apiKey == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "X-API-Key header required",
+			})
+		}
+
+		// Validate the API key
+		ingestKey, err := ingestAPIKeyService.ValidateKey(c.Context(), apiKey)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or inactive API key",
+			})
+		}
+
+		// Look up the organization
+		org, err := authRepo.GetOrganizationByID(c.Context(), ingestKey.OrgID)
+		if err != nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Organization not found or inactive",
+			})
+		}
+
+		if !org.IsActive {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Organization not found or inactive",
+			})
+		}
+
+		// Set context locals (tests use single DB)
+		c.Locals("ingestOrgID", ingestKey.OrgID)
+		c.Locals("ingestKeyID", ingestKey.ID)
+		c.Locals("ingestRateLimit", ingestKey.RateLimit)
+		// For tests, handlers can access DB via GetDB helper that unwraps both *sql.DB and wrappers
+		c.Locals("db", db)
+		c.Locals("dbConn", db)
+
+		return c.Next()
+	}
+
+	ingestGroup := api.Group("/ingest", testIngestAuth)
+	ingestHandler.RegisterRoutes(ingestGroup)
+
+	// Ingest admin routes (API key management, mirror management)
+	ingestKeys := adminProtected.Group("/ingest-keys")
+	ingestKeys.Post("", ingestKeyHandler.Create)
+	ingestKeys.Get("", ingestKeyHandler.List)
+	ingestKeys.Post("/:id/deactivate", ingestKeyHandler.Deactivate)
+	ingestKeys.Delete("/:id", ingestKeyHandler.Delete)
+
+	mirrorHandler.RegisterRoutes(adminProtected)
+
 	return &TestApp{
-		App:               app,
-		DB:                db,
-		AuthService:       authService,
-		ContactRepo:       contactRepo,
-		AccountRepo:       accountRepo,
-		TaskRepo:          taskRepo,
-		MetadataRepo:      metadataRepo,
-		TripwireRepo:      tripwireRepo,
-		ValidationRepo:    validationRepo,
-		TripwireService:   tripwireService,
-		ValidationService: validationService,
+		App:                 app,
+		DB:                  db,
+		AuthService:         authService,
+		ContactRepo:         contactRepo,
+		AccountRepo:         accountRepo,
+		TaskRepo:            taskRepo,
+		MetadataRepo:        metadataRepo,
+		TripwireRepo:        tripwireRepo,
+		ValidationRepo:      validationRepo,
+		TripwireService:     tripwireService,
+		ValidationService:   validationService,
+		IngestAPIKeyService: ingestAPIKeyService,
+		IngestAPIKeyRepo:    ingestAPIKeyRepo,
+		MirrorRepo:          mirrorRepo,
+		IngestJobRepo:       ingestJobRepo,
+		DeltaKeyRepo:        deltaKeyRepo,
+		IngestService:       ingestService,
+		RateLimiter:         ingestRateLimiter,
+		AuthRepo:            authRepo,
 	}
 }
 
@@ -624,4 +712,72 @@ func (ta *TestApp) CreateTask(t *testing.T, token string, data map[string]string
 		t.Fatalf("Failed to decode task response: %v", err)
 	}
 	return result
+}
+
+// MakeIngestRequest makes an HTTP request with X-API-Key header
+func (ta *TestApp) MakeIngestRequest(t *testing.T, method, path string, body interface{}, apiKey string) *http.Response {
+	t.Helper()
+
+	var reqBody io.Reader
+	if body != nil {
+		jsonBytes, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("Failed to marshal request body: %v", err)
+		}
+		reqBody = bytes.NewReader(jsonBytes)
+	}
+
+	req := httptest.NewRequest(method, path, reqBody)
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("X-API-Key", apiKey)
+	}
+
+	resp, err := ta.App.Test(req, -1) // -1 means no timeout
+	if err != nil {
+		t.Fatalf("Failed to make ingest request: %v", err)
+	}
+
+	return resp
+}
+
+// WaitForJobCompletion polls for job completion with timeout
+func (ta *TestApp) WaitForJobCompletion(t *testing.T, apiKey, jobID string, timeoutSecs int) map[string]interface{} {
+	t.Helper()
+
+	path := fmt.Sprintf("/api/v1/ingest/jobs/%s", jobID)
+	pollInterval := 100 * time.Millisecond
+	timeout := time.Duration(timeoutSecs) * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		resp := ta.MakeIngestRequest(t, "GET", path, nil, apiKey)
+
+		if resp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			t.Fatalf("Failed to get job status: %d - %s", resp.StatusCode, string(bodyBytes))
+		}
+
+		var job map[string]interface{}
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if err := json.Unmarshal(bodyBytes, &job); err != nil {
+			t.Fatalf("Failed to decode job response: %v", err)
+		}
+
+		status, ok := job["status"].(string)
+		if !ok {
+			t.Fatalf("Job status not found in response")
+		}
+
+		// Check for terminal states
+		if status == "complete" || status == "partial" || status == "failed" {
+			return job
+		}
+
+		// Sleep before next poll
+		time.Sleep(pollInterval)
+	}
+
+	t.Fatalf("Job %s did not complete within %d seconds", jobID, timeoutSecs)
+	return nil
 }

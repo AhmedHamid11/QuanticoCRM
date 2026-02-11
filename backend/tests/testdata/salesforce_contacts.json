@@ -1,0 +1,44 @@
+{
+  "records": [
+    {
+      "sf_id": "003MOCK000001",
+      "FirstName": "John",
+      "LastName": "Smith",
+      "Email": "john.smith@example.com",
+      "Phone": "555-0101",
+      "Company": "Acme Corp"
+    },
+    {
+      "sf_id": "003MOCK000002",
+      "FirstName": "Jane",
+      "LastName": "Doe",
+      "Email": "jane.doe@example.com",
+      "Phone": "555-0102",
+      "Company": "Widget Inc"
+    },
+    {
+      "sf_id": "003MOCK000003",
+      "FirstName": "Bob",
+      "LastName": "Johnson",
+      "Email": "bob.j@example.com",
+      "Phone": "555-0103",
+      "Company": "TechCo"
+    },
+    {
+      "sf_id": "003MOCK000004",
+      "FirstName": "Alice",
+      "LastName": "Williams",
+      "Email": "alice.w@example.com",
+      "Phone": "555-0104",
+      "Company": "DataFlow"
+    },
+    {
+      "sf_id": "003MOCK000005",
+      "FirstName": "Charlie",
+      "LastName": "Brown",
+      "Email": "charlie.b@example.com",
+      "Phone": "555-0105",
+      "Company": "InfoSys"
+    }
+  ]
+}
