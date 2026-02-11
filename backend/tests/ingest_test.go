@@ -421,6 +421,304 @@ func TestIngest_DeltaSync(t *testing.T) {
 	})
 }
 
+// TestIngest_StrictMode tests that strict mode rejects payloads with unmapped fields
+// TEST-03: Strict mode rejects unmapped fields with UNMAPPED_FIELD error code
+func TestIngest_StrictMode(t *testing.T) {
+	app := SetupTestApp(t)
+	defer app.Cleanup()
+	user := app.CreateTestUser(t, "strict@test.com", "SecureP@ssw0rd!Strict", "Strict Mode Org")
+
+	var apiKey, mirrorID string
+
+	// Setup: Create API key and mirror with strict mode
+	t.Run("Setup API Key and Mirror (Strict Mode)", func(t *testing.T) {
+		// Create API key
+		keyBody := map[string]interface{}{
+			"name":      "Strict Test Key",
+			"rateLimit": 500,
+		}
+
+		var keyResult map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", keyBody, user.AccessToken, &keyResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		apiKey = keyResult["key"].(string)
+
+		// Create mirror with strict mode, only 3 source fields (sf_id, FirstName, LastName)
+		// This will cause Email, Phone, Company from fixture to be unmapped
+		mirrorBody := map[string]interface{}{
+			"name":              "Strict Mode Mirror",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id",
+			"unmappedFieldMode": "strict",
+			"sourceFields": []map[string]interface{}{
+				{"fieldName": "sf_id", "fieldType": "text", "isRequired": true, "mapField": "description"},
+				{"fieldName": "FirstName", "fieldType": "text", "isRequired": true, "mapField": "firstName"},
+				{"fieldName": "LastName", "fieldType": "text", "isRequired": true, "mapField": "lastName"},
+			},
+		}
+
+		var mirrorResult map[string]interface{}
+		resp = app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", mirrorBody, user.AccessToken, &mirrorResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		mirrorID = mirrorResult["id"].(string)
+	})
+
+	// Test 1: Ingest records with unmapped fields - should all fail
+	t.Run("Rejects Records with Unmapped Fields", func(t *testing.T) {
+		// Load fixture (has Email, Phone as extra fields)
+		fixtureData, err := os.ReadFile("testdata/salesforce_contacts.json")
+		if err != nil {
+			t.Fatalf("Failed to read fixture: %v", err)
+		}
+
+		var fixture struct {
+			Records []map[string]interface{} `json:"records"`
+		}
+		if err := json.Unmarshal(fixtureData, &fixture); err != nil {
+			t.Fatalf("Failed to parse fixture: %v", err)
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   fixture.Records,
+		}
+
+		var ingestResult map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &ingestResult)
+
+		jobID := ingestResult["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert all records failed due to unmapped fields
+		recordsFailed := int(job["recordsFailed"].(float64))
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+
+		if recordsFailed != 5 {
+			t.Errorf("Expected 5 records failed (all have unmapped fields), got: %d", recordsFailed)
+		}
+		if recordsPromoted != 0 {
+			t.Errorf("Expected 0 records promoted in strict mode with unmapped fields, got: %d", recordsPromoted)
+		}
+
+		// Verify errors contain UNMAPPED_FIELD error code
+		errors, ok := job["errors"].([]interface{})
+		if !ok || len(errors) == 0 {
+			t.Fatalf("Expected errors array with UNMAPPED_FIELD codes, got: %v", job["errors"])
+		}
+
+		// Check first error for UNMAPPED_FIELD code
+		if len(errors) > 0 {
+			firstError, ok := errors[0].(map[string]interface{})
+			if ok {
+				errorCode, _ := firstError["code"].(string)
+				if errorCode != "UNMAPPED_FIELD" {
+					t.Errorf("Expected error code UNMAPPED_FIELD, got: %s", errorCode)
+				}
+			}
+		}
+
+		// Verify no records were promoted to entity table
+		var count int
+		err = app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, user.OrgID).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count contacts: %v", err)
+		}
+
+		if count != 0 {
+			t.Errorf("Expected 0 contacts in DB (all rejected), got: %d", count)
+		}
+	})
+
+	// Test 2: Ingest records WITHOUT unmapped fields - should succeed
+	t.Run("Accepts Records Without Unmapped Fields", func(t *testing.T) {
+		// Create records with only the 3 defined fields
+		cleanRecords := []map[string]interface{}{
+			{
+				"sf_id":     "003STRICT0001",
+				"FirstName": "Alice",
+				"LastName":  "Johnson",
+			},
+			{
+				"sf_id":     "003STRICT0002",
+				"FirstName": "Bob",
+				"LastName":  "Williams",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   cleanRecords,
+		}
+
+		var ingestResult map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &ingestResult)
+
+		jobID := ingestResult["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert all records promoted successfully
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		recordsFailed := int(job["recordsFailed"].(float64))
+
+		if recordsPromoted != 2 {
+			t.Errorf("Expected 2 records promoted (no unmapped fields), got: %d", recordsPromoted)
+		}
+		if recordsFailed != 0 {
+			t.Errorf("Expected 0 records failed (valid payload), got: %d", recordsFailed)
+		}
+
+		if job["status"] != "complete" {
+			t.Errorf("Expected status 'complete', got: %v", job["status"])
+		}
+
+		// Verify records exist in DB
+		var count int
+		err := app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, user.OrgID).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count contacts: %v", err)
+		}
+
+		if count != 2 {
+			t.Errorf("Expected 2 contacts in DB, got: %d", count)
+		}
+	})
+}
+
+// TestIngest_FlexibleMode tests that flexible mode accepts unmapped fields with warnings
+// TEST-04: Flexible mode accepts unmapped fields and produces warnings
+func TestIngest_FlexibleMode(t *testing.T) {
+	app := SetupTestApp(t)
+	defer app.Cleanup()
+	user := app.CreateTestUser(t, "flexible@test.com", "SecureP@ssw0rd!Flexible", "Flexible Mode Org")
+
+	var apiKey, mirrorID string
+
+	// Setup: Create API key and mirror with flexible mode
+	t.Run("Setup API Key and Mirror (Flexible Mode)", func(t *testing.T) {
+		// Create API key
+		keyBody := map[string]interface{}{
+			"name":      "Flexible Test Key",
+			"rateLimit": 500,
+		}
+
+		var keyResult map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", keyBody, user.AccessToken, &keyResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		apiKey = keyResult["key"].(string)
+
+		// Create mirror with flexible mode, only 3 source fields (sf_id, FirstName, LastName)
+		// This will cause Email, Phone from fixture to be unmapped but NOT rejected
+		mirrorBody := map[string]interface{}{
+			"name":              "Flexible Mode Mirror",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id",
+			"unmappedFieldMode": "flexible",
+			"sourceFields": []map[string]interface{}{
+				{"fieldName": "sf_id", "fieldType": "text", "isRequired": true, "mapField": "description"},
+				{"fieldName": "FirstName", "fieldType": "text", "isRequired": true, "mapField": "firstName"},
+				{"fieldName": "LastName", "fieldType": "text", "isRequired": true, "mapField": "lastName"},
+			},
+		}
+
+		var mirrorResult map[string]interface{}
+		resp = app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", mirrorBody, user.AccessToken, &mirrorResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		mirrorID = mirrorResult["id"].(string)
+	})
+
+	// Test: Ingest records with unmapped fields - should all succeed with warnings
+	t.Run("Accepts Records with Unmapped Fields", func(t *testing.T) {
+		// Load fixture (has Email, Phone as extra fields)
+		fixtureData, err := os.ReadFile("testdata/salesforce_contacts.json")
+		if err != nil {
+			t.Fatalf("Failed to read fixture: %v", err)
+		}
+
+		var fixture struct {
+			Records []map[string]interface{} `json:"records"`
+		}
+		if err := json.Unmarshal(fixtureData, &fixture); err != nil {
+			t.Fatalf("Failed to parse fixture: %v", err)
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   fixture.Records,
+		}
+
+		var ingestResult map[string]interface{}
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(bodyBytes, &ingestResult)
+
+		jobID := ingestResult["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+		// Assert all records promoted despite unmapped fields
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		recordsFailed := int(job["recordsFailed"].(float64))
+
+		if recordsPromoted != 5 {
+			t.Errorf("Expected 5 records promoted (flexible mode accepts unmapped fields), got: %d", recordsPromoted)
+		}
+		if recordsFailed != 0 {
+			t.Errorf("Expected 0 records failed (flexible mode), got: %d", recordsFailed)
+		}
+
+		if job["status"] != "complete" {
+			t.Errorf("Expected status 'complete', got: %v", job["status"])
+		}
+
+		// Verify warnings array exists and contains unmapped field warnings
+		warnings, ok := job["warnings"].([]interface{})
+		if !ok || len(warnings) == 0 {
+			t.Errorf("Expected warnings array with unmapped field warnings, got: %v", job["warnings"])
+		} else {
+			// Check that at least one warning mentions unmapped fields
+			foundUnmappedWarning := false
+			for _, w := range warnings {
+				if wStr, ok := w.(string); ok {
+					if contains(wStr, "unmapped") || contains(wStr, "Unmapped") {
+						foundUnmappedWarning = true
+						break
+					}
+				}
+			}
+			if !foundUnmappedWarning {
+				t.Errorf("Expected at least one warning about unmapped fields, got warnings: %v", warnings)
+			}
+		}
+
+		// Verify records were promoted to entity table
+		var count int
+		err = app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, user.OrgID).Scan(&count)
+		if err != nil {
+			t.Fatalf("Failed to count contacts: %v", err)
+		}
+
+		if count != 5 {
+			t.Errorf("Expected 5 contacts in DB (all promoted), got: %d", count)
+		}
+	})
+}
+
 // Helper function to check if a string contains a substring
 func contains(str, substr string) bool {
 	return len(str) >= len(substr) && (str == substr || len(str) > len(substr) && (str[:len(substr)] == substr || str[len(str)-len(substr):] == substr || containsInMiddle(str, substr)))
