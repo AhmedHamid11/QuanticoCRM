@@ -1,8 +1,11 @@
 -- Migration: Deduplicate pdf_templates and add UNIQUE constraint
 -- Same root cause as bearing_configs: tenant_provisioning.go created the table
 -- without a UNIQUE constraint, so each reprovision inserted duplicate templates.
+-- NOTE: Only copy columns from migration 033 schema (master DB).
+-- Tenant DBs may have extra columns (custom_css, header_html, etc.) added by
+-- tenant_provisioning.go, but the master DB does not.
 
--- Step 1: Create new table with UNIQUE constraint
+-- Step 1: Create new table with UNIQUE constraint (base columns only)
 CREATE TABLE IF NOT EXISTS pdf_templates_new (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -16,11 +19,6 @@ CREATE TABLE IF NOT EXISTS pdf_templates_new (
     page_size TEXT DEFAULT 'A4',
     orientation TEXT DEFAULT 'portrait',
     margins TEXT DEFAULT '10mm,10mm,10mm,10mm',
-    custom_css TEXT,
-    header_html TEXT,
-    footer_html TEXT,
-    created_by TEXT,
-    modified_by TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     modified_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(org_id, entity_type, name)
@@ -28,8 +26,8 @@ CREATE TABLE IF NOT EXISTS pdf_templates_new (
 
 -- Step 2: Copy one row per (org_id, entity_type, name), keeping the earliest
 INSERT OR IGNORE INTO pdf_templates_new
-    (id, org_id, name, entity_type, is_default, is_system, base_design, branding, sections, page_size, orientation, margins, custom_css, header_html, footer_html, created_by, modified_by, created_at, modified_at)
-SELECT id, org_id, name, entity_type, is_default, is_system, base_design, branding, sections, page_size, orientation, margins, custom_css, header_html, footer_html, created_by, modified_by, created_at, modified_at
+    (id, org_id, name, entity_type, is_default, is_system, base_design, branding, sections, page_size, orientation, margins, created_at, modified_at)
+SELECT id, org_id, name, entity_type, is_default, is_system, base_design, branding, sections, page_size, orientation, margins, created_at, modified_at
 FROM pdf_templates
 ORDER BY created_at ASC;
 
