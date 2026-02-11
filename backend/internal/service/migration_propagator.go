@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -42,16 +43,17 @@ func NewMigrationPropagator(
 	}
 }
 
-// PropagateAll runs migrations on all orgs that need updates
-// This blocks until all orgs are processed (success or failure)
-// Failed orgs are logged and skipped - they don't block other orgs
+// PropagateAll runs migrations on all orgs that have pending migration files.
+// This uses the per-file _migrations tracking table in each tenant DB for accuracy,
+// rather than relying solely on version comparison which can miss migrations when
+// version bumps are forgotten.
 func (p *MigrationPropagator) PropagateAll(ctx context.Context) *entity.PropagationResult {
 	result := &entity.PropagationResult{
 		StartedAt: time.Now(),
 		Runs:      []entity.MigrationRun{},
 	}
 
-	// Get current platform version (target)
+	// Get current platform version (for version stamping after success)
 	platformVersion, err := p.versionRepo.GetPlatformVersion(ctx)
 	if err != nil {
 		log.Printf("[MIGRATION] ERROR: Failed to get platform version: %v", err)
@@ -61,21 +63,30 @@ func (p *MigrationPropagator) PropagateAll(ctx context.Context) *entity.Propagat
 	targetVersion := platformVersion.Version
 	log.Printf("[MIGRATION] Target platform version: %s", targetVersion)
 
-	// Get all orgs that need updating
-	orgs, err := p.getOrgsNeedingUpdate(ctx, targetVersion)
+	// Get the list of all migration files we expect to be applied
+	migrationFiles, err := p.getMigrationFiles()
 	if err != nil {
-		log.Printf("[MIGRATION] ERROR: Failed to get orgs needing update: %v", err)
+		log.Printf("[MIGRATION] ERROR: Failed to list migration files: %v", err)
+		result.CompletedAt = time.Now()
+		return result
+	}
+	log.Printf("[MIGRATION] Total migration files available: %d", len(migrationFiles))
+
+	// Get ALL active orgs with tenant databases (not version-gated)
+	orgs, err := p.getAllActiveOrgs(ctx)
+	if err != nil {
+		log.Printf("[MIGRATION] ERROR: Failed to get organizations: %v", err)
 		result.CompletedAt = time.Now()
 		return result
 	}
 
 	if len(orgs) == 0 {
-		log.Printf("[MIGRATION] All organizations already at version %s", targetVersion)
+		log.Printf("[MIGRATION] No active organizations found")
 		result.CompletedAt = time.Now()
 		return result
 	}
 
-	log.Printf("[MIGRATION] Found %d organizations needing update to %s", len(orgs), targetVersion)
+	log.Printf("[MIGRATION] Checking %d active organizations for pending migrations", len(orgs))
 
 	// Process each org sequentially
 	for _, org := range orgs {
@@ -130,6 +141,16 @@ func (p *MigrationPropagator) migrateOrg(ctx context.Context, org *orgInfo, targ
 		return run
 	}
 
+	// Skip orgs without a dedicated database URL (they use master DB)
+	if org.DatabaseURL == "" {
+		log.Printf("[MIGRATION] Org=%s SKIPPED (no dedicated database URL)", org.ID)
+		run.Status = "skipped"
+		now := time.Now()
+		run.CompletedAt = &now
+		p.migrationRepo.UpdateRunStatus(ctx, run.ID, run.Status, "")
+		return run
+	}
+
 	// Get tenant database connection
 	tenantDB, err := p.dbManager.GetTenantDBConn(orgCtx, org.ID, org.DatabaseURL, org.DatabaseToken)
 	if err != nil {
@@ -143,13 +164,25 @@ func (p *MigrationPropagator) migrateOrg(ctx context.Context, org *orgInfo, targ
 	}
 
 	// Apply migrations to tenant database
-	if err := p.applyMigrations(orgCtx, tenantDB, org); err != nil {
+	appliedCount, err := p.applyMigrations(orgCtx, tenantDB, org)
+	if err != nil {
 		run.Status = "failed"
 		run.ErrorMessage = err.Error()
 		now := time.Now()
 		run.CompletedAt = &now
 		log.Printf("[MIGRATION] Org=%s FAILED: %v", org.ID, err)
 		p.migrationRepo.UpdateRunStatus(ctx, run.ID, run.Status, run.ErrorMessage)
+		return run
+	}
+
+	// If no migrations were applied, mark as skipped (already up to date)
+	if appliedCount == 0 {
+		run.Status = "skipped"
+		now := time.Now()
+		run.CompletedAt = &now
+		// Still update version in case it's stale
+		p.updateOrgVersion(ctx, org.ID, targetVersion)
+		p.migrationRepo.UpdateRunStatus(ctx, run.ID, run.Status, "")
 		return run
 	}
 
@@ -168,7 +201,7 @@ func (p *MigrationPropagator) migrateOrg(ctx context.Context, org *orgInfo, targ
 	run.Status = "success"
 	now := time.Now()
 	run.CompletedAt = &now
-	log.Printf("[MIGRATION] Org=%s SUCCESS: %s -> %s", org.ID, org.CurrentVersion, targetVersion)
+	log.Printf("[MIGRATION] Org=%s SUCCESS: applied %d migrations (%s -> %s)", org.ID, appliedCount, org.CurrentVersion, targetVersion)
 	p.migrationRepo.UpdateRunStatus(ctx, run.ID, run.Status, "")
 	return run
 }
@@ -182,10 +215,9 @@ type orgInfo struct {
 	DatabaseToken  string
 }
 
-// getOrgsNeedingUpdate returns orgs with version < platform version
-func (p *MigrationPropagator) getOrgsNeedingUpdate(ctx context.Context, platformVersion string) ([]orgInfo, error) {
-	// Query orgs with their database credentials
-	// Order by created_at ASC (oldest first) per user decision
+// getAllActiveOrgs returns all active organizations (no version filtering).
+// The _migrations table in each tenant DB is the source of truth for what's been applied.
+func (p *MigrationPropagator) getAllActiveOrgs(ctx context.Context) ([]orgInfo, error) {
 	query := `
 		SELECT id, name, COALESCE(current_version, 'v0.1.0'),
 		       COALESCE(database_url, ''), COALESCE(database_token, '')
@@ -206,21 +238,32 @@ func (p *MigrationPropagator) getOrgsNeedingUpdate(ctx context.Context, platform
 		if err := rows.Scan(&org.ID, &org.Name, &org.CurrentVersion, &org.DatabaseURL, &org.DatabaseToken); err != nil {
 			return nil, fmt.Errorf("failed to scan organization: %w", err)
 		}
-
-		// Normalize version for comparison
 		org.CurrentVersion = p.versionService.Normalize(org.CurrentVersion)
-
-		// Only include orgs that need update
-		if p.versionService.NeedsUpdate(org.CurrentVersion, platformVersion) {
-			orgs = append(orgs, org)
-		}
+		orgs = append(orgs, org)
 	}
 
 	return orgs, rows.Err()
 }
 
-// applyMigrations applies pending migrations to a tenant database
-func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.DBConn, org *orgInfo) error {
+// getOrgsNeedingUpdate returns orgs with version < platform version (kept for RetryOrg compatibility)
+func (p *MigrationPropagator) getOrgsNeedingUpdate(ctx context.Context, platformVersion string) ([]orgInfo, error) {
+	orgs, err := p.getAllActiveOrgs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var needUpdate []orgInfo
+	for _, org := range orgs {
+		if p.versionService.NeedsUpdate(org.CurrentVersion, platformVersion) {
+			needUpdate = append(needUpdate, org)
+		}
+	}
+	return needUpdate, nil
+}
+
+// applyMigrations applies pending migrations to a tenant database.
+// Returns the number of migrations applied and any error.
+func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.DBConn, org *orgInfo) (int, error) {
 	// Create _migrations table if not exists
 	// Retry on connection errors as they may be transient
 	maxRetries := 3
@@ -236,7 +279,6 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 		if err == nil {
 			break
 		}
-		// Check if it's a connection error (transient)
 		if isConnectionError(err) {
 			if attempt < maxRetries-1 {
 				log.Printf("[MIGRATION] Org=%s Connection error creating migrations table (attempt %d), retrying...", org.ID, attempt+1)
@@ -244,18 +286,17 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 				continue
 			}
 		}
-		// Non-connection error or last attempt
-		return fmt.Errorf("failed to create migrations table: %w", err)
+		return 0, fmt.Errorf("failed to create migrations table: %w", err)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to create migrations table after retries: %w", err)
+		return 0, fmt.Errorf("failed to create migrations table after retries: %w", err)
 	}
 
 	// Get applied migrations
 	applied := make(map[string]bool)
 	rows, err := tenantDB.QueryContext(ctx, "SELECT name FROM _migrations")
 	if err != nil {
-		return fmt.Errorf("failed to query applied migrations: %w", err)
+		return 0, fmt.Errorf("failed to query applied migrations: %w", err)
 	}
 	for rows.Next() {
 		var name string
@@ -267,13 +308,12 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 	// Get migration files
 	files, err := p.getMigrationFiles()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Apply pending migrations
 	appliedCount := 0
 	for _, file := range files {
-		// file is now just the filename (e.g., "001_create_users.sql") from embedded FS
 		if applied[file] {
 			continue
 		}
@@ -281,7 +321,7 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 		// Read migration file from embedded FS
 		content, err := fs.ReadFile(migrations.Files, file)
 		if err != nil {
-			return fmt.Errorf("failed to read migration %s: %w", file, err)
+			return appliedCount, fmt.Errorf("failed to read migration %s: %w", file, err)
 		}
 
 		// Begin transaction for this migration with retry logic
@@ -302,51 +342,62 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 				time.Sleep(time.Duration(attempt*100) * time.Millisecond)
 				continue
 			}
-			return fmt.Errorf("failed to begin transaction for %s: %w", file, beginErr)
+			return appliedCount, fmt.Errorf("failed to begin transaction for %s: %w", file, beginErr)
 		}
 		if beginErr != nil {
-			return fmt.Errorf("failed to begin transaction for %s after retries: %w", file, beginErr)
+			return appliedCount, fmt.Errorf("failed to begin transaction for %s after retries: %w", file, beginErr)
 		}
 
 		// Execute statements
 		statements := strings.Split(string(content), ";")
 		for _, stmt := range statements {
 			stmt = strings.TrimSpace(stmt)
-			if stmt == "" || strings.HasPrefix(stmt, "--") {
+			if stmt == "" {
+				continue
+			}
+
+			// Strip leading SQL comments (-- lines) before checking content
+			// This is critical: comments before SQL must not cause the statement to be skipped
+			stmt = stripLeadingComments(stmt)
+			if stmt == "" {
 				continue
 			}
 
 			// Skip master-only tables on tenant databases
 			if isMasterOnlyStatement(stmt) {
-				log.Printf("[MIGRATION] Org=%s Skipping master-only statement in %s", org.ID, file)
 				continue
 			}
 
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				// Handle idempotent errors (safe to skip)
-				if isAddColumnError(err) || isTableNotExistsError(err) {
-					log.Printf("[MIGRATION] Org=%s Skipping safe error in %s: %v", org.ID, file, err)
+				if isAddColumnError(err) || isAlreadyExistsError(err) {
+					log.Printf("[MIGRATION] Org=%s Skipping idempotent error in %s: %v", org.ID, file, err)
 					continue
 				}
-				// Check for connection errors - these are transient and shouldn't fail the whole migration
+				// Handle missing table/column errors for master-only tables that we intentionally skip
+				if isMissingObjectError(err) {
+					log.Printf("[MIGRATION] Org=%s Skipping missing object error in %s: %v", org.ID, file, err)
+					continue
+				}
+				// Check for connection errors - these are transient
 				if isConnectionError(err) {
-					log.Printf("[MIGRATION] Org=%s WARNING: Connection error in %s, attempting rollback and continuing: %v", org.ID, file, err)
+					log.Printf("[MIGRATION] Org=%s WARNING: Connection error in %s, rolling back: %v", org.ID, file, err)
 					tx.Rollback()
-					return fmt.Errorf("failed to execute %s (connection error): %w", file, err)
+					return appliedCount, fmt.Errorf("failed to execute %s (connection error): %w", file, err)
 				}
 				tx.Rollback()
-				return fmt.Errorf("failed to execute %s: %w\nStatement: %s", file, err, stmt)
+				return appliedCount, fmt.Errorf("failed to execute %s: %w\nStatement: %s", file, err, truncateStmt(stmt))
 			}
 		}
 
 		// Record migration
 		if _, err := tx.ExecContext(ctx, "INSERT INTO _migrations (name) VALUES (?)", file); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to record migration %s: %w", file, err)
+			return appliedCount, fmt.Errorf("failed to record migration %s: %w", file, err)
 		}
 
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit migration %s: %w", file, err)
+			return appliedCount, fmt.Errorf("failed to commit migration %s: %w", file, err)
 		}
 
 		appliedCount++
@@ -357,13 +408,11 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 		log.Printf("[MIGRATION] Org=%s Applied %d migrations", org.ID, appliedCount)
 	}
 
-	return nil
+	return appliedCount, nil
 }
 
 // getMigrationFiles returns sorted list of migration files from embedded FS
 func (p *MigrationPropagator) getMigrationFiles() ([]string, error) {
-	// Use embedded migrations instead of reading from filesystem
-	// This works in Docker containers where the filesystem paths don't exist
 	entries, err := fs.ReadDir(migrations.Files, ".")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list migrations: %w", err)
@@ -412,17 +461,29 @@ func (p *MigrationPropagator) RetryOrg(ctx context.Context, orgID string) (*enti
 		return nil, fmt.Errorf("failed to get organization: %w", err)
 	}
 
-	// Normalize version
 	org.CurrentVersion = p.versionService.Normalize(org.CurrentVersion)
 
-	// Check if update is needed
-	if !p.versionService.NeedsUpdate(org.CurrentVersion, platformVersion.Version) {
-		return nil, fmt.Errorf("organization %s is already at version %s", org.Name, org.CurrentVersion)
-	}
-
-	// Run migration
+	// Run migration (always attempt - _migrations table is source of truth)
 	run := p.migrateOrg(ctx, &org, platformVersion.Version)
 	return &run, nil
+}
+
+// stripLeadingComments removes SQL comment lines (-- ...) from the beginning of a statement.
+// This ensures that comments preceding CREATE TABLE, INSERT, etc. don't cause the statement
+// to be incorrectly skipped or misclassified.
+func stripLeadingComments(stmt string) string {
+	lines := strings.Split(stmt, "\n")
+	var result []string
+	foundSQL := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !foundSQL && (strings.HasPrefix(trimmed, "--") || trimmed == "") {
+			continue
+		}
+		foundSQL = true
+		result = append(result, line)
+	}
+	return strings.TrimSpace(strings.Join(result, "\n"))
 }
 
 // isAddColumnError checks if error is about a column already existing
@@ -433,8 +494,17 @@ func isAddColumnError(err error) bool {
 		strings.Contains(errStr, "already has a column named")
 }
 
-// isTableNotExistsError checks if error is about a missing table
-func isTableNotExistsError(err error) bool {
+// isAlreadyExistsError checks if error is about an object already existing (table, index)
+func isAlreadyExistsError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "table already exists") ||
+		strings.Contains(errStr, "index already exists")
+}
+
+// isMissingObjectError checks if error is about a missing table or column.
+// This handles cases where a migration references a master-only table that
+// doesn't exist on tenant databases (e.g., INSERT ... SELECT FROM organizations).
+func isMissingObjectError(err error) bool {
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "no such table") ||
 		strings.Contains(errStr, "table does not exist") ||
@@ -457,29 +527,55 @@ func isConnectionError(err error) bool {
 		strings.Contains(errStr, "connection reset")
 }
 
-// isMasterOnlyStatement checks if a statement operates on master-only tables
-// These should not be applied to tenant databases
-func isMasterOnlyStatement(stmt string) bool {
-	masterOnlyTables := []string{
-		"organizations",
-		"users",
-		"user_org_memberships",
-		"sessions",
-		"org_invitations",
-		"custom_pages",
-		"api_tokens",
-		"audit_log",
-		"_migrations",
-		"salesforce_connections",
-		"salesforce_field_mappings",
-		"ingest_api_keys",
-	}
+// masterOnlyTableNames is the definitive list of tables that only exist on the master database.
+// Tenant databases should never have these tables created or populated.
+var masterOnlyTableNames = map[string]bool{
+	"organizations":            true,
+	"users":                    true,
+	"user_org_memberships":     true,
+	"sessions":                 true,
+	"org_invitations":          true,
+	"custom_pages":             true,
+	"api_tokens":               true,
+	"audit_logs":               true,
+	"platform_versions":        true,
+	"migration_runs":           true,
+	"password_reset_tokens":    true,
+	"salesforce_connections":   true,
+	"salesforce_field_mappings": true,
+	"ingest_api_keys":          true,
+}
 
-	upper := strings.ToUpper(stmt)
-	for _, table := range masterOnlyTables {
-		if strings.Contains(upper, strings.ToUpper(table)) {
-			return true
-		}
+// tableNamePattern extracts the table name from CREATE TABLE, ALTER TABLE, INSERT INTO,
+// DROP TABLE, and CREATE INDEX statements.
+var tableNamePattern = regexp.MustCompile(
+	`(?i)(?:` +
+		`CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?` + // CREATE TABLE [IF NOT EXISTS]
+		`|ALTER\s+TABLE\s+` + // ALTER TABLE
+		`|INSERT\s+(?:OR\s+\w+\s+)?INTO\s+` + // INSERT [OR REPLACE|IGNORE] INTO
+		`|DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?` + // DROP TABLE [IF EXISTS]
+		`|CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?\S+\s+ON\s+` + // CREATE [UNIQUE] INDEX ... ON
+		`|DELETE\s+FROM\s+` + // DELETE FROM
+		`|UPDATE\s+` + // UPDATE
+		`)(\w+)`, // capture the table name
+)
+
+// isMasterOnlyStatement checks if a SQL statement operates on a master-only table.
+// Uses precise table name extraction from the SQL statement rather than substring matching,
+// which prevents false positives from comments, column values, and foreign key references.
+func isMasterOnlyStatement(stmt string) bool {
+	match := tableNamePattern.FindStringSubmatch(stmt)
+	if match == nil {
+		return false
 	}
-	return false
+	tableName := strings.ToLower(match[1])
+	return masterOnlyTableNames[tableName]
+}
+
+// truncateStmt truncates a SQL statement for logging (avoids flooding logs with large statements)
+func truncateStmt(stmt string) string {
+	if len(stmt) > 200 {
+		return stmt[:200] + "..."
+	}
+	return stmt
 }
