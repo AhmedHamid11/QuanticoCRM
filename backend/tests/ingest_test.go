@@ -719,6 +719,412 @@ func TestIngest_FlexibleMode(t *testing.T) {
 	})
 }
 
+// TestIngest_RateLimiting tests that rate limiting returns 429 with Retry-After
+// TEST-05: Rate limit enforcement with 429 response and Retry-After header
+func TestIngest_RateLimiting(t *testing.T) {
+	app := SetupTestApp(t)
+	defer app.Cleanup()
+	user := app.CreateTestUser(t, "ratelimit@test.com", "SecureP@ssw0rd!RateLimit", "Rate Limit Org")
+
+	var apiKey, mirrorID string
+
+	// Setup: Create API key and mirror with very low rate limit
+	t.Run("Setup API Key and Mirror with Low Rate Limit", func(t *testing.T) {
+		// Create API key
+		keyBody := map[string]interface{}{
+			"name":      "Rate Limit Test Key",
+			"rateLimit": 500,
+		}
+
+		var keyResult map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", keyBody, user.AccessToken, &keyResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		apiKey = keyResult["key"].(string)
+
+		// Create mirror with low rate limit (3 requests per minute)
+		mirrorBody := map[string]interface{}{
+			"name":              "Rate Limited Mirror",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id",
+			"unmappedFieldMode": "flexible",
+			"rateLimit":         3, // Very low for testing
+			"sourceFields": []map[string]interface{}{
+				{"fieldName": "sf_id", "fieldType": "text", "isRequired": true, "mapField": "description"},
+				{"fieldName": "FirstName", "fieldType": "text", "isRequired": true, "mapField": "firstName"},
+				{"fieldName": "LastName", "fieldType": "text", "isRequired": true, "mapField": "lastName"},
+			},
+		}
+
+		var mirrorResult map[string]interface{}
+		resp = app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", mirrorBody, user.AccessToken, &mirrorResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		mirrorID = mirrorResult["id"].(string)
+	})
+
+	// Store job IDs for verification
+	var jobIDs []string
+
+	// Test: Send 3 requests (up to limit)
+	t.Run("Accept Requests Up to Limit", func(t *testing.T) {
+		for i := 1; i <= 3; i++ {
+			records := []map[string]interface{}{
+				{
+					"sf_id":     "003RATE00000" + string(rune('0'+i)),
+					"FirstName": "Rate",
+					"LastName":  "Test" + string(rune('0'+i)),
+				},
+			}
+
+			ingestBody := map[string]interface{}{
+				"org_id":    user.OrgID,
+				"mirror_id": mirrorID,
+				"records":   records,
+			}
+
+			resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+			AssertStatus(t, resp, http.StatusAccepted)
+
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			var result map[string]interface{}
+			json.Unmarshal(bodyBytes, &result)
+
+			jobID, ok := result["job_id"].(string)
+			if !ok || jobID == "" {
+				t.Fatalf("Request %d: expected job_id in response", i)
+			}
+			jobIDs = append(jobIDs, jobID)
+		}
+	})
+
+	// Test: 4th request should be rate limited
+	t.Run("Reject 4th Request with 429", func(t *testing.T) {
+		records := []map[string]interface{}{
+			{
+				"sf_id":     "003RATE000004",
+				"FirstName": "Rate",
+				"LastName":  "Test4",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    user.OrgID,
+			"mirror_id": mirrorID,
+			"records":   records,
+		}
+
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKey)
+
+		// Assert 429 status
+		if resp.StatusCode != http.StatusTooManyRequests {
+			t.Errorf("Expected status 429 Too Many Requests, got: %d", resp.StatusCode)
+		}
+
+		// Assert Retry-After header exists
+		retryAfter := resp.Header.Get("Retry-After")
+		if retryAfter == "" {
+			t.Error("Expected Retry-After header in 429 response")
+		}
+
+		// Assert response body structure
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		var result map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &result); err != nil {
+			t.Fatalf("Failed to parse 429 response: %v", err)
+		}
+
+		errorMsg, ok := result["error"].(string)
+		if !ok || !contains(errorMsg, "Rate limit exceeded") {
+			t.Errorf("Expected 'Rate limit exceeded' error, got: %v", result["error"])
+		}
+
+		// Check for retry_after in response body
+		if _, ok := result["retry_after"]; !ok {
+			t.Errorf("Expected retry_after field in response body, got: %v", result)
+		}
+
+		// Check for limit in response body
+		limit, ok := result["limit"].(float64)
+		if !ok || int(limit) != 3 {
+			t.Errorf("Expected limit=3 in response body, got: %v", result["limit"])
+		}
+	})
+
+	// Test: Verify accepted jobs completed
+	t.Run("Verify Accepted Jobs Completed", func(t *testing.T) {
+		for i, jobID := range jobIDs {
+			job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
+
+			if job["status"] != "complete" {
+				t.Errorf("Job %d (%s) expected status 'complete', got: %v", i+1, jobID, job["status"])
+			}
+
+			recordsPromoted := int(job["recordsPromoted"].(float64))
+			if recordsPromoted != 1 {
+				t.Errorf("Job %d expected 1 record promoted, got: %d", i+1, recordsPromoted)
+			}
+		}
+	})
+}
+
+// TestIngest_MultiTenantIsolation tests that API keys cannot access other tenants' data
+// TEST-06: Multi-tenant isolation prevents cross-tenant access
+func TestIngest_MultiTenantIsolation(t *testing.T) {
+	app := SetupTestApp(t)
+	defer app.Cleanup()
+
+	// Create two separate tenants
+	userA := app.CreateTestUser(t, "tenantA@test.com", "SecureP@ssw0rd!TenantA", "Tenant A Org")
+	userB := app.CreateTestUser(t, "tenantB@test.com", "SecureP@ssw0rd!TenantB", "Tenant B Org")
+
+	var apiKeyA, apiKeyB, mirrorAID, mirrorBID string
+
+	// Setup: Create API keys and mirrors for both tenants
+	t.Run("Setup Tenant A Resources", func(t *testing.T) {
+		// Create API key for Tenant A
+		keyBody := map[string]interface{}{
+			"name":      "Tenant A Key",
+			"rateLimit": 500,
+		}
+
+		var keyResult map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", keyBody, userA.AccessToken, &keyResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		apiKeyA = keyResult["key"].(string)
+
+		// Create mirror for Tenant A
+		mirrorBody := map[string]interface{}{
+			"name":              "Tenant A Mirror",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id",
+			"unmappedFieldMode": "flexible",
+			"sourceFields": []map[string]interface{}{
+				{"fieldName": "sf_id", "fieldType": "text", "isRequired": true, "mapField": "description"},
+				{"fieldName": "FirstName", "fieldType": "text", "isRequired": true, "mapField": "firstName"},
+				{"fieldName": "LastName", "fieldType": "text", "isRequired": true, "mapField": "lastName"},
+			},
+		}
+
+		var mirrorResult map[string]interface{}
+		resp = app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", mirrorBody, userA.AccessToken, &mirrorResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		mirrorAID = mirrorResult["id"].(string)
+	})
+
+	t.Run("Setup Tenant B Resources", func(t *testing.T) {
+		// Create API key for Tenant B
+		keyBody := map[string]interface{}{
+			"name":      "Tenant B Key",
+			"rateLimit": 500,
+		}
+
+		var keyResult map[string]interface{}
+		resp := app.MakeRequestWithResponse(t, "POST", "/api/v1/ingest-keys", keyBody, userB.AccessToken, &keyResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		apiKeyB = keyResult["key"].(string)
+
+		// Create mirror for Tenant B
+		mirrorBody := map[string]interface{}{
+			"name":              "Tenant B Mirror",
+			"targetEntity":      "Contact",
+			"uniqueKeyField":    "sf_id",
+			"unmappedFieldMode": "flexible",
+			"sourceFields": []map[string]interface{}{
+				{"fieldName": "sf_id", "fieldType": "text", "isRequired": true, "mapField": "description"},
+				{"fieldName": "FirstName", "fieldType": "text", "isRequired": true, "mapField": "firstName"},
+				{"fieldName": "LastName", "fieldType": "text", "isRequired": true, "mapField": "lastName"},
+			},
+		}
+
+		var mirrorResult map[string]interface{}
+		resp = app.MakeRequestWithResponse(t, "POST", "/api/v1/admin/mirrors", mirrorBody, userB.AccessToken, &mirrorResult)
+		AssertStatus(t, resp, http.StatusCreated)
+
+		mirrorBID = mirrorResult["id"].(string)
+	})
+
+	// Test 1: API key A cannot ingest to Tenant B's mirror
+	t.Run("API Key A Cannot Access Tenant B Mirror", func(t *testing.T) {
+		records := []map[string]interface{}{
+			{
+				"sf_id":     "003CROSS00001",
+				"FirstName": "Cross",
+				"LastName":  "Tenant",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    userA.OrgID, // Tenant A org
+			"mirror_id": mirrorBID,   // Tenant B mirror
+			"records":   records,
+		}
+
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKeyA)
+
+		// Should return 404 (mirror not found in Tenant A's context)
+		// Mirror lookup is scoped to tenant DB resolved from API key
+		if resp.StatusCode != http.StatusNotFound {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected status 404 Not Found (mirror belongs to different tenant), got: %d - %s", resp.StatusCode, string(bodyBytes))
+		}
+	})
+
+	// Test 2: API key A cannot use Tenant B's org_id
+	t.Run("API Key A Cannot Use Tenant B Org ID", func(t *testing.T) {
+		records := []map[string]interface{}{
+			{
+				"sf_id":     "003CROSS00002",
+				"FirstName": "Wrong",
+				"LastName":  "Org",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    userB.OrgID, // Tenant B org
+			"mirror_id": mirrorAID,   // Tenant A mirror
+			"records":   records,
+		}
+
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKeyA)
+
+		// Should return 403 (belt-and-suspenders org_id mismatch)
+		if resp.StatusCode != http.StatusForbidden {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected status 403 Forbidden (org_id mismatch), got: %d - %s", resp.StatusCode, string(bodyBytes))
+		}
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		var result map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &result); err == nil {
+			errorMsg, _ := result["error"].(string)
+			if !contains(errorMsg, "org_id") {
+				t.Errorf("Expected error about org_id mismatch, got: %s", errorMsg)
+			}
+		}
+	})
+
+	// Test 3: Successful ingests are isolated to own tenant
+	var jobAID, jobBID string
+
+	t.Run("Tenant A Successful Ingest", func(t *testing.T) {
+		records := []map[string]interface{}{
+			{
+				"sf_id":     "003TENA000001",
+				"FirstName": "Alice",
+				"LastName":  "TenantA",
+			},
+			{
+				"sf_id":     "003TENA000002",
+				"FirstName": "Bob",
+				"LastName":  "TenantA",
+			},
+			{
+				"sf_id":     "003TENA000003",
+				"FirstName": "Charlie",
+				"LastName":  "TenantA",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    userA.OrgID,
+			"mirror_id": mirrorAID,
+			"records":   records,
+		}
+
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKeyA)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		var result map[string]interface{}
+		json.Unmarshal(bodyBytes, &result)
+
+		jobAID = result["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKeyA, jobAID, 10)
+
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		if recordsPromoted != 3 {
+			t.Errorf("Tenant A: expected 3 records promoted, got: %d", recordsPromoted)
+		}
+	})
+
+	t.Run("Tenant B Successful Ingest", func(t *testing.T) {
+		records := []map[string]interface{}{
+			{
+				"sf_id":     "003TENB000001",
+				"FirstName": "David",
+				"LastName":  "TenantB",
+			},
+			{
+				"sf_id":     "003TENB000002",
+				"FirstName": "Emma",
+				"LastName":  "TenantB",
+			},
+		}
+
+		ingestBody := map[string]interface{}{
+			"org_id":    userB.OrgID,
+			"mirror_id": mirrorBID,
+			"records":   records,
+		}
+
+		resp := app.MakeIngestRequest(t, "POST", "/api/v1/ingest", ingestBody, apiKeyB)
+		AssertStatus(t, resp, http.StatusAccepted)
+
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		var result map[string]interface{}
+		json.Unmarshal(bodyBytes, &result)
+
+		jobBID = result["job_id"].(string)
+		job := app.WaitForJobCompletion(t, apiKeyB, jobBID, 10)
+
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		if recordsPromoted != 2 {
+			t.Errorf("Tenant B: expected 2 records promoted, got: %d", recordsPromoted)
+		}
+	})
+
+	// Test 4: API key A cannot poll Tenant B's job
+	t.Run("API Key A Cannot Access Tenant B Job", func(t *testing.T) {
+		// Try to poll Tenant B's job using Tenant A's API key
+		resp := app.MakeIngestRequest(t, "GET", "/api/v1/ingest/jobs/"+jobBID, nil, apiKeyA)
+
+		// Should return 404 (job not in Tenant A's DB context)
+		if resp.StatusCode != http.StatusNotFound {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected status 404 Not Found (job belongs to different tenant), got: %d - %s", resp.StatusCode, string(bodyBytes))
+		}
+	})
+
+	// Test 5: Verify data isolation at DB level
+	t.Run("Verify Data Isolation in Database", func(t *testing.T) {
+		// Count Tenant A contacts
+		var countA int
+		err := app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, userA.OrgID).Scan(&countA)
+		if err != nil {
+			t.Fatalf("Failed to count Tenant A contacts: %v", err)
+		}
+
+		if countA != 3 {
+			t.Errorf("Tenant A: expected 3 contacts, got: %d", countA)
+		}
+
+		// Count Tenant B contacts
+		var countB int
+		err = app.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE org_id = ?`, userB.OrgID).Scan(&countB)
+		if err != nil {
+			t.Fatalf("Failed to count Tenant B contacts: %v", err)
+		}
+
+		if countB != 2 {
+			t.Errorf("Tenant B: expected 2 contacts, got: %d", countB)
+		}
+	})
+}
+
 // Helper function to check if a string contains a substring
 func contains(str, substr string) bool {
 	return len(str) >= len(substr) && (str == substr || len(str) > len(substr) && (str[:len(substr)] == substr || str[len(str)-len(substr):] == substr || containsInMiddle(str, substr)))
