@@ -51,6 +51,7 @@ None.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 018 | Fix metadata corruption on deployment (PRAGMA table_info + INSERT OR IGNORE) | 2026-02-11 | 62515b1 | [018-fix-metadata-corruption-on-deployment-re](./quick/18-fix-metadata-corruption-on-deployment-re/) |
 | 017 | Fix Review Queue record name display (show names not UUIDs) | 2026-02-09 | b17c317 | [017-fix-review-queue-record-name-display](./quick/17-fix-review-queue-record-name-display/) |
 | 016 | Fix audit bugs and visual issues (13 items) | 2026-02-09 | d8fcc56 | [016-fix-audit-bugs-and-visual-issues](./quick/016-fix-audit-bugs-and-visual-issues/) |
 | 014 | Fix navigation tabs reprovision bugs (schema fix) | 2026-02-07 | 86ee548 | [014-fix-nav-tabs-reprovision](./quick/014-fix-nav-tabs-reprovision/) |
@@ -61,10 +62,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-10
-Stopped at: v4.0 milestone archived. No active milestone.
+Last session: 2026-02-11
+Stopped at: Completed quick-018 (fix metadata corruption on deployment)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-10 — v4.0 Salesforce Merge Integration milestone archived*
+*Updated: 2026-02-11 — Quick task 018 completed*
