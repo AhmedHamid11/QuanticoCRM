@@ -3,6 +3,7 @@
 // SECURITY: Refresh tokens are in HttpOnly cookies - never accessible to JavaScript
 import { PUBLIC_API_URL } from '$env/static/public';
 import { initSessionTracking, stopSessionTracking } from './session.svelte';
+import { addToast } from './toast.svelte';
 import type {
 	AuthState,
 	AuthResponse,
@@ -335,7 +336,9 @@ function setAuthState(response: AuthResponse) {
 	// Initialize session tracking with org settings (defaults if not present)
 	const idleTimeout = (response.user as any).orgSettings?.idleTimeoutMinutes ?? 30;
 	const absoluteTimeout = (response.user as any).orgSettings?.absoluteTimeoutMinutes ?? 1440;
-	initSessionTracking(idleTimeout, absoluteTimeout);
+	initSessionTracking(idleTimeout, absoluteTimeout, undefined, () => {
+		addToast('Your session will expire soon due to inactivity', 'info', 30000);
+	});
 }
 
 // Auth actions

@@ -3,7 +3,11 @@
 
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let absoluteTimer: ReturnType<typeof setTimeout> | null = null;
+let warningTimer: ReturnType<typeof setTimeout> | null = null;
 let onTimeoutCallback: (() => void) | null = null;
+let onWarningCallback: (() => void) | null = null;
+
+export const WARNING_MINUTES_BEFORE = 5;
 
 // Activity events to track
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
@@ -12,12 +16,28 @@ function resetIdleTimer(idleTimeoutMinutes: number) {
 	if (idleTimer) {
 		clearTimeout(idleTimer);
 	}
+	if (warningTimer) {
+		clearTimeout(warningTimer);
+	}
 
 	if (idleTimeoutMinutes > 0 && onTimeoutCallback) {
 		idleTimer = setTimeout(() => {
 			console.log('Session idle timeout reached');
 			onTimeoutCallback?.();
 		}, idleTimeoutMinutes * 60 * 1000);
+
+		// Set warning timer: fires WARNING_MINUTES_BEFORE minutes before timeout
+		// If timeout is less than 6 minutes, fire at the halfway point
+		if (onWarningCallback) {
+			const warningMs =
+				idleTimeoutMinutes < WARNING_MINUTES_BEFORE + 1
+					? (idleTimeoutMinutes * 60 * 1000) / 2
+					: (idleTimeoutMinutes - WARNING_MINUTES_BEFORE) * 60 * 1000;
+
+			warningTimer = setTimeout(() => {
+				onWarningCallback?.();
+			}, warningMs);
+		}
 	}
 }
 
@@ -30,12 +50,14 @@ let activityHandler: (() => void) | null = null;
 export function initSessionTracking(
 	idleTimeoutMinutes: number,
 	absoluteTimeoutMinutes: number,
-	onTimeout?: () => void
+	onTimeout?: () => void,
+	onWarning?: () => void
 ): void {
 	if (typeof window === 'undefined') return;
 
-	// Store callback for later use
+	// Store callbacks for later use
 	onTimeoutCallback = onTimeout || null;
+	onWarningCallback = onWarning || null;
 
 	// Clean up any existing tracking
 	stopSessionTracking();
@@ -75,6 +97,11 @@ export function stopSessionTracking(): void {
 		absoluteTimer = null;
 	}
 
+	if (warningTimer) {
+		clearTimeout(warningTimer);
+		warningTimer = null;
+	}
+
 	// Remove activity listeners
 	if (activityHandler) {
 		ACTIVITY_EVENTS.forEach(event => {
@@ -84,4 +111,5 @@ export function stopSessionTracking(): void {
 	}
 
 	onTimeoutCallback = null;
+	onWarningCallback = null;
 }

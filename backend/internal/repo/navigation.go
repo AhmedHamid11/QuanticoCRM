@@ -4,12 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/sfid"
 )
+
+// isTableMissingError checks if the error is due to a missing table (tenant DB may not have it yet)
+func isTableMissingError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "no such table")
+}
 
 // NavigationRepo handles database operations for navigation tabs
 type NavigationRepo struct {
@@ -50,6 +56,9 @@ func (r *NavigationRepo) List(ctx context.Context, orgID string) ([]entity.Navig
 
 	rows, err := r.db.QueryContext(ctx, query, orgID)
 	if err != nil {
+		if isTableMissingError(err) {
+			return []entity.NavigationTab{}, nil
+		}
 		return nil, fmt.Errorf("failed to list navigation tabs: %w", err)
 	}
 	defer rows.Close()
@@ -89,6 +98,9 @@ func (r *NavigationRepo) ListVisible(ctx context.Context, orgID string) ([]entit
 
 	rows, err := r.db.QueryContext(ctx, query, orgID)
 	if err != nil {
+		if isTableMissingError(err) {
+			return []entity.NavigationTab{}, nil
+		}
 		return nil, fmt.Errorf("failed to list visible navigation tabs: %w", err)
 	}
 	defer rows.Close()
