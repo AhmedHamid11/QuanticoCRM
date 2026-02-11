@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,28 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+// testDBConn wraps *sql.DB to implement db.DBConn without io.Closer.
+// Prevents fasthttp from closing the shared test DB between requests.
+type testDBConn struct {
+	db *sql.DB
+}
+
+func (w *testDBConn) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	return w.db.QueryContext(ctx, query, args...)
+}
+func (w *testDBConn) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	return w.db.QueryRowContext(ctx, query, args...)
+}
+func (w *testDBConn) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	return w.db.ExecContext(ctx, query, args...)
+}
+func (w *testDBConn) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	return w.db.PrepareContext(ctx, query)
+}
+func (w *testDBConn) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	return w.db.BeginTx(ctx, opts)
+}
 
 // TestApp holds all components needed for testing
 type TestApp struct {
@@ -112,12 +135,16 @@ func SetupTestApp(t *testing.T) *TestApp {
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, apiTokenService)
 
+	// Wrap DB to prevent fasthttp from calling Close() between requests.
+	// Production middleware uses unexported dbConnWrapper for the same reason.
+	wrappedDB := &testDBConn{db: db}
+
 	// Test tenant middleware - sets DB for all authenticated requests
 	testTenantMiddleware := func(c *fiber.Ctx) error {
 		// Only apply if orgID is set (by auth middleware) and DB not yet set
 		if orgID := c.Locals("orgID"); orgID != nil && c.Locals("dbConn") == nil {
-			c.Locals("db", db)
-			c.Locals("dbConn", db)
+			c.Locals("db", wrappedDB)
+			c.Locals("dbConn", wrappedDB)
 		}
 		return c.Next()
 	}
@@ -161,6 +188,64 @@ func SetupTestApp(t *testing.T) *TestApp {
 	api.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
+
+	// Ingest admin routes (JWT auth) — registered FIRST to avoid /ingest group prefix overlap
+	orgAdminMW := authMiddleware.OrgAdminRequired()
+	ingestKeys := api.Group("/ingest-keys", orgAdminMW, testTenantMiddleware)
+	ingestKeys.Post("", ingestKeyHandler.Create)
+	ingestKeys.Get("", ingestKeyHandler.List)
+	ingestKeys.Post("/:id/deactivate", ingestKeyHandler.Deactivate)
+	ingestKeys.Delete("/:id", ingestKeyHandler.Delete)
+
+	// Mirror admin routes (JWT auth) — RegisterRoutes creates its own /admin/mirrors sub-group
+	mirrorAdmin := api.Group("/admin/mirrors", orgAdminMW, testTenantMiddleware)
+	mirrorAdmin.Post("/", mirrorHandler.Create)
+	mirrorAdmin.Get("/", mirrorHandler.List)
+	mirrorAdmin.Get("/:id", mirrorHandler.Get)
+	mirrorAdmin.Put("/:id", mirrorHandler.Update)
+	mirrorAdmin.Delete("/:id", mirrorHandler.Delete)
+	mirrorAdmin.Get("/:id/jobs", mirrorHandler.ListJobs)
+
+	// Ingest routes (X-API-Key auth, NOT JWT) — registered BEFORE protected Group("") groups
+	testIngestAuth := func(c *fiber.Ctx) error {
+		apiKey := c.Get("X-API-Key")
+		if apiKey == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "X-API-Key header required",
+			})
+		}
+
+		ingestKey, err := ingestAPIKeyService.ValidateKey(c.Context(), apiKey)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or inactive API key",
+			})
+		}
+
+		org, err := authRepo.GetOrganizationByID(c.Context(), ingestKey.OrgID)
+		if err != nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Organization not found or inactive",
+			})
+		}
+
+		if !org.IsActive {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Organization not found or inactive",
+			})
+		}
+
+		c.Locals("ingestOrgID", ingestKey.OrgID)
+		c.Locals("ingestKeyID", ingestKey.ID)
+		c.Locals("ingestRateLimit", ingestKey.RateLimit)
+		c.Locals("db", wrappedDB)
+		c.Locals("dbConn", wrappedDB)
+
+		return c.Next()
+	}
+
+	ingestGroup := api.Group("/ingest", testIngestAuth)
+	ingestHandler.RegisterRoutes(ingestGroup)
 
 	// Public auth routes
 	auth := api.Group("/auth")
@@ -230,61 +315,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 		return c.JSON(fiber.Map{"organizations": []string{"org1", "org2"}})
 	})
 
-	// Ingest admin routes (API key management, mirror management)
-	// MUST be registered BEFORE /ingest group to avoid route conflicts
-	ingestKeys := adminProtected.Group("/ingest-keys")
-	ingestKeys.Post("", ingestKeyHandler.Create)
-	ingestKeys.Get("", ingestKeyHandler.List)
-	ingestKeys.Post("/:id/deactivate", ingestKeyHandler.Deactivate)
-	ingestKeys.Delete("/:id", ingestKeyHandler.Delete)
-
-	mirrorHandler.RegisterRoutes(adminProtected)
-
-	// Ingest routes (separate auth path - X-API-Key, not JWT)
-	// Test middleware that validates X-API-Key and sets up context
-	testIngestAuth := func(c *fiber.Ctx) error {
-		apiKey := c.Get("X-API-Key")
-		if apiKey == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "X-API-Key header required",
-			})
-		}
-
-		// Validate the API key
-		ingestKey, err := ingestAPIKeyService.ValidateKey(c.Context(), apiKey)
-		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid or inactive API key",
-			})
-		}
-
-		// Look up the organization
-		org, err := authRepo.GetOrganizationByID(c.Context(), ingestKey.OrgID)
-		if err != nil {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Organization not found or inactive",
-			})
-		}
-
-		if !org.IsActive {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Organization not found or inactive",
-			})
-		}
-
-		// Set context locals (tests use single DB)
-		c.Locals("ingestOrgID", ingestKey.OrgID)
-		c.Locals("ingestKeyID", ingestKey.ID)
-		c.Locals("ingestRateLimit", ingestKey.RateLimit)
-		// Set DB connection in Locals - middleware.GetTenantDBConn will find the raw DBConn
-		c.Locals("db", db)      // For backward compatibility with handlers using GetTenantDB
-		c.Locals("dbConn", db)  // For GetTenantDBConn (will match db.DBConn interface check)
-
-		return c.Next()
-	}
-
-	ingestGroup := api.Group("/ingest", testIngestAuth)
-	ingestHandler.RegisterRoutes(ingestGroup)
+	// Note: ingest-keys and mirror routes registered earlier (before /ingest group) to avoid prefix overlap
 
 	return &TestApp{
 		App:                 app,

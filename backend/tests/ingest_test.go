@@ -151,21 +151,21 @@ func TestIngest_E2E(t *testing.T) {
 		}
 	})
 
-	// Step 5: Verify job result
+	// Step 5: Verify job result (JSON uses camelCase per entity struct tags)
 	t.Run("Verify Job Result", func(t *testing.T) {
-		recordsPromoted, ok := job["records_promoted"].(float64)
+		recordsPromoted, ok := job["recordsPromoted"].(float64)
 		if !ok || int(recordsPromoted) != 5 {
-			t.Errorf("Expected 5 records_promoted, got: %v", job["records_promoted"])
+			t.Errorf("Expected 5 recordsPromoted, got: %v", job["recordsPromoted"])
 		}
 
-		recordsSkipped, ok := job["records_skipped"].(float64)
+		recordsSkipped, ok := job["recordsSkipped"].(float64)
 		if !ok || int(recordsSkipped) != 0 {
-			t.Errorf("Expected 0 records_skipped, got: %v", job["records_skipped"])
+			t.Errorf("Expected 0 recordsSkipped, got: %v", job["recordsSkipped"])
 		}
 
-		recordsFailed, ok := job["records_failed"].(float64)
+		recordsFailed, ok := job["recordsFailed"].(float64)
 		if !ok || int(recordsFailed) != 0 {
-			t.Errorf("Expected 0 records_failed, got: %v", job["records_failed"])
+			t.Errorf("Expected 0 recordsFailed, got: %v", job["recordsFailed"])
 		}
 	})
 
@@ -291,8 +291,8 @@ func TestIngest_DeltaSync(t *testing.T) {
 		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
 
 		// Assert all 5 promoted
-		recordsPromoted := int(job["records_promoted"].(float64))
-		recordsSkipped := int(job["records_skipped"].(float64))
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		recordsSkipped := int(job["recordsSkipped"].(float64))
 
 		if recordsPromoted != 5 {
 			t.Errorf("Expected 5 promoted on first ingest, got: %d", recordsPromoted)
@@ -321,8 +321,8 @@ func TestIngest_DeltaSync(t *testing.T) {
 		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
 
 		// Assert all 5 skipped, 0 promoted
-		recordsPromoted := int(job["records_promoted"].(float64))
-		recordsSkipped := int(job["records_skipped"].(float64))
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		recordsSkipped := int(job["recordsSkipped"].(float64))
 
 		if recordsPromoted != 0 {
 			t.Errorf("Expected 0 promoted on duplicate ingest, got: %d", recordsPromoted)
@@ -396,8 +396,8 @@ func TestIngest_DeltaSync(t *testing.T) {
 		job := app.WaitForJobCompletion(t, apiKey, jobID, 10)
 
 		// Assert 3 promoted, 2 skipped
-		recordsPromoted := int(job["records_promoted"].(float64))
-		recordsSkipped := int(job["records_skipped"].(float64))
+		recordsPromoted := int(job["recordsPromoted"].(float64))
+		recordsSkipped := int(job["recordsSkipped"].(float64))
 
 		if recordsPromoted != 3 {
 			t.Errorf("Expected 3 promoted on mixed ingest, got: %d", recordsPromoted)
