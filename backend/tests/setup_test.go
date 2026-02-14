@@ -154,6 +154,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, db, metadataRepo, nil, tripwireService, validationService)
 	taskHandler := handler.NewTaskHandler(taskRepo, nil, tripwireService, validationService)
 	adminHandler := handler.NewAdminHandler(db, metadataRepo, navigationRepo)
+	adminHandler.SetProvisioningService(provisioningService)
 	navigationHandler := handler.NewNavigationHandler(navigationRepo)
 	lookupHandler := handler.NewLookupHandler(db, metadataRepo)
 	relatedHandler := handler.NewRelatedHandler(db)

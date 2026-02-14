@@ -674,6 +674,13 @@ func main() {
 			return util.NewAPIError(c, fiber.StatusInternalServerError, err, util.ErrCategoryDatabase)
 		}
 
+		// Create owner membership for the platform admin who created the org
+		// so the org appears in their org switcher and they can navigate to it
+		userID := c.Locals("userID").(string)
+		if _, err := authRepo.CreateMembership(c.Context(), userID, org.ID, entity.RoleOwner, false); err != nil {
+			log.Printf("[Platform] Warning: org %s created but failed to add membership for user %s: %v", org.ID, userID, err)
+		}
+
 		return c.Status(fiber.StatusCreated).JSON(org)
 	})
 

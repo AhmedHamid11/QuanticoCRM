@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"log"
+
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -48,6 +50,10 @@ func (h *NavigationHandler) ListVisible(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
+	}
+
+	if len(tabs) == 0 {
+		log.Printf("[Navigation] WARNING: No visible navigation tabs for org %s - provisioning may have failed. Use POST /admin/reprovision to fix.", orgID)
 	}
 
 	return c.JSON(tabs)

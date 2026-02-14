@@ -152,8 +152,10 @@ func (s *TenantProvisioningService) provisionTursoTenant(ctx context.Context, or
 		return nil, fmt.Errorf("failed to provision metadata: %w", err)
 	}
 
-	// Navigation and sample data also go to the tenant DB
-	s.provisioningService.ProvisionNavigation(ctx, orgID)
+	// Sample data goes to the tenant DB
+	// NOTE: ProvisionNavigation is already called inside ProvisionMetadataOnly → provisionMetadata,
+	// so we don't call it again here to avoid redundancy. If it failed inside provisionMetadata,
+	// the error was already propagated above.
 	s.provisioningService.ProvisionSampleData(ctx, orgID)
 
 	log.Printf("[TenantProvisioning] Successfully provisioned tenant database for org %s", orgID)
