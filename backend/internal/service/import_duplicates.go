@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/csv"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 
@@ -84,6 +85,16 @@ func (s *ImportDuplicateService) detectDatabaseDuplicates(
 	importRows []map[string]interface{},
 ) ([]entity.ImportDuplicateMatch, error) {
 	var matches []entity.ImportDuplicateMatch
+
+	// Ensure blocking key columns exist and are populated for existing records.
+	// Without this, the blocker's prefix/soundex/domain queries return 0 candidates
+	// because existing records have NULL blocking key values.
+	if err := dedup.EnsureBlockingKeysForEntity(ctx, dbConn, entityType); err != nil {
+		log.Printf("[IMPORT-DEDUP] Failed to ensure blocking keys for %s: %v", entityType, err)
+	}
+	if err := dedup.BackfillBlockingKeysForEntity(ctx, dbConn, entityType, s.detector.GetBlocker()); err != nil {
+		log.Printf("[IMPORT-DEDUP] Failed to backfill blocking keys for %s: %v", entityType, err)
+	}
 
 	// For each import row, check if it matches any existing database records
 	for rowIdx, importRow := range importRows {

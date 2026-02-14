@@ -308,6 +308,16 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 	duplicateCount := 0
 	seenPairs := make(map[string]bool) // Track canonical pairs to avoid duplicates
 
+	// Ensure blocking key columns exist and are populated for existing records.
+	// Without this, the blocker's prefix/soundex/domain queries return 0 candidates
+	// because existing records have NULL blocking key values.
+	if err := dedup.EnsureBlockingKeysForEntity(ctx, tenantDB, entityType); err != nil {
+		log.Printf("[SCAN-DEDUP] Failed to ensure blocking keys for %s: %v", entityType, err)
+	}
+	if err := dedup.BackfillBlockingKeysForEntity(ctx, tenantDB, entityType, s.detector.GetBlocker()); err != nil {
+		log.Printf("[SCAN-DEDUP] Failed to backfill blocking keys for %s: %v", entityType, err)
+	}
+
 	for _, record := range records {
 		recordID, ok := record["id"].(string)
 		if !ok {
