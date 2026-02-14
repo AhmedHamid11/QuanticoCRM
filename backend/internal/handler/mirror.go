@@ -1,26 +1,42 @@
 package handler
 
 import (
+	"context"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/service"
+	"github.com/fastcrm/backend/internal/sfid"
 	"github.com/gofiber/fiber/v2"
 )
 
 // MirrorHandler handles mirror management endpoints
 type MirrorHandler struct {
-	repo         *repo.MirrorRepo
-	jobRepo      *repo.IngestJobRepo
-	provisioning *service.ProvisioningService
+	repo          *repo.MirrorRepo
+	jobRepo       *repo.IngestJobRepo
+	provisioning  *service.ProvisioningService
+	ingestService *service.IngestService
+	metadataRepo  *repo.MetadataRepo
 }
 
 // NewMirrorHandler creates a new MirrorHandler
 func NewMirrorHandler(repo *repo.MirrorRepo, jobRepo *repo.IngestJobRepo, provisioning *service.ProvisioningService) *MirrorHandler {
 	return &MirrorHandler{repo: repo, jobRepo: jobRepo, provisioning: provisioning}
+}
+
+// SetIngestService sets the ingest service for CSV import processing
+func (h *MirrorHandler) SetIngestService(svc *service.IngestService) {
+	h.ingestService = svc
+}
+
+// SetMetadataRepo sets the metadata repo for loading entity field definitions
+func (h *MirrorHandler) SetMetadataRepo(r *repo.MetadataRepo) {
+	h.metadataRepo = r
 }
 
 // getTenantDBConn extracts the tenant DB connection from context
@@ -289,6 +305,164 @@ func (h *MirrorHandler) ListJobs(c *fiber.Ctx) error {
 	})
 }
 
+// ImportCSV handles POST /admin/mirrors/:id/import-csv
+// Accepts a CSV file via multipart/form-data and feeds it through the ingest pipeline
+// Uses JWT auth (admin UI) instead of X-API-Key
+func (h *MirrorHandler) ImportCSV(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	mirrorID := c.Params("id")
+	tenantDB := h.getTenantDBConn(c)
+
+	if h.ingestService == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Ingest service not configured",
+		})
+	}
+
+	// Load mirror config with source fields
+	mirror, err := h.repo.GetActiveByID(c.Context(), tenantDB, orgID, mirrorID)
+	if err != nil && isNoSuchTableError(err) {
+		if ensureErr := h.tryEnsureIngestTables(c); ensureErr != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Database schema not initialized"})
+		}
+		mirror, err = h.repo.GetActiveByID(c.Context(), tenantDB, orgID, mirrorID)
+	}
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load mirror"})
+	}
+	if mirror == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Mirror not found or inactive"})
+	}
+	if mirror.TargetEntity == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Mirror has no target entity configured"})
+	}
+
+	// Parse multipart form and extract CSV file
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Missing or invalid 'file' field"})
+	}
+	if fileHeader.Size > 50*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "File exceeds 50MB limit"})
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
+	}
+	defer file.Close()
+
+	// Parse CSV with entity field definitions for smart column matching
+	csvParser := service.NewCSVParser()
+	var fields []entity.FieldDef
+	if h.metadataRepo != nil {
+		fields, err = h.metadataRepo.ListFields(c.Context(), orgID, mirror.TargetEntity)
+		if err != nil {
+			log.Printf("[MirrorHandler.ImportCSV] Warning: failed to load fields for %s: %v", mirror.TargetEntity, err)
+			fields = nil
+		}
+	}
+
+	var parseResult *service.CSVParseResult
+	if len(fields) > 0 {
+		parseResult, err = csvParser.Parse(file, fields)
+	} else {
+		parseResult, err = csvParser.Parse(file, []entity.FieldDef{})
+	}
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to parse CSV: " + err.Error()})
+	}
+	if parseResult.RowCount == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "CSV file contains no data rows"})
+	}
+
+	// Build source field lookup structures
+	reverseMap := make(map[string]string)
+	sourceFieldNames := make(map[string]bool)
+	sourceFieldNamesLower := make(map[string]string)
+	for _, sf := range mirror.SourceFields {
+		sourceFieldNames[sf.FieldName] = true
+		sourceFieldNamesLower[strings.ToLower(sf.FieldName)] = sf.FieldName
+		if sf.MapField != nil && *sf.MapField != "" {
+			reverseMap[*sf.MapField] = sf.FieldName
+		}
+	}
+
+	// Transform records: remap keys to mirror source field names
+	columnMapping := make(map[string]string)
+	unmappedColumnsSet := make(map[string]bool)
+	transformedRecords := make([]map[string]interface{}, 0, len(parseResult.Records))
+
+	for _, record := range parseResult.Records {
+		transformed := make(map[string]interface{}, len(record))
+		for key, value := range record {
+			if sourceFieldName, ok := reverseMap[key]; ok {
+				transformed[sourceFieldName] = value
+				columnMapping[key] = sourceFieldName
+			} else if sourceFieldNames[key] {
+				transformed[key] = value
+				columnMapping[key] = key
+			} else if original, ok := sourceFieldNamesLower[strings.ToLower(key)]; ok {
+				transformed[original] = value
+				columnMapping[key] = original
+			} else {
+				transformed[key] = value
+				unmappedColumnsSet[key] = true
+			}
+		}
+		if len(transformed) > 0 {
+			transformedRecords = append(transformedRecords, transformed)
+		}
+	}
+
+	unmappedColumns := make([]string, 0, len(unmappedColumnsSet))
+	for col := range unmappedColumnsSet {
+		unmappedColumns = append(unmappedColumns, col)
+	}
+
+	if len(transformedRecords) == 0 {
+		sourceNames := make([]string, len(mirror.SourceFields))
+		for i, sf := range mirror.SourceFields {
+			sourceNames[i] = sf.FieldName
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":         "No CSV columns matched any mirror source fields",
+			"csv_headers":   parseResult.Headers,
+			"source_fields": sourceNames,
+		})
+	}
+
+	// Create ingest job
+	now := time.Now().UTC()
+	job := &entity.IngestJob{
+		ID:              sfid.NewIngestJob(),
+		OrgID:           orgID,
+		MirrorID:        mirrorID,
+		KeyID:           "csv-import",
+		Status:          entity.IngestJobStatusAccepted,
+		RecordsReceived: len(transformedRecords),
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	if err := h.jobRepo.Create(c.Context(), tenantDB, job); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create ingest job"})
+	}
+
+	// Launch async processing
+	go h.ingestService.ProcessJob(context.Background(), tenantDB, orgID, job, transformedRecords)
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"job_id":           job.ID,
+		"status":           "accepted",
+		"records_received": len(transformedRecords),
+		"mirror_id":        mirrorID,
+		"column_mapping":   columnMapping,
+		"unmapped_columns": unmappedColumns,
+		"message":          "CSV ingest request accepted for processing",
+	})
+}
+
 // RegisterRoutes registers all mirror routes
 func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
 	mirrors := router.Group("/admin/mirrors")
@@ -298,4 +472,5 @@ func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
 	mirrors.Put("/:id", h.Update)
 	mirrors.Delete("/:id", h.Delete)
 	mirrors.Get("/:id/jobs", h.ListJobs)
+	mirrors.Post("/:id/import-csv", h.ImportCSV)
 }

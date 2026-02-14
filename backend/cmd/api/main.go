@@ -315,8 +315,11 @@ func main() {
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
+	ingestHandler.SetMetadataRepo(metadataRepo)
 	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
 	mirrorHandler := handler.NewMirrorHandler(mirrorRepo, ingestJobRepo, provisioningService)
+	mirrorHandler.SetIngestService(ingestService)
+	mirrorHandler.SetMetadataRepo(metadataRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)

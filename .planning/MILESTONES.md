@@ -9,3 +9,13 @@
 
 ---
 
+
+## v5.0 Mirror Ingest Layer (Shipped: 2026-02-11)
+
+**Phases completed:** 19 phases, 62 plans, 7 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+

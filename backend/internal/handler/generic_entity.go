@@ -967,14 +967,22 @@ func (h *GenericEntityHandler) Create(c *fiber.Ctx) error {
 	// - Results surface as alerts when user views the record
 	// The record MUST exist in the database before this point.
 	if h.realtimeChecker != nil {
-		recordData := body // Already a map[string]interface{}
-		// Get record name for display
+		// Fetch the full record from DB so dedup has all fields for blocking keys and scoring.
+		// Using just `body` would miss fields the user didn't include in the request.
+		recordData, fetchErr := h.fetchRecordAsMap(c, tableName, id, orgID)
+		if fetchErr != nil {
+			log.Printf("[DEDUP] Failed to fetch full record for dedup check on %s/%s: %v", entityName, id, fetchErr)
+		}
+		if recordData == nil {
+			recordData = body // Fallback to request body if fetch fails
+		}
+
 		recordName := ""
-		if name, ok := body["name"].(string); ok {
+		if name, ok := recordData["name"].(string); ok {
 			recordName = name
-		} else if firstName, ok := body["firstName"].(string); ok {
+		} else if firstName, ok := recordData["firstName"].(string); ok {
 			recordName = firstName
-			if lastName, ok := body["lastName"].(string); ok {
+			if lastName, ok := recordData["lastName"].(string); ok {
 				recordName += " " + lastName
 			}
 		}
@@ -1223,15 +1231,22 @@ func (h *GenericEntityHandler) Update(c *fiber.Ctx) error {
 	// - Results surface as alerts when user views the record
 	// The updated record MUST exist in the database before this point.
 	if h.realtimeChecker != nil {
-		// Only check if key fields changed (fields in matching rules)
-		// For simplicity, always check on update - the detector will handle it
-		recordData := body
+		// Fetch the full updated record from DB so dedup has all fields for blocking keys and scoring.
+		// Using just `body` would only have the changed fields, missing lastName/email/etc.
+		recordData, fetchErr := h.fetchRecordAsMap(c, tableName, id, orgID)
+		if fetchErr != nil {
+			log.Printf("[DEDUP] Failed to fetch full record for dedup check on %s/%s: %v", entityName, id, fetchErr)
+		}
+		if recordData == nil {
+			recordData = body // Fallback to request body if fetch fails
+		}
+
 		recordName := ""
-		if name, ok := body["name"].(string); ok {
+		if name, ok := recordData["name"].(string); ok {
 			recordName = name
-		} else if firstName, ok := body["firstName"].(string); ok {
+		} else if firstName, ok := recordData["firstName"].(string); ok {
 			recordName = firstName
-			if lastName, ok := body["lastName"].(string); ok {
+			if lastName, ok := recordData["lastName"].(string); ok {
 				recordName += " " + lastName
 			}
 		}

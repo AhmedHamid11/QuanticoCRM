@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-02-10)
 
 **Milestone:** v4.0 Salesforce Merge Integration — SHIPPED
 **Phase:** All complete (19/19)
-**Status:** Milestone archived, ready for next milestone
+**Status:** v5.0 milestone complete
 
 **Last activity:** 2026-02-10 — v4.0 milestone completed and archived
 

@@ -60,15 +60,21 @@ func (r *RealtimeChecker) CheckAsync(conn db.DBConn, input CheckAsyncInput) {
 func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input CheckAsyncInput) {
 	log.Printf("[DEDUP] Starting async check for %s/%s in org %s", input.EntityType, input.RecordID, input.OrgID)
 
-	// Ensure dedup schema exists (tables + blocking key columns)
+	// Ensure dedup schema exists (core tables like matching_rules, pending_duplicate_alerts)
 	if err := EnsureDedupSchema(ctx, conn); err != nil {
 		log.Printf("ERROR: Failed to ensure dedup schema for %s/%s: %v", input.EntityType, input.RecordID, err)
 		return
 	}
 
-	// Backfill blocking keys for existing records that predate the dedup feature
-	if err := BackfillBlockingKeys(ctx, conn, r.detector.GetBlocker()); err != nil {
-		log.Printf("ERROR: Failed to backfill blocking keys: %v", err)
+	// Ensure blocking key columns exist on this entity's table (not just contacts)
+	if err := EnsureBlockingKeysForEntity(ctx, conn, input.EntityType); err != nil {
+		log.Printf("ERROR: Failed to ensure blocking keys for %s: %v", input.EntityType, err)
+		// Continue anyway — column provisioning is best-effort
+	}
+
+	// Backfill blocking keys for existing records of this entity that predate the dedup feature
+	if err := BackfillBlockingKeysForEntity(ctx, conn, input.EntityType, r.detector.GetBlocker()); err != nil {
+		log.Printf("ERROR: Failed to backfill blocking keys for %s: %v", input.EntityType, err)
 		// Continue anyway — backfill is best-effort
 	}
 

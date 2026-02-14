@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/fastcrm/backend/internal/db"
+	"github.com/fastcrm/backend/internal/util"
 )
 
 // provisionedDBs tracks which tenant DBs have been auto-provisioned
@@ -198,90 +199,127 @@ func ensureDedupSchema(ctx context.Context, conn db.DBConn) error {
 	return nil
 }
 
+// entityBlockingKeys tracks which (connection, entity) pairs have had blocking key columns added
+var entityBlockingKeys sync.Map
+
+// entityBackfilled tracks which (connection, entity) pairs have been backfilled
+var entityBackfilled sync.Map
+
+// EnsureBlockingKeysForEntity adds blocking key columns and indexes to the specified entity's table.
+// Safe to call multiple times — uses addColumnIfNotExists and caches by (connection, entity).
+func EnsureBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType string) error {
+	cacheKey := fmt.Sprintf("%p:%s", conn, entityType)
+	if _, ok := entityBlockingKeys.Load(cacheKey); ok {
+		return nil
+	}
+
+	tableName := util.GetTableName(entityType)
+
+	// Add blocking key columns
+	alterStatements := []string{
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dedup_last_name_soundex TEXT`, tableName),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dedup_last_name_prefix TEXT`, tableName),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dedup_email_domain TEXT`, tableName),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN dedup_phone_e164 TEXT`, tableName),
+	}
+	for _, stmt := range alterStatements {
+		if err := addColumnIfNotExists(ctx, conn, stmt); err != nil {
+			if IsSchemaError(err) {
+				// Table doesn't exist — nothing to provision
+				return nil
+			}
+			return fmt.Errorf("failed to add blocking key column to %s: %w", tableName, err)
+		}
+	}
+
+	// Create indexes on blocking key columns
+	indexStatements := []string{
+		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_dedup_soundex ON %s(org_id, dedup_last_name_soundex)`, tableName, tableName),
+		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_dedup_prefix ON %s(org_id, dedup_last_name_prefix)`, tableName, tableName),
+		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_dedup_domain ON %s(org_id, dedup_email_domain)`, tableName, tableName),
+		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_dedup_phone ON %s(org_id, dedup_phone_e164)`, tableName, tableName),
+	}
+	for _, stmt := range indexStatements {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("failed to create blocking key index on %s: %w", tableName, err)
+		}
+	}
+
+	log.Printf("[DEDUP] Ensured blocking key columns on %s table", tableName)
+	entityBlockingKeys.Store(cacheKey, true)
+	return nil
+}
+
 // BackfillBlockingKeys populates blocking key columns for all contacts that have NULL keys.
 // This ensures existing records (created before the dedup feature) are findable as candidates.
 // Safe to call multiple times — caches by connection pointer and only processes NULL records.
 func BackfillBlockingKeys(ctx context.Context, conn db.DBConn, blocker *Blocker) error {
-	connKey := fmt.Sprintf("%p", conn)
-	if _, ok := backfilledDBs.Load(connKey); ok {
+	return BackfillBlockingKeysForEntity(ctx, conn, "Contact", blocker)
+}
+
+// BackfillBlockingKeysForEntity populates blocking key columns for records of the specified entity
+// that have NULL keys. Uses dedup_email_domain IS NULL as the marker for unprocessed records.
+// Safe to call multiple times — caches by (connection, entity) and only processes NULL records.
+func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType string, blocker *Blocker) error {
+	cacheKey := fmt.Sprintf("%p:%s", conn, entityType)
+	if _, ok := entityBackfilled.Load(cacheKey); ok {
 		return nil
 	}
 
-	// Query contacts that haven't been backfilled yet (dedup_email_domain IS NULL as marker)
-	// Use a single query to fetch id + the fields needed for blocking key generation
-	rows, err := conn.QueryContext(ctx, `SELECT id, last_name, email_address, phone_number
-		FROM contacts WHERE dedup_email_domain IS NULL LIMIT 5000`)
+	tableName := util.GetTableName(entityType)
+
+	// Query all records that haven't been backfilled yet (dedup_email_domain IS NULL as marker)
+	// Use SELECT * to get all fields, then convert to camelCase for GenerateBlockingKeys
+	rows, err := conn.QueryContext(ctx, fmt.Sprintf(
+		`SELECT * FROM %s WHERE dedup_email_domain IS NULL LIMIT 5000`, tableName))
 	if err != nil {
 		if IsSchemaError(err) {
 			// Table or columns don't exist yet — nothing to backfill
-			backfilledDBs.Store(connKey, true)
+			entityBackfilled.Store(cacheKey, true)
 			return nil
 		}
-		return fmt.Errorf("failed to query contacts for backfill: %w", err)
+		return fmt.Errorf("failed to query %s for backfill: %w", tableName, err)
 	}
 	defer rows.Close()
 
-	type backfillRecord struct {
-		id        string
-		lastName  string
-		email     string
-		phone     string
-	}
-
-	var records []backfillRecord
-	for rows.Next() {
-		var r backfillRecord
-		var lastName, email, phone *string
-		if err := rows.Scan(&r.id, &lastName, &email, &phone); err != nil {
-			return fmt.Errorf("failed to scan contact for backfill: %w", err)
-		}
-		if lastName != nil {
-			r.lastName = *lastName
-		}
-		if email != nil {
-			r.email = *email
-		}
-		if phone != nil {
-			r.phone = *phone
-		}
-		records = append(records, r)
+	records, err := util.ScanRowsToMaps(rows)
+	if err != nil {
+		return fmt.Errorf("failed to scan %s for backfill: %w", tableName, err)
 	}
 
 	if len(records) == 0 {
-		backfilledDBs.Store(connKey, true)
+		entityBackfilled.Store(cacheKey, true)
 		return nil
 	}
 
-	log.Printf("[DEDUP] Backfilling blocking keys for %d contacts", len(records))
+	log.Printf("[DEDUP] Backfilling blocking keys for %d %s records", len(records), entityType)
 
 	updated := 0
-	for _, r := range records {
-		// Build a record map matching the format GenerateBlockingKeys expects (camelCase)
-		recordMap := map[string]interface{}{
-			"lastName":     r.lastName,
-			"emailAddress": r.email,
-			"phoneNumber":  r.phone,
+	for _, record := range records {
+		recordID, _ := record["id"].(string)
+		if recordID == "" {
+			continue
 		}
 
-		keys := blocker.GenerateBlockingKeys(recordMap)
+		keys := blocker.GenerateBlockingKeys(record)
 
-		_, err := conn.ExecContext(ctx, `UPDATE contacts SET
+		_, err := conn.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET
 			dedup_last_name_soundex = ?,
 			dedup_last_name_prefix = ?,
 			dedup_email_domain = ?,
 			dedup_phone_e164 = ?
-			WHERE id = ?`,
+			WHERE id = ?`, tableName),
 			keys.LastNameSoundex, keys.LastNamePrefix,
-			keys.EmailDomain, keys.PhoneE164, r.id)
+			keys.EmailDomain, keys.PhoneE164, recordID)
 		if err != nil {
-			log.Printf("[DEDUP] Failed to backfill blocking keys for %s: %v", r.id, err)
+			log.Printf("[DEDUP] Failed to backfill blocking keys for %s/%s: %v", entityType, recordID, err)
 			continue
 		}
 		updated++
 	}
 
-	log.Printf("[DEDUP] Backfilled blocking keys for %d/%d contacts", updated, len(records))
-	backfilledDBs.Store(connKey, true)
+	log.Printf("[DEDUP] Backfilled blocking keys for %d/%d %s records", updated, len(records), entityType)
+	entityBackfilled.Store(cacheKey, true)
 	return nil
 }
 
