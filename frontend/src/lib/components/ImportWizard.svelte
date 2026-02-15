@@ -704,11 +704,11 @@
 	}
 
 	function getResolvedCount(): number {
-		return resolutions.size;
+		return resolutions.size + withinFileSelections.size;
 	}
 
 	function getTotalFlaggedCount(): number {
-		return (duplicateResult?.databaseMatches?.length || 0);
+		return (duplicateResult?.databaseMatches?.length || 0) + (duplicateResult?.withinFileGroups?.length || 0);
 	}
 
 	function allResolved(): boolean {
