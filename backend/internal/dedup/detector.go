@@ -101,6 +101,12 @@ func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID
 	return allMatches, nil
 }
 
+// ScoreRecord scores two records against a matching rule. Exposed for bulk
+// operations where candidates are already pre-fetched into memory.
+func (d *Detector) ScoreRecord(recordA, recordB map[string]interface{}, rule *entity.MatchingRule) (*entity.MatchResult, bool) {
+	return d.scorer.CompareRecords(recordA, recordB, rule)
+}
+
 // DetectDuplicatesInBatch scans entity for all duplicates (background job use)
 // Returns pairs grouped by confidence tier
 func (d *Detector) DetectDuplicatesInBatch(ctx context.Context, conn db.DBConn, orgID, entityType string,

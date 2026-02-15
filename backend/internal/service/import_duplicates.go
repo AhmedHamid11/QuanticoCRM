@@ -14,7 +14,6 @@ import (
 	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
-	"github.com/fastcrm/backend/internal/util"
 )
 
 // ImportDuplicateService handles duplicate detection for CSV import
@@ -109,6 +108,10 @@ func (s *ImportDuplicateService) detectDatabaseDuplicates(
 
 // detectDatabaseDuplicatesWithProgress finds import rows that match existing database records
 // and emits progress events via the onProgress callback.
+//
+// Performance: Uses a batch approach that replaces N individual database queries with
+// a small fixed number of bulk queries, then does all scoring in memory.
+// For 8724 rows this reduces from ~17,000+ DB round-trips to ~3-5.
 func (s *ImportDuplicateService) detectDatabaseDuplicatesWithProgress(
 	ctx context.Context,
 	dbConn db.DBConn,
@@ -139,13 +142,121 @@ func (s *ImportDuplicateService) detectDatabaseDuplicatesWithProgress(
 		log.Printf("[IMPORT-DEDUP] Failed to backfill blocking keys for %s: %v", entityType, err)
 	}
 
+	// FIX 1: Fetch matching rules ONCE (previously fetched per-row inside detector)
+	tenantRepo := s.matchingRuleRepo.WithDB(dbConn)
+	rules, err := tenantRepo.ListEnabledRules(ctx, orgID, entityType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get matching rules: %w", err)
+	}
+	if len(rules) == 0 {
+		emit(DuplicateCheckProgress{
+			Phase: "checking", ProcessedRows: totalRows, TotalRows: totalRows,
+		})
+		return nil, nil
+	}
+
+	// FIX 2: Generate blocking keys for ALL import rows upfront
+	blocker := s.detector.GetBlocker()
+	importKeys := make([]dedup.BlockingKeys, totalRows)
+	for i, row := range importRows {
+		importKeys[i] = blocker.GenerateBlockingKeys(row)
+	}
+
+	// FIX 2+3: Batch-find all candidate records (one query per rule instead of N per row)
+	candidateRecords := make(map[string]map[string]interface{}) // id -> record
+	candidateKeys := make(map[string]dedup.BlockingKeys)        // id -> blocking keys
+
+	for _, rule := range rules {
+		candidates, err := blocker.BatchFindCandidates(ctx, dbConn, orgID, entityType, importKeys, &rule)
+		if err != nil {
+			log.Printf("[IMPORT-DEDUP] Batch find candidates failed for rule %s: %v", rule.Name, err)
+			continue
+		}
+		for _, c := range candidates {
+			candidateRecords[c.ID] = c.Record
+			candidateKeys[c.ID] = c.Keys
+		}
+	}
+
+	log.Printf("[IMPORT-DEDUP] Loaded %d unique candidate records for %d import rows across %d rules",
+		len(candidateRecords), totalRows, len(rules))
+
+	// Build blocking key index for O(1) candidate lookup per import row
+	type keyIndex struct {
+		soundex map[string][]string
+		prefix  map[string][]string
+		domain  map[string][]string
+		phone   map[string][]string
+	}
+	idx := keyIndex{
+		soundex: make(map[string][]string),
+		prefix:  make(map[string][]string),
+		domain:  make(map[string][]string),
+		phone:   make(map[string][]string),
+	}
+	for id, keys := range candidateKeys {
+		if keys.LastNameSoundex != "" {
+			idx.soundex[keys.LastNameSoundex] = append(idx.soundex[keys.LastNameSoundex], id)
+		}
+		if keys.LastNamePrefix != "" {
+			idx.prefix[keys.LastNamePrefix] = append(idx.prefix[keys.LastNamePrefix], id)
+		}
+		if keys.EmailDomain != "" {
+			idx.domain[keys.EmailDomain] = append(idx.domain[keys.EmailDomain], id)
+		}
+		if keys.PhoneE164 != "" {
+			idx.phone[keys.PhoneE164] = append(idx.phone[keys.PhoneE164], id)
+		}
+	}
+
+	// findCandidateIDs returns candidate IDs matching a row's blocking keys for a rule
+	findCandidateIDs := func(keys dedup.BlockingKeys, rule *entity.MatchingRule) []string {
+		seen := make(map[string]bool)
+		var result []string
+		addFrom := func(m map[string][]string, key string) {
+			if key == "" {
+				return
+			}
+			for _, id := range m[key] {
+				if !seen[id] {
+					seen[id] = true
+					result = append(result, id)
+				}
+			}
+		}
+		switch rule.BlockingStrategy {
+		case entity.BlockingSoundex:
+			addFrom(idx.soundex, keys.LastNameSoundex)
+		case entity.BlockingPrefix:
+			addFrom(idx.prefix, keys.LastNamePrefix)
+		case entity.BlockingExact:
+			addFrom(idx.domain, keys.EmailDomain)
+			addFrom(idx.phone, keys.PhoneE164)
+		case entity.BlockingMulti:
+			addFrom(idx.soundex, keys.LastNameSoundex)
+			addFrom(idx.prefix, keys.LastNamePrefix)
+			addFrom(idx.domain, keys.EmailDomain)
+		default:
+			addFrom(idx.soundex, keys.LastNameSoundex)
+			addFrom(idx.prefix, keys.LastNamePrefix)
+			addFrom(idx.domain, keys.EmailDomain)
+		}
+		return result
+	}
+
 	// Throttle: emit progress every N rows to cap at ~100 events
 	emitEvery := totalRows / 100
 	if emitEvery < 1 {
 		emitEvery = 1
 	}
 
-	// For each import row, check if it matches any existing database records
+	// Score each import row against relevant candidates (in-memory, no DB queries)
+	type scoredMatch struct {
+		recordID    string
+		record      map[string]interface{}
+		matchResult *entity.MatchResult
+	}
+
 	for rowIdx, importRow := range importRows {
 		// Emit progress (throttled)
 		if rowIdx%emitEvery == 0 || rowIdx == totalRows-1 {
@@ -157,63 +268,63 @@ func (s *ImportDuplicateService) detectDatabaseDuplicatesWithProgress(
 			})
 		}
 
-		// Call the detector for this row (excludeID = "" since import rows have no ID yet)
-		duplicates, err := s.detector.CheckForDuplicates(ctx, dbConn, orgID, entityType, importRow, "")
-		if err != nil {
-			// Log error but continue processing other rows
-			continue
-		}
+		rowKeys := importKeys[rowIdx]
+		seenCandidates := make(map[string]bool)
+		var rowMatches []scoredMatch
 
-		if len(duplicates) == 0 {
-			continue
-		}
+		for ruleIdx := range rules {
+			rule := &rules[ruleIdx]
+			candidateIDs := findCandidateIDs(rowKeys, rule)
 
-		// Build match candidates from all duplicates found
-		var candidates []entity.ImportMatchCandidate
-		for _, dup := range duplicates {
-			// Fetch the matched record to get display name
-			matchedRecord, err := util.FetchRecordAsMap(ctx, db.GetRawDB(dbConn), util.GetTableName(entityType), dup.RecordID, orgID)
-			if err != nil {
-				continue
+			for _, candidateID := range candidateIDs {
+				if seenCandidates[candidateID] {
+					continue
+				}
+				seenCandidates[candidateID] = true
+
+				candidateRecord := candidateRecords[candidateID]
+				result, isMatch := s.detector.ScoreRecord(importRow, candidateRecord, rule)
+				if isMatch {
+					rowMatches = append(rowMatches, scoredMatch{
+						recordID:    candidateID,
+						record:      candidateRecord,
+						matchResult: result,
+					})
+				}
 			}
+		}
 
-			// Extract display name from record (try "name" first, then firstName+lastName)
-			displayName := s.extractRecordName(matchedRecord)
+		if len(rowMatches) == 0 {
+			continue
+		}
 
-			candidates = append(candidates, entity.ImportMatchCandidate{
-				RecordID: dup.RecordID,
-				Name:     displayName,
-				Score:    dup.MatchResult.Score,
+		// Sort matches by score descending
+		sort.Slice(rowMatches, func(i, j int) bool {
+			return rowMatches[i].matchResult.Score > rowMatches[j].matchResult.Score
+		})
+
+		// Build OtherMatches from non-top matches
+		var otherCandidates []entity.ImportMatchCandidate
+		for _, m := range rowMatches[1:] {
+			otherCandidates = append(otherCandidates, entity.ImportMatchCandidate{
+				RecordID: m.recordID,
+				Name:     s.extractRecordName(m.record),
+				Score:    m.matchResult.Score,
 			})
 		}
 
-		if len(candidates) == 0 {
-			continue
-		}
-
-		// Sort candidates by score descending (highest score first)
-		sort.Slice(candidates, func(i, j int) bool {
-			return candidates[i].Score > candidates[j].Score
-		})
-
-		// Top match is the primary match
-		topMatch := duplicates[0]
-		matchedRecord, err := util.FetchRecordAsMap(ctx, db.GetRawDB(dbConn), util.GetTableName(entityType), topMatch.RecordID, orgID)
-		if err != nil {
-			continue
-		}
-
-		// Build ImportDuplicateMatch with top match and alternatives
+		// FIX 4: Use pre-fetched record directly (eliminates redundant FetchRecordAsMap)
+		topMatch := rowMatches[0]
 		match := entity.ImportDuplicateMatch{
 			ImportRowIndex:  rowIdx,
 			ImportRow:       importRow,
-			MatchedRecordID: topMatch.RecordID,
-			MatchedRecord:   matchedRecord,
-			ConfidenceScore: topMatch.MatchResult.Score,
-			ConfidenceTier:  topMatch.MatchResult.ConfidenceTier,
-			MatchedFields:   topMatch.MatchResult.MatchingFields,
-			RuleName:        topMatch.MatchResult.RuleName,
-			OtherMatches:    candidates[1:], // Remaining candidates as alternatives
+			MatchedRecordID: topMatch.recordID,
+			MatchedRecord:   topMatch.record,
+			ConfidenceScore: topMatch.matchResult.Score,
+			ConfidenceTier:  topMatch.matchResult.ConfidenceTier,
+			MatchedFields:   topMatch.matchResult.MatchingFields,
+			RuleName:        topMatch.matchResult.RuleName,
+			OtherMatches:    otherCandidates,
 		}
 
 		matches = append(matches, match)
