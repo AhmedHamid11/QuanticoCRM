@@ -275,7 +275,7 @@
 			// Standard validation
 			const formData = new FormData();
 			formData.append('file', file);
-			formData.append('options', JSON.stringify({ columnMapping }));
+			formData.append('options', JSON.stringify({ columnMapping, mode: importMode }));
 
 			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv/analyze`, {
 				method: 'POST',
@@ -474,7 +474,7 @@
 		try {
 			const formData = new FormData();
 			formData.append('file', file!);
-			formData.append('options', JSON.stringify({ columnMapping }));
+			formData.append('options', JSON.stringify({ columnMapping, mode: importMode }));
 
 			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv/analyze`, {
 				method: 'POST',
