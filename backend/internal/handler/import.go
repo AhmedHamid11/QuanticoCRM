@@ -594,7 +594,9 @@ func (h *ImportHandler) processCreateMode(
 					var decisions []entity.ImportDedupDecision
 					var skippedInvalid int
 					for _, d := range options.DedupDecisions {
-						if !validDecisionTypes[d.DecisionType] || !validActions[d.Action] {
+						normalizedType := strings.ToLower(strings.TrimSpace(d.DecisionType))
+						normalizedAction := strings.ToLower(strings.TrimSpace(d.Action))
+						if !validDecisionTypes[normalizedType] || !validActions[normalizedAction] {
 							skippedInvalid++
 							continue
 						}
@@ -602,8 +604,8 @@ func (h *ImportHandler) processCreateMode(
 							ID:                  sfid.NewDedupDecision(),
 							OrgID:               orgID,
 							ImportJobID:         job.ID,
-							DecisionType:        d.DecisionType,
-							Action:              d.Action,
+							DecisionType:        normalizedType,
+							Action:              normalizedAction,
 							KeptExternalID:      d.KeptExternalID,
 							DiscardedExternalID: d.DiscardedExternalID,
 							MatchField:          d.MatchField,

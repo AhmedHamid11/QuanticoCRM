@@ -31,6 +31,8 @@ When a user imports a CSV through the Import Wizard:
 
 No extra steps needed from the user -- decisions are saved automatically.
 
+**Note:** If dedup tracking fails to persist (e.g. database issue), the import still succeeds. The response will include a `warnings` array indicating what went wrong. The `importId` field may be absent in this case.
+
 ### After Import (API Retrieval)
 
 External systems (like Salesforce) authenticate with an **Ingest API Key** (`X-API-Key` header) and call the endpoints below to retrieve decisions.
@@ -183,4 +185,15 @@ if (!toMerge.isEmpty() && !master.isEmpty()) {
 | 401 | `{"error": "X-API-Key header required"}` | Missing or invalid API key |
 | 403 | `{"error": "Organization not found or inactive"}` | Key's org is deactivated |
 | 404 | `{"error": "Import job not found"}` | No import with that ID (or wrong org) |
-| 500 | `{"error": "..."}` | Server error |
+| 500 | `{"error": "Failed to retrieve imports"}` | Server error (details logged server-side) |
+
+### Import Response Fields
+
+The CSV import response may include these additional fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `importId` | string | ID of the persisted import job (absent if persistence failed) |
+| `warnings` | string[] | Non-fatal warnings (e.g. `"Import succeeded but failed to save dedup decision records"`) |
+
+Warnings indicate the import data was saved successfully, but the dedup tracking metadata could not be persisted. If `warnings` is present, check server logs for details.
