@@ -863,7 +863,6 @@
 										class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 									>
 										<option value="">-- Select field --</option>
-										<option value="id">ID</option>
 										{#each availableFields.filter(f => f.type === 'varchar' || f.type === 'email') as field}
 											<option value={field.name}>{field.label || field.name}</option>
 										{/each}
