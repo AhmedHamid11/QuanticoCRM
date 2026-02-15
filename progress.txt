@@ -1,32 +1,30 @@
-# Last Updated: 2026-02-09 (Phase 17 Planning Complete)
+# Last Updated: 2026-02-15 11:00
 
 ## Just Completed
-Created 5 PLAN.md files for Phase 17: Core Integration
-- 17-01: Foundation (DB schema, entities, repos, encryption) - Wave 1
-- 17-02: OAuth 2.0 (service, handler, token management) - Wave 2
-- 17-03: Payload (instruction builder, batch assembler) - Wave 2
-- 17-04: Delivery (async service, queue/trigger endpoints) - Wave 3
-- 17-05: Admin UI (integrations hub, Salesforce config page) - Wave 4
-Updated ROADMAP.md with plan list
-Committed: 5403a2a
+Fixed remaining stakeholder questions:
+1. Atomic job+decisions persistence (SaveJobWithDecisions) - prevents orphaned import_jobs rows
+2. Frontend warnings banner - amber/yellow warning display in import results
 
 ## Current State
-Phase 17 fully planned. 5 plans across 4 waves, ready for execution.
+- Backend builds clean
+- Handler uses SaveJobWithDecisions for single-transaction persistence
+- Frontend shows warnings with amber banner + warning icon
+- All P1/P2 fixes + stakeholder fixes complete
 
 ## Next Step
-Execute Phase 17: /gsd:execute-phase 17-core-integration
+Commit and push all changes
 
 ## Files Changed
-- .planning/phases/17-core-integration/17-01-PLAN.md (created)
-- .planning/phases/17-core-integration/17-02-PLAN.md (created)
-- .planning/phases/17-core-integration/17-03-PLAN.md (created)
-- .planning/phases/17-core-integration/17-04-PLAN.md (created)
-- .planning/phases/17-core-integration/17-05-PLAN.md (created)
-- .planning/ROADMAP.md (updated)
+- backend/internal/handler/import.go - replaced separate CreateJob+SaveDecisions with atomic SaveJobWithDecisions
+- backend/internal/repo/import_job.go - added SaveJobWithDecisions method (previous session)
+- frontend/src/lib/components/ImportWizard.svelte - added warnings interface field + amber warnings banner
 
 ## Notes
-- All 5 plans pass frontmatter and structure validation
-- 14 requirements (SFI-01 through SFI-14) covered across 5 plans
-- Wave structure: 1 (foundation) -> 2 (OAuth + payload in parallel) -> 3 (delivery) -> 4 (admin UI)
-- Plan 05 has checkpoint task (autonomous: false)
-- Plans 01-04 are fully autonomous
+All 7 stakeholder questions resolved:
+- Q1 (retention policy): defer to production configuration
+- Q2 (rate limiting): already covered by ingest middleware
+- Q3 (decision counts): counts already in import job response
+- Q4 (orphaned rows): FIXED - atomic transaction
+- Q5 (warnings in UI): FIXED - amber banner
+- Q6 (pagination): already paginated with configurable pageSize
+- Q7 (tenant isolation): already enforced via org_id scoping

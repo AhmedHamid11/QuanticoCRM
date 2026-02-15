@@ -580,48 +580,45 @@ func (h *ImportHandler) processCreateMode(
 				FailedCount:     response.Failed,
 			}
 
-			if err := h.importJobRepo.CreateJob(c.Context(), h.getDB(c), job); err != nil {
-				fmt.Printf("[IMPORT] Warning: failed to persist import job: %v\n", err)
-				response.Warnings = append(response.Warnings, "Import succeeded but failed to save import tracking record")
+			// Validate and map frontend dedup decisions to entities
+			var decisions []entity.ImportDedupDecision
+			if len(options.DedupDecisions) > 0 {
+				validDecisionTypes := map[string]bool{"within_file": true, "db_match": true}
+				validActions := map[string]bool{"skip": true, "update": true, "import": true, "merge": true}
+
+				var skippedInvalid int
+				for _, d := range options.DedupDecisions {
+					normalizedType := strings.ToLower(strings.TrimSpace(d.DecisionType))
+					normalizedAction := strings.ToLower(strings.TrimSpace(d.Action))
+					if !validDecisionTypes[normalizedType] || !validActions[normalizedAction] {
+						skippedInvalid++
+						continue
+					}
+					decisions = append(decisions, entity.ImportDedupDecision{
+						ID:                  sfid.NewDedupDecision(),
+						OrgID:               orgID,
+						ImportJobID:         job.ID,
+						DecisionType:        normalizedType,
+						Action:              normalizedAction,
+						KeptExternalID:      d.KeptExternalID,
+						DiscardedExternalID: d.DiscardedExternalID,
+						MatchField:          d.MatchField,
+						MatchValue:          d.MatchValue,
+						MatchedRecordID:     d.MatchedRecordID,
+					})
+				}
+				if skippedInvalid > 0 {
+					fmt.Printf("[IMPORT] Warning: skipped %d dedup decisions with invalid decisionType or action\n", skippedInvalid)
+					response.Warnings = append(response.Warnings, fmt.Sprintf("Skipped %d dedup decisions with invalid type or action", skippedInvalid))
+				}
+			}
+
+			// Atomically persist job + decisions in a single transaction (no orphaned rows)
+			if err := h.importJobRepo.SaveJobWithDecisions(c.Context(), h.getDB(c), job, decisions); err != nil {
+				fmt.Printf("[IMPORT] Warning: failed to persist import job and decisions: %v\n", err)
+				response.Warnings = append(response.Warnings, "Import succeeded but failed to save import tracking data")
 			} else {
 				response.ImportID = job.ID
-
-				// Validate and map frontend dedup decisions to entities
-				if len(options.DedupDecisions) > 0 {
-					validDecisionTypes := map[string]bool{"within_file": true, "db_match": true}
-					validActions := map[string]bool{"skip": true, "update": true, "import": true, "merge": true}
-
-					var decisions []entity.ImportDedupDecision
-					var skippedInvalid int
-					for _, d := range options.DedupDecisions {
-						normalizedType := strings.ToLower(strings.TrimSpace(d.DecisionType))
-						normalizedAction := strings.ToLower(strings.TrimSpace(d.Action))
-						if !validDecisionTypes[normalizedType] || !validActions[normalizedAction] {
-							skippedInvalid++
-							continue
-						}
-						decisions = append(decisions, entity.ImportDedupDecision{
-							ID:                  sfid.NewDedupDecision(),
-							OrgID:               orgID,
-							ImportJobID:         job.ID,
-							DecisionType:        normalizedType,
-							Action:              normalizedAction,
-							KeptExternalID:      d.KeptExternalID,
-							DiscardedExternalID: d.DiscardedExternalID,
-							MatchField:          d.MatchField,
-							MatchValue:          d.MatchValue,
-							MatchedRecordID:     d.MatchedRecordID,
-						})
-					}
-					if skippedInvalid > 0 {
-						fmt.Printf("[IMPORT] Warning: skipped %d dedup decisions with invalid decisionType or action\n", skippedInvalid)
-						response.Warnings = append(response.Warnings, fmt.Sprintf("Skipped %d dedup decisions with invalid type or action", skippedInvalid))
-					}
-					if err := h.importJobRepo.SaveDecisions(c.Context(), h.getDB(c), decisions); err != nil {
-						fmt.Printf("[IMPORT] Warning: failed to persist dedup decisions: %v\n", err)
-						response.Warnings = append(response.Warnings, "Import succeeded but failed to save dedup decision records")
-					}
-				}
 			}
 		}()
 	}

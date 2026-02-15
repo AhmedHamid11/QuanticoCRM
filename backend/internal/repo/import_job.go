@@ -182,6 +182,59 @@ func (r *ImportJobRepo) SaveDecisions(ctx context.Context, tenantDB *sql.DB, dec
 	return nil
 }
 
+// SaveJobWithDecisions atomically saves an import job and its dedup decisions in a single transaction.
+// If either operation fails, both are rolled back — no orphaned import_jobs rows.
+func (r *ImportJobRepo) SaveJobWithDecisions(ctx context.Context, tenantDB *sql.DB, job *entity.ImportJob, decisions []entity.ImportDedupDecision) error {
+	tx, err := tenantDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Insert import job
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO import_jobs (id, org_id, entity_type, external_id_field, total_rows, created_count, updated_count, skipped_count, merged_count, failed_count, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, job.ID, job.OrgID, job.EntityType, job.ExternalIdField,
+		job.TotalRows, job.CreatedCount, job.UpdatedCount, job.SkippedCount, job.MergedCount, job.FailedCount)
+	if err != nil {
+		return fmt.Errorf("insert import job: %w", err)
+	}
+
+	// Batch-insert decisions
+	const batchSize = 50
+	for i := 0; i < len(decisions); i += batchSize {
+		end := i + batchSize
+		if end > len(decisions) {
+			end = len(decisions)
+		}
+		batch := decisions[i:end]
+
+		var placeholders []string
+		var args []interface{}
+		for _, d := range batch {
+			placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)")
+			args = append(args, d.ID, d.OrgID, d.ImportJobID, d.DecisionType, d.Action,
+				d.KeptExternalID, d.DiscardedExternalID, d.MatchField, d.MatchValue, d.MatchedRecordID)
+		}
+
+		query := fmt.Sprintf(`
+			INSERT INTO import_dedup_decisions (id, org_id, import_job_id, decision_type, action, kept_external_id, discarded_external_id, match_field, match_value, matched_record_id, created_at)
+			VALUES %s
+		`, strings.Join(placeholders, ", "))
+
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return fmt.Errorf("insert dedup decisions batch: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit job with decisions: %w", err)
+	}
+
+	return nil
+}
+
 // GetDecisions returns all dedup decisions for a specific import job
 func (r *ImportJobRepo) GetDecisions(ctx context.Context, tenantDB *sql.DB, orgID, jobID string) ([]entity.ImportDedupDecision, error) {
 	rows, err := tenantDB.QueryContext(ctx, `

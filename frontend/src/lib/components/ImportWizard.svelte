@@ -102,6 +102,7 @@
 		ids?: string[];
 		auditReport?: string; // Base64-encoded CSV
 		importId?: string; // ID of the persisted import job
+		warnings?: string[]; // Non-fatal warnings (e.g. dedup persistence failure)
 	}
 
 	interface ImportMatchCandidate {
@@ -1400,6 +1401,24 @@
 
 				{#if importResult.importId}
 					<p class="text-gray-500 text-xs mt-1 font-mono">Import ID: {importResult.importId}</p>
+				{/if}
+
+				{#if importResult.warnings && importResult.warnings.length > 0}
+					<div class="mt-3 bg-amber-50 border border-amber-300 rounded-lg p-3">
+						<div class="flex items-start gap-2">
+							<svg class="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+							</svg>
+							<div>
+								<p class="text-sm font-medium text-amber-800">Warnings</p>
+								<ul class="mt-1 text-sm text-amber-700 list-disc list-inside">
+									{#each importResult.warnings as warning}
+										<li>{warning}</li>
+									{/each}
+								</ul>
+							</div>
+						</div>
+					</div>
 				{/if}
 
 				<!-- Audit report download button -->
