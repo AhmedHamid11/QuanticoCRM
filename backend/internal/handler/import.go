@@ -1183,6 +1183,18 @@ func (h *ImportHandler) AnalyzeCSV(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No valid records found in CSV"})
 	}
 
+	// Skip validation for delete mode — only the match field is needed, not all required fields
+	if options.Mode == ImportModeDelete {
+		return c.JSON(service.AnalyzeResult{
+			Valid:           true,
+			TotalRows:       len(parseResult.Records),
+			ValidRows:       len(parseResult.Records),
+			InvalidRows:     0,
+			Issues:          []service.ValidationIssue{},
+			MissingRequired: []string{},
+		})
+	}
+
 	// Validate records
 	analyzeResult := h.csvValidator.Validate(parseResult.Records, fields)
 
