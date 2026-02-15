@@ -39,6 +39,14 @@ func NewImportDuplicateService(detector *dedup.Detector, matchingRuleRepo *repo.
 	}
 }
 
+// DuplicateCheckProgress represents the current state of a duplicate check operation
+type DuplicateCheckProgress struct {
+	Phase           string `json:"phase"`           // "preparing" or "checking"
+	ProcessedRows   int    `json:"processedRows"`
+	TotalRows       int    `json:"totalRows"`
+	DuplicatesFound int    `json:"duplicatesFound"`
+}
+
 // CheckDuplicates checks for duplicates both against database and within the CSV file
 func (s *ImportDuplicateService) CheckDuplicates(
 	ctx context.Context,
@@ -46,8 +54,20 @@ func (s *ImportDuplicateService) CheckDuplicates(
 	orgID, entityType string,
 	importRows []map[string]interface{},
 ) (*entity.DuplicateCheckResult, error) {
+	return s.CheckDuplicatesWithProgress(ctx, dbConn, orgID, entityType, importRows, nil)
+}
+
+// CheckDuplicatesWithProgress checks for duplicates with a progress callback.
+// If onProgress is nil, no progress events are emitted.
+func (s *ImportDuplicateService) CheckDuplicatesWithProgress(
+	ctx context.Context,
+	dbConn db.DBConn,
+	orgID, entityType string,
+	importRows []map[string]interface{},
+	onProgress func(DuplicateCheckProgress),
+) (*entity.DuplicateCheckResult, error) {
 	// Detect database duplicates (import rows matching existing records)
-	databaseMatches, err := s.detectDatabaseDuplicates(ctx, dbConn, orgID, entityType, importRows)
+	databaseMatches, err := s.detectDatabaseDuplicatesWithProgress(ctx, dbConn, orgID, entityType, importRows, onProgress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect database duplicates: %w", err)
 	}
@@ -77,18 +97,41 @@ func (s *ImportDuplicateService) CheckDuplicates(
 	}, nil
 }
 
-// detectDatabaseDuplicates finds import rows that match existing database records
+// detectDatabaseDuplicates finds import rows that match existing database records (no progress)
 func (s *ImportDuplicateService) detectDatabaseDuplicates(
 	ctx context.Context,
 	dbConn db.DBConn,
 	orgID, entityType string,
 	importRows []map[string]interface{},
 ) ([]entity.ImportDuplicateMatch, error) {
+	return s.detectDatabaseDuplicatesWithProgress(ctx, dbConn, orgID, entityType, importRows, nil)
+}
+
+// detectDatabaseDuplicatesWithProgress finds import rows that match existing database records
+// and emits progress events via the onProgress callback.
+func (s *ImportDuplicateService) detectDatabaseDuplicatesWithProgress(
+	ctx context.Context,
+	dbConn db.DBConn,
+	orgID, entityType string,
+	importRows []map[string]interface{},
+	onProgress func(DuplicateCheckProgress),
+) ([]entity.ImportDuplicateMatch, error) {
 	var matches []entity.ImportDuplicateMatch
+	totalRows := len(importRows)
+
+	emit := func(p DuplicateCheckProgress) {
+		if onProgress != nil {
+			onProgress(p)
+		}
+	}
+
+	// Emit "preparing" phase
+	emit(DuplicateCheckProgress{
+		Phase:     "preparing",
+		TotalRows: totalRows,
+	})
 
 	// Ensure blocking key columns exist and are populated for existing records.
-	// Without this, the blocker's prefix/soundex/domain queries return 0 candidates
-	// because existing records have NULL blocking key values.
 	if err := dedup.EnsureBlockingKeysForEntity(ctx, dbConn, entityType); err != nil {
 		log.Printf("[IMPORT-DEDUP] Failed to ensure blocking keys for %s: %v", entityType, err)
 	}
@@ -96,8 +139,24 @@ func (s *ImportDuplicateService) detectDatabaseDuplicates(
 		log.Printf("[IMPORT-DEDUP] Failed to backfill blocking keys for %s: %v", entityType, err)
 	}
 
+	// Throttle: emit progress every N rows to cap at ~100 events
+	emitEvery := totalRows / 100
+	if emitEvery < 1 {
+		emitEvery = 1
+	}
+
 	// For each import row, check if it matches any existing database records
 	for rowIdx, importRow := range importRows {
+		// Emit progress (throttled)
+		if rowIdx%emitEvery == 0 || rowIdx == totalRows-1 {
+			emit(DuplicateCheckProgress{
+				Phase:           "checking",
+				ProcessedRows:   rowIdx,
+				TotalRows:       totalRows,
+				DuplicatesFound: len(matches),
+			})
+		}
+
 		// Call the detector for this row (excludeID = "" since import rows have no ID yet)
 		duplicates, err := s.detector.CheckForDuplicates(ctx, dbConn, orgID, entityType, importRow, "")
 		if err != nil {
@@ -159,6 +218,14 @@ func (s *ImportDuplicateService) detectDatabaseDuplicates(
 
 		matches = append(matches, match)
 	}
+
+	// Emit final progress
+	emit(DuplicateCheckProgress{
+		Phase:           "checking",
+		ProcessedRows:   totalRows,
+		TotalRows:       totalRows,
+		DuplicatesFound: len(matches),
+	})
 
 	return matches, nil
 }

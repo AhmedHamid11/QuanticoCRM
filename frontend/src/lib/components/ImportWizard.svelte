@@ -488,6 +488,12 @@
 		return true;
 	}
 
+	// Duplicate check progress state
+	let dupCheckPhase = $state('');
+	let dupCheckProcessed = $state(0);
+	let dupCheckTotal = $state(0);
+	let dupCheckDuplicates = $state(0);
+
 	// Duplicate check and resolution functions
 	async function checkDuplicates() {
 		if (!file) return;
@@ -496,6 +502,10 @@
 		duplicateCheckError = '';
 		duplicateResult = null;
 		showAllClear = false;
+		dupCheckPhase = '';
+		dupCheckProcessed = 0;
+		dupCheckTotal = 0;
+		dupCheckDuplicates = 0;
 
 		try {
 			const formData = new FormData();
@@ -521,7 +531,50 @@
 				throw new Error(errorData.error || 'Duplicate check failed');
 			}
 
-			duplicateResult = await response.json();
+			// Read NDJSON stream
+			const reader = response.body!.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split('\n');
+				// Keep the last incomplete line in the buffer
+				buffer = lines.pop() || '';
+
+				for (const line of lines) {
+					if (!line.trim()) continue;
+					const event = JSON.parse(line);
+
+					if (event.type === 'progress') {
+						dupCheckPhase = event.phase;
+						dupCheckProcessed = event.processedRows;
+						dupCheckTotal = event.totalRows;
+						dupCheckDuplicates = event.duplicatesFound;
+					} else if (event.type === 'error') {
+						throw new Error(event.error);
+					} else if (event.type === 'result') {
+						duplicateResult = event.result;
+					}
+				}
+			}
+
+			// Process any remaining buffer
+			if (buffer.trim()) {
+				const event = JSON.parse(buffer);
+				if (event.type === 'result') {
+					duplicateResult = event.result;
+				} else if (event.type === 'error') {
+					throw new Error(event.error);
+				}
+			}
+
+			if (!duplicateResult) {
+				throw new Error('No result received from duplicate check');
+			}
 
 			const hasDbMatches = duplicateResult!.databaseMatches && duplicateResult!.databaseMatches.length > 0;
 			const hasFileGroups = duplicateResult!.withinFileGroups && duplicateResult!.withinFileGroups.length > 0;
@@ -1014,9 +1067,37 @@
 
 	<!-- Duplicate Check Loading/Error States -->
 	{#if checkingDuplicates}
-		<div class="text-center py-8">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-			<p class="text-sm text-gray-500 mt-3">Checking for duplicates...</p>
+		<div class="py-8 px-4">
+			{#if dupCheckPhase === 'checking' && dupCheckTotal > 0}
+				{@const pct = Math.round((dupCheckProcessed / dupCheckTotal) * 100)}
+				<p class="text-sm font-medium text-gray-700 text-center mb-2">
+					Checking row {dupCheckProcessed.toLocaleString()} of {dupCheckTotal.toLocaleString()}
+				</p>
+				<div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+					<div
+						class="bg-blue-600 h-2.5 rounded-full transition-all duration-150"
+						style="width: {pct}%"
+					></div>
+				</div>
+				<div class="flex justify-between text-xs text-gray-500">
+					<span>{pct}% complete</span>
+					{#if dupCheckDuplicates > 0}
+						<span>{dupCheckDuplicates} duplicate{dupCheckDuplicates !== 1 ? 's' : ''} found</span>
+					{/if}
+				</div>
+			{:else if dupCheckPhase === 'preparing'}
+				<div class="text-center">
+					<div class="w-full bg-gray-200 rounded-full h-2.5 mb-2 overflow-hidden">
+						<div class="bg-blue-500 h-2.5 rounded-full w-1/3 animate-pulse"></div>
+					</div>
+					<p class="text-sm text-gray-500">Preparing duplicate detection...</p>
+				</div>
+			{:else}
+				<div class="text-center">
+					<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+					<p class="text-sm text-gray-500 mt-3">Starting duplicate check...</p>
+				</div>
+			{/if}
 		</div>
 	{/if}
 

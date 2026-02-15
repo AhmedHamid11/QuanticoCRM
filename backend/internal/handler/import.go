@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
@@ -18,6 +19,7 @@ import (
 	"github.com/fastcrm/backend/internal/sfid"
 	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 )
 
 // ImportHandler handles CSV import operations
@@ -1895,9 +1897,12 @@ func (h *ImportHandler) ensureTableExists(ctx context.Context, db *sql.DB, orgID
 }
 
 // CheckDuplicates handles POST /api/v1/entities/:entity/import/csv/check-duplicates
+// Streams progress as NDJSON lines, with the final line containing the full result.
 func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 	entityName := c.Params("entity")
+
+	// --- All validation happens before streaming (errors return normal JSON) ---
 
 	// Verify entity exists
 	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
@@ -1972,16 +1977,54 @@ func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
 		tenantDB = h.db
 	}
 
-	// Check for duplicates
-	result, err := h.duplicateService.CheckDuplicates(c.Context(), tenantDB, orgID, entityName, parseResult.Records)
-	if err != nil {
-		// If detection fails, return error with suggestion to skip
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": fmt.Sprintf("Duplicate detection failed: %v. You can skip duplicate checking and proceed with import.", err),
-		})
-	}
+	// --- Stream NDJSON progress + result ---
+	c.Set("Content-Type", "application/x-ndjson")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("X-Accel-Buffering", "no")
 
-	return c.JSON(result)
+	// Capture values needed inside the stream writer closure
+	ctx := c.Context()
+	records := parseResult.Records
+
+	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
+		// Progress callback writes NDJSON lines
+		onProgress := func(p service.DuplicateCheckProgress) {
+			line, _ := json.Marshal(map[string]interface{}{
+				"type":          "progress",
+				"phase":         p.Phase,
+				"processedRows": p.ProcessedRows,
+				"totalRows":     p.TotalRows,
+				"duplicatesFound": p.DuplicatesFound,
+			})
+			w.Write(line)
+			w.Write([]byte("\n"))
+			w.Flush()
+		}
+
+		result, err := h.duplicateService.CheckDuplicatesWithProgress(
+			context.Background(), tenantDB, orgID, entityName, records, onProgress,
+		)
+		if err != nil {
+			errLine, _ := json.Marshal(map[string]interface{}{
+				"type":  "error",
+				"error": fmt.Sprintf("Duplicate detection failed: %v. You can skip duplicate checking and proceed with import.", err),
+			})
+			w.Write(errLine)
+			w.Write([]byte("\n"))
+			w.Flush()
+			return
+		}
+
+		resultLine, _ := json.Marshal(map[string]interface{}{
+			"type":   "result",
+			"result": result,
+		})
+		w.Write(resultLine)
+		w.Write([]byte("\n"))
+		w.Flush()
+	}))
+
+	return nil
 }
 
 // RegisterRoutes registers import routes
