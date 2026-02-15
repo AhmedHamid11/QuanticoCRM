@@ -136,11 +136,17 @@ func (r *ImportJobRepo) ListJobs(ctx context.Context, tenantDB *sql.DB, orgID, e
 	return jobs, total, nil
 }
 
-// SaveDecisions bulk-inserts dedup decisions
+// SaveDecisions bulk-inserts dedup decisions within a single transaction
 func (r *ImportJobRepo) SaveDecisions(ctx context.Context, tenantDB *sql.DB, decisions []entity.ImportDedupDecision) error {
 	if len(decisions) == 0 {
 		return nil
 	}
+
+	tx, err := tenantDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
 
 	// Batch insert using multi-row VALUES
 	const batchSize = 50
@@ -164,9 +170,13 @@ func (r *ImportJobRepo) SaveDecisions(ctx context.Context, tenantDB *sql.DB, dec
 			VALUES %s
 		`, strings.Join(placeholders, ", "))
 
-		if _, err := tenantDB.ExecContext(ctx, query, args...); err != nil {
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 			return fmt.Errorf("insert dedup decisions batch: %w", err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit dedup decisions: %w", err)
 	}
 
 	return nil

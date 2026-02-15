@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"log"
+
+	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/gofiber/fiber/v2"
@@ -36,7 +39,11 @@ func (h *DedupResultsHandler) ListImports(c *fiber.Ctx) error {
 
 	jobs, total, err := h.importJobRepo.ListJobs(c.Context(), tenantDB, orgID, entityType, since, page, pageSize)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		if isNoSuchTableError(err) {
+			return c.JSON(fiber.Map{"imports": []interface{}{}, "total": 0, "page": page, "pageSize": pageSize})
+		}
+		log.Printf("[DEDUP-API] ListImports error for org=%s: %v", orgID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve imports"})
 	}
 
 	return c.JSON(fiber.Map{
@@ -67,7 +74,11 @@ func (h *DedupResultsHandler) GetDedupResults(c *fiber.Ctx) error {
 
 	job, err := h.importJobRepo.GetJob(c.Context(), tenantDB, orgID, jobID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		if isNoSuchTableError(err) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Import job not found"})
+		}
+		log.Printf("[DEDUP-API] GetJob error for org=%s job=%s: %v", orgID, jobID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve import"})
 	}
 	if job == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Import job not found"})
@@ -75,7 +86,12 @@ func (h *DedupResultsHandler) GetDedupResults(c *fiber.Ctx) error {
 
 	decisions, err := h.importJobRepo.GetDecisions(c.Context(), tenantDB, orgID, jobID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		if isNoSuchTableError(err) {
+			decisions = []entity.ImportDedupDecision{}
+		} else {
+			log.Printf("[DEDUP-API] GetDecisions error for org=%s job=%s: %v", orgID, jobID, err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve dedup decisions"})
+		}
 	}
 
 	return c.JSON(fiber.Map{

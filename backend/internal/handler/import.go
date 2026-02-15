@@ -131,6 +131,7 @@ type ImportCSVResponse struct {
 	IDs           []string                 `json:"ids,omitempty"`
 	AuditReport   string                   `json:"auditReport,omitempty"` // Base64-encoded CSV audit report
 	ImportID      string                   `json:"importId,omitempty"`    // ID of the persisted import job
+	Warnings      []string                 `json:"warnings,omitempty"`    // Non-fatal warnings (e.g. failed to persist dedup decisions)
 }
 
 // PreviewCSVResponse represents a preview of CSV data before import
@@ -562,6 +563,7 @@ func (h *ImportHandler) processCreateMode(
 			defer func() {
 				if r := recover(); r != nil {
 					fmt.Printf("[IMPORT] Warning: panic persisting import job: %v\n", r)
+					response.Warnings = append(response.Warnings, "Import succeeded but failed to save dedup tracking data")
 				}
 			}()
 
@@ -580,13 +582,22 @@ func (h *ImportHandler) processCreateMode(
 
 			if err := h.importJobRepo.CreateJob(c.Context(), h.getDB(c), job); err != nil {
 				fmt.Printf("[IMPORT] Warning: failed to persist import job: %v\n", err)
+				response.Warnings = append(response.Warnings, "Import succeeded but failed to save import tracking record")
 			} else {
 				response.ImportID = job.ID
 
-				// Map frontend dedup decisions to entities
+				// Validate and map frontend dedup decisions to entities
 				if len(options.DedupDecisions) > 0 {
+					validDecisionTypes := map[string]bool{"within_file": true, "db_match": true}
+					validActions := map[string]bool{"skip": true, "update": true, "import": true, "merge": true}
+
 					var decisions []entity.ImportDedupDecision
+					var skippedInvalid int
 					for _, d := range options.DedupDecisions {
+						if !validDecisionTypes[d.DecisionType] || !validActions[d.Action] {
+							skippedInvalid++
+							continue
+						}
 						decisions = append(decisions, entity.ImportDedupDecision{
 							ID:                  sfid.NewDedupDecision(),
 							OrgID:               orgID,
@@ -600,8 +611,13 @@ func (h *ImportHandler) processCreateMode(
 							MatchedRecordID:     d.MatchedRecordID,
 						})
 					}
+					if skippedInvalid > 0 {
+						fmt.Printf("[IMPORT] Warning: skipped %d dedup decisions with invalid decisionType or action\n", skippedInvalid)
+						response.Warnings = append(response.Warnings, fmt.Sprintf("Skipped %d dedup decisions with invalid type or action", skippedInvalid))
+					}
 					if err := h.importJobRepo.SaveDecisions(c.Context(), h.getDB(c), decisions); err != nil {
 						fmt.Printf("[IMPORT] Warning: failed to persist dedup decisions: %v\n", err)
+						response.Warnings = append(response.Warnings, "Import succeeded but failed to save dedup decision records")
 					}
 				}
 			}
