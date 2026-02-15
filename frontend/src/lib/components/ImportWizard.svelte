@@ -293,6 +293,13 @@
 			}
 
 			analyzeResult = await response.json();
+
+			// For delete mode, skip Step 2 entirely — no duplicate check needed
+			if (importMode === 'delete') {
+				await executeImport();
+				return;
+			}
+
 			step = 2;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Validation failed';
