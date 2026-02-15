@@ -1305,7 +1305,11 @@
 			{#each duplicateResult.withinFileGroups || [] as group}
 				<div class="border rounded-lg overflow-hidden">
 					<div class="bg-orange-50 px-4 py-3 border-b">
-						<h4 class="text-sm font-medium text-orange-800">Duplicate Rows Within File</h4>
+						<div class="flex items-center gap-2">
+							<h4 class="text-sm font-medium text-orange-800">Duplicate Rows Within File</h4>
+							<span class="px-2 py-0.5 rounded text-xs font-medium text-red-600 bg-red-50">100% match</span>
+							<span class="text-xs text-gray-400">{group.rowIndices.length} rows</span>
+						</div>
 						<p class="text-xs text-orange-600 mt-1">These rows appear to be duplicates of each other. Select which one to keep:</p>
 					</div>
 					<div class="divide-y">
