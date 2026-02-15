@@ -52,6 +52,8 @@ const (
 	PrefixMirror             = "0Mi" // Mirror config
 	PrefixMirrorField        = "0Mf" // Mirror source field
 	PrefixDeltaKey           = "0Dk" // Delta key for deduplication
+	PrefixImportJob          = "0Ip" // Import job
+	PrefixDedupDecision      = "0Dd" // Import dedup decision
 )
 
 // Custom base32 alphabet: 0-9, A-Z excluding I, L, O, U (to avoid confusion)
@@ -338,4 +340,14 @@ func NewMirrorField() string {
 // NewDeltaKey generates a new Delta Key ID (prefix: 0Dk)
 func NewDeltaKey() string {
 	return New(PrefixDeltaKey)
+}
+
+// NewImportJob generates a new Import Job ID (prefix: 0Ip)
+func NewImportJob() string {
+	return New(PrefixImportJob)
+}
+
+// NewDedupDecision generates a new Dedup Decision ID (prefix: 0Dd)
+func NewDedupDecision() string {
+	return New(PrefixDedupDecision)
 }

@@ -299,7 +299,8 @@ func main() {
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
-	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService, importDuplicateService)
+	importJobRepo := repo.NewImportJobRepo()
+	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService, importDuplicateService, importJobRepo)
 	metadataHandler := handler.NewMetadataHandler(metadataRepo)
 	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
 	listViewHandler := handler.NewListViewHandler(listViewRepo)
@@ -317,6 +318,7 @@ func main() {
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
 	ingestHandler.SetMetadataRepo(metadataRepo)
 	ingestKeyHandler := handler.NewIngestAPIKeyHandler(ingestAPIKeyService)
+	dedupResultsHandler := handler.NewDedupResultsHandler(importJobRepo)
 	mirrorHandler := handler.NewMirrorHandler(mirrorRepo, ingestJobRepo, provisioningService)
 	mirrorHandler.SetIngestService(ingestService)
 	mirrorHandler.SetMetadataRepo(metadataRepo)
@@ -441,6 +443,8 @@ func main() {
 	// This endpoint is separate from JWT auth chain - uses its own middleware
 	ingest := api.Group("/ingest", ingestAuthMiddleware.Authenticate())
 	ingestHandler.RegisterRoutes(ingest)
+	ingest.Get("/imports", dedupResultsHandler.ListImports)
+	ingest.Get("/imports/:id/dedup-results", dedupResultsHandler.GetDedupResults)
 
 	// Salesforce OAuth callback (public - user redirected back from Salesforce)
 	// State parameter provides CSRF protection (verified by service)

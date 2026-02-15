@@ -80,9 +80,20 @@
 		missingRequired: string[];
 	}
 
+	interface DedupDecisionInput {
+		keptExternalId: string;
+		discardedExternalId: string;
+		matchField: string;
+		matchValue: string;
+		decisionType: string;
+		action: string;
+		matchedRecordId?: string;
+	}
+
 	interface ImportResponse {
 		created: number;
 		updated: number;
+		deleted?: number;
 		failed: number;
 		skipped?: number;
 		merged?: number;
@@ -90,6 +101,7 @@
 		errors?: Array<{ index: number; error: string }>;
 		ids?: string[];
 		auditReport?: string; // Base64-encoded CSV
+		importId?: string; // ID of the persisted import job
 	}
 
 	interface ImportMatchCandidate {
@@ -298,12 +310,23 @@
 				};
 			}
 
+			// Auto-detect external ID field from column mapping (look for 'Id' or 'SF_ID' columns)
+			let detectedExternalIdField = '';
+			for (const [csvHeader, fieldName] of Object.entries(columnMapping)) {
+				const headerLower = csvHeader.toLowerCase();
+				if (headerLower === 'id' || headerLower === 'sf_id' || headerLower === 'salesforce_id' || headerLower === 'sfid' || headerLower === 'external_id') {
+					detectedExternalIdField = csvHeader;
+					break;
+				}
+			}
+
 			// Build options object
 			const options: any = {
 				columnMapping,
 				lookupResolution: Object.keys(finalLookupResolution).length > 0 ? finalLookupResolution : undefined,
 				mode: importMode,
 				matchField: (importMode !== 'create' && matchField) ? matchField : undefined,
+				externalIdField: detectedExternalIdField || undefined,
 				skipErrors: false
 			};
 
@@ -316,7 +339,11 @@
 				options.duplicateResolutions = resolutionObj;
 			}
 
-			// Add within-file skip indices
+			// Add within-file skip indices and build dedup decisions
+			const dedupDecisions: DedupDecisionInput[] = [];
+			// Column containing the Salesforce external ID (e.g. "Id", "SF_ID")
+			const externalIdCol = options.externalIdField || 'Id';
+
 			if (withinFileSelections.size > 0 && duplicateResult?.withinFileGroups) {
 				const skipIndices: number[] = [];
 				for (const group of duplicateResult.withinFileGroups) {
@@ -324,12 +351,49 @@
 					for (const rowIdx of group.rowIndices) {
 						if (rowIdx !== keepIdx) {
 							skipIndices.push(rowIdx);
+							// Build dedup decision for within-file duplicates
+							const keptRow = group.rows[group.rowIndices.indexOf(keepIdx)];
+							const discardedRow = group.rows[group.rowIndices.indexOf(rowIdx)];
+							if (keptRow && discardedRow) {
+								// groupId format: "matchField:matchValue"
+								const parts = group.groupId.split(':');
+								dedupDecisions.push({
+									keptExternalId: String(keptRow[externalIdCol] || ''),
+									discardedExternalId: String(discardedRow[externalIdCol] || ''),
+									matchField: parts[0] || '',
+									matchValue: parts.slice(1).join(':') || '',
+									decisionType: 'within_file',
+									action: 'skip'
+								});
+							}
 						}
 					}
 				}
 				if (skipIndices.length > 0) {
 					options.withinFileSkipIndices = skipIndices;
 				}
+			}
+
+			// Build dedup decisions from database match resolutions
+			if (resolutions.size > 0 && duplicateResult?.databaseMatches) {
+				resolutions.forEach((resolution, rowIdx) => {
+					const match = duplicateResult!.databaseMatches.find(m => m.importRowIndex === rowIdx);
+					if (match) {
+						dedupDecisions.push({
+							keptExternalId: resolution.action === 'skip' ? '' : String(match.importRow[externalIdCol] || ''),
+							discardedExternalId: resolution.action === 'skip' ? String(match.importRow[externalIdCol] || '') : '',
+							matchField: (match.matchedFields && match.matchedFields[0]) || '',
+							matchValue: match.matchedFields ? String(match.importRow[match.matchedFields[0]] || '') : '',
+							decisionType: 'db_match',
+							action: resolution.action,
+							matchedRecordId: match.matchedRecordId || resolution.selectedMatchId || ''
+						});
+					}
+				});
+			}
+
+			if (dedupDecisions.length > 0) {
+				options.dedupDecisions = dedupDecisions;
 			}
 
 			const formData = new FormData();
@@ -358,7 +422,7 @@
 			const messages: string[] = [];
 			if (result.created > 0) messages.push(`${result.created} created`);
 			if (result.updated > 0) messages.push(`${result.updated} updated`);
-			if ((result as any).deleted > 0) messages.push(`${(result as any).deleted} deleted`);
+			if (result.deleted && result.deleted > 0) messages.push(`${result.deleted} deleted`);
 			if (result.skipped && result.skipped > 0) messages.push(`${result.skipped} skipped`);
 			if (result.merged && result.merged > 0) messages.push(`${result.merged} sent to merge`);
 			addToast(`Import complete: ${messages.join(', ') || 'No changes'}`, 'success');
@@ -598,11 +662,11 @@
 
 				step = 2.75; // Show review step
 			} else {
-				// No duplicates - show brief "all clear" and proceed
+				// No duplicates - show brief "all clear" and proceed to import
 				showAllClear = true;
 				setTimeout(() => {
 					showAllClear = false;
-					step = 3;
+					executeImport();
 				}, 2000);
 			}
 		} catch (err) {
@@ -661,7 +725,7 @@
 
 	function proceedToImport() {
 		if (!allResolved()) return;
-		step = 3;
+		executeImport();
 	}
 
 	function getConfidenceColor(tier: string): string {
@@ -676,7 +740,7 @@
 	function skipDuplicateCheck() {
 		// Allow user to skip duplicate check if it failed
 		duplicateCheckError = '';
-		step = 3;
+		executeImport();
 	}
 
 	function downloadAuditReport(base64Data: string) {
@@ -1318,10 +1382,10 @@
 							<div class="text-2xl font-bold text-purple-700">{importResult.merged}</div>
 						</div>
 					{/if}
-					{#if (importResult as any).deleted > 0}
+					{#if importResult.deleted && importResult.deleted > 0}
 						<div class="bg-white rounded-md p-3 border border-red-200">
 							<div class="text-sm text-gray-600">Deleted</div>
-							<div class="text-2xl font-bold text-red-700">{(importResult as any).deleted}</div>
+							<div class="text-2xl font-bold text-red-700">{importResult.deleted}</div>
 						</div>
 					{/if}
 					{#if importResult.failed > 0}
@@ -1333,6 +1397,10 @@
 				</div>
 
 				<p class="text-gray-600 text-sm mt-2">Total rows processed: {importResult.totalRows}</p>
+
+				{#if importResult.importId}
+					<p class="text-gray-500 text-xs mt-1 font-mono">Import ID: {importResult.importId}</p>
+				{/if}
 
 				<!-- Audit report download button -->
 				{#if importResult.auditReport}

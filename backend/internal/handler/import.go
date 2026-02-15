@@ -31,6 +31,7 @@ type ImportHandler struct {
 	tripwireService   TripwireServiceInterface
 	validationService ValidationServiceInterface
 	duplicateService  *service.ImportDuplicateService
+	importJobRepo     *repo.ImportJobRepo
 }
 
 // NewImportHandler creates a new ImportHandler
@@ -40,6 +41,7 @@ func NewImportHandler(
 	tripwireService TripwireServiceInterface,
 	validationService ValidationServiceInterface,
 	duplicateService *service.ImportDuplicateService,
+	importJobRepo *repo.ImportJobRepo,
 ) *ImportHandler {
 	return &ImportHandler{
 		db:                db,
@@ -49,6 +51,7 @@ func NewImportHandler(
 		tripwireService:   tripwireService,
 		validationService: validationService,
 		duplicateService:  duplicateService,
+		importJobRepo:     importJobRepo,
 	}
 }
 
@@ -85,6 +88,17 @@ type LookupResolution struct {
 	NewRecordData    map[string]map[string]interface{} `json:"newRecordData"`    // Data for new records: matchValue -> field values
 }
 
+// DedupDecisionInput represents a dedup decision from the frontend
+type DedupDecisionInput struct {
+	KeptExternalID      string `json:"keptExternalId"`
+	DiscardedExternalID string `json:"discardedExternalId"`
+	MatchField          string `json:"matchField"`
+	MatchValue          string `json:"matchValue"`
+	DecisionType        string `json:"decisionType"`        // "within_file" or "db_match"
+	Action              string `json:"action"`               // "skip", "update", "import", "merge"
+	MatchedRecordID     string `json:"matchedRecordId,omitempty"` // Quantico record ID that was matched
+}
+
 // ImportCSVRequest represents optional parameters for CSV import
 type ImportCSVRequest struct {
 	Mode                   ImportMode                         `json:"mode"`                   // create, update, upsert, delete (default: create)
@@ -93,6 +107,8 @@ type ImportCSVRequest struct {
 	LookupResolution       map[string]LookupResolution        `json:"lookupResolution"`       // fieldName -> resolution config
 	DuplicateResolutions   map[int]entity.ImportResolution    `json:"duplicateResolutions"`   // rowIndex -> resolution decision
 	WithinFileSkipIndices  []int                              `json:"withinFileSkipIndices"`  // Row indices to skip from within-file duplicates
+	ExternalIdField        string                             `json:"externalIdField"`        // Which column has the SF external ID
+	DedupDecisions         []DedupDecisionInput               `json:"dedupDecisions"`         // Pre-computed dedup decisions from frontend
 	SkipErrors             bool                               `json:"skipErrors"`
 	FireTripwires          bool                               `json:"fireTripwires"`
 	ValidateOnly           bool                               `json:"validateOnly"`
@@ -114,6 +130,7 @@ type ImportCSVResponse struct {
 	Errors        []BulkError              `json:"errors,omitempty"`
 	IDs           []string                 `json:"ids,omitempty"`
 	AuditReport   string                   `json:"auditReport,omitempty"` // Base64-encoded CSV audit report
+	ImportID      string                   `json:"importId,omitempty"`    // ID of the persisted import job
 }
 
 // PreviewCSVResponse represents a preview of CSV data before import
@@ -537,6 +554,58 @@ func (h *ImportHandler) processCreateMode(
 	if len(auditEntries) > 0 && h.duplicateService != nil {
 		reportCSV := h.duplicateService.GenerateAuditReport(auditEntries)
 		response.AuditReport = base64.StdEncoding.EncodeToString(reportCSV)
+	}
+
+	// Persist import job and dedup decisions (best-effort, don't fail the import)
+	if h.importJobRepo != nil {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("[IMPORT] Warning: panic persisting import job: %v\n", r)
+				}
+			}()
+
+			job := &entity.ImportJob{
+				ID:              sfid.NewImportJob(),
+				OrgID:           orgID,
+				EntityType:      entityName,
+				ExternalIdField: options.ExternalIdField,
+				TotalRows:       response.TotalRows,
+				CreatedCount:    response.Created,
+				UpdatedCount:    response.Updated,
+				SkippedCount:    response.Skipped,
+				MergedCount:     response.Merged,
+				FailedCount:     response.Failed,
+			}
+
+			if err := h.importJobRepo.CreateJob(c.Context(), h.getDB(c), job); err != nil {
+				fmt.Printf("[IMPORT] Warning: failed to persist import job: %v\n", err)
+			} else {
+				response.ImportID = job.ID
+
+				// Map frontend dedup decisions to entities
+				if len(options.DedupDecisions) > 0 {
+					var decisions []entity.ImportDedupDecision
+					for _, d := range options.DedupDecisions {
+						decisions = append(decisions, entity.ImportDedupDecision{
+							ID:                  sfid.NewDedupDecision(),
+							OrgID:               orgID,
+							ImportJobID:         job.ID,
+							DecisionType:        d.DecisionType,
+							Action:              d.Action,
+							KeptExternalID:      d.KeptExternalID,
+							DiscardedExternalID: d.DiscardedExternalID,
+							MatchField:          d.MatchField,
+							MatchValue:          d.MatchValue,
+							MatchedRecordID:     d.MatchedRecordID,
+						})
+					}
+					if err := h.importJobRepo.SaveDecisions(c.Context(), h.getDB(c), decisions); err != nil {
+						fmt.Printf("[IMPORT] Warning: failed to persist dedup decisions: %v\n", err)
+					}
+				}
+			}
+		}()
 	}
 
 	if response.Failed > 0 && !options.SkipErrors {
