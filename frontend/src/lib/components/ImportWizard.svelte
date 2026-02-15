@@ -226,6 +226,13 @@
 		error = '';
 
 		try {
+			// For delete mode, auto-map the match field column (no manual column mapping needed)
+			if (importMode === 'delete' && matchField && previewData?.headers) {
+				const matchHeader = previewData.headers.find((h: string) => h.toLowerCase() === matchField.toLowerCase());
+				if (matchHeader) {
+					columnMapping = { [matchHeader]: matchField };
+				}
+			}
 			// Check if any lookups have createIfNotFound enabled
 			const hasCreateIfNotFound = Object.values(lookupResolution).some(r => r.createIfNotFound);
 
@@ -302,6 +309,14 @@
 		error = '';
 
 		try {
+			// For delete mode, ensure match field column is mapped
+			if (importMode === 'delete' && matchField && previewData?.headers) {
+				const matchHeader = previewData.headers.find((h: string) => h.toLowerCase() === matchField.toLowerCase());
+				if (matchHeader) {
+					columnMapping = { [matchHeader]: matchField };
+				}
+			}
+
 			// Build final lookup resolution with newRecordData
 			const finalLookupResolution: Record<string, LookupResolution> = {};
 			for (const [fieldName, resolution] of Object.entries(lookupResolution)) {
@@ -867,7 +882,27 @@
 						</div>
 					</div>
 
-					<!-- Column Mapping Table -->
+					<!-- Column Mapping Table (hidden for delete mode) -->
+					{#if importMode === 'delete'}
+						<div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+							<p class="text-sm text-gray-600">
+								In delete mode, only the <strong>Match Records By</strong> field above is used to identify records.
+								No column mapping is needed.
+							</p>
+							{#if matchField && previewData?.headers}
+								{@const matchHeader = previewData.headers.find((h: string) => h.toLowerCase() === matchField.toLowerCase())}
+								{#if matchHeader}
+									<p class="text-sm text-green-700 mt-2">
+										CSV column "<strong>{matchHeader}</strong>" will be used to match records by <strong>{matchField === 'id' ? 'ID' : matchField}</strong>.
+									</p>
+								{:else}
+									<p class="text-sm text-red-600 mt-2">
+										No CSV column matches the selected field "<strong>{matchField}</strong>". Make sure your CSV has a column with that name.
+									</p>
+								{/if}
+							{/if}
+						</div>
+					{:else}
 					<div class="overflow-x-auto">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
@@ -944,6 +979,7 @@
 							</tbody>
 						</table>
 					</div>
+					{/if}
 				</div>
 
 				<div class="flex justify-between mt-6">

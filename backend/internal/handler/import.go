@@ -1465,8 +1465,10 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 
 	// Build list of all available fields for dropdown
 	var availableFields []AvailableField
+	// Include "ID" for update/upsert/delete modes where matching by ID is needed
+	availableFields = append(availableFields, AvailableField{Name: "id", Label: "ID", Type: "varchar"})
 	for _, field := range fields {
-		// Skip system fields that shouldn't be imported
+		// Skip system fields that shouldn't be imported (except id, added above)
 		if field.Name == "id" || field.Name == "createdAt" || field.Name == "modifiedAt" ||
 			field.Name == "createdById" || field.Name == "modifiedById" {
 			continue

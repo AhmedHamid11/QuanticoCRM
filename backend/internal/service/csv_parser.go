@@ -149,6 +149,12 @@ func (p *CSVParser) mapHeaders(headers []string, fieldMap map[string]*entity.Fie
 		cleanHeader = strings.ReplaceAll(cleanHeader, " ", "_")
 		cleanHeader = strings.ReplaceAll(cleanHeader, "-", "_")
 
+		// Always recognize "id" as a valid field (needed for update/upsert/delete modes)
+		if cleanHeader == "id" {
+			mapped[i] = "id"
+			continue
+		}
+
 		if field, ok := fieldMap[cleanHeader]; ok {
 			// Determine the correct mapped name based on field type
 			if field.Type == entity.FieldTypeLink {
