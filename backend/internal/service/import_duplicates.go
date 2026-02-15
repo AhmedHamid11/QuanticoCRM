@@ -14,6 +14,7 @@ import (
 	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/util"
 )
 
 // ImportDuplicateService handles duplicate detection for CSV import
@@ -134,13 +135,14 @@ func (s *ImportDuplicateService) detectDatabaseDuplicatesWithProgress(
 		TotalRows: totalRows,
 	})
 
-	// Ensure blocking key columns exist and are populated for existing records.
+	// Ensure blocking key columns exist (fast after first run due to sync.Map cache).
 	if err := dedup.EnsureBlockingKeysForEntity(ctx, dbConn, entityType); err != nil {
 		log.Printf("[IMPORT-DEDUP] Failed to ensure blocking keys for %s: %v", entityType, err)
 	}
-	if err := dedup.BackfillBlockingKeysForEntity(ctx, dbConn, entityType, s.detector.GetBlocker()); err != nil {
-		log.Printf("[IMPORT-DEDUP] Failed to backfill blocking keys for %s: %v", entityType, err)
-	}
+	// NOTE: We intentionally skip BackfillBlockingKeysForEntity here. It does row-by-row
+	// UPDATEs for up to 5000 records, which blocks the UI on "Preparing..." for large tables.
+	// Instead, we fetch un-indexed records after the batch query and compute their blocking
+	// keys in memory (see below).
 
 	// FIX 1: Fetch matching rules ONCE (previously fetched per-row inside detector)
 	tenantRepo := s.matchingRuleRepo.WithDB(dbConn)
@@ -178,8 +180,36 @@ func (s *ImportDuplicateService) detectDatabaseDuplicatesWithProgress(
 		}
 	}
 
-	log.Printf("[IMPORT-DEDUP] Loaded %d unique candidate records for %d import rows across %d rules",
+	log.Printf("[IMPORT-DEDUP] Loaded %d indexed candidate records for %d import rows across %d rules",
 		len(candidateRecords), totalRows, len(rules))
+
+	// Fetch un-indexed records (NULL blocking keys) — these are records created before the
+	// dedup feature or after a server restart before backfill ran. Instead of doing slow
+	// row-by-row UPDATEs (BackfillBlockingKeysForEntity), we compute keys in-memory.
+	tableName := util.GetTableName(entityType)
+	unindexedRows, err := dbConn.QueryContext(ctx, fmt.Sprintf(
+		`SELECT * FROM %s WHERE org_id = ? AND dedup_email_domain IS NULL LIMIT 10000`, tableName), orgID)
+	if err != nil {
+		if !dedup.IsSchemaError(err) {
+			log.Printf("[IMPORT-DEDUP] Failed to fetch un-indexed records: %v", err)
+		}
+	} else {
+		unindexedRecords, scanErr := util.ScanRowsToMaps(unindexedRows)
+		unindexedRows.Close()
+		if scanErr == nil && len(unindexedRecords) > 0 {
+			log.Printf("[IMPORT-DEDUP] Found %d un-indexed records, computing blocking keys in memory", len(unindexedRecords))
+			for _, rec := range unindexedRecords {
+				id, _ := rec["id"].(string)
+				if id == "" || candidateRecords[id] != nil {
+					continue
+				}
+				candidateRecords[id] = rec
+				candidateKeys[id] = blocker.GenerateBlockingKeys(rec)
+			}
+		}
+	}
+
+	log.Printf("[IMPORT-DEDUP] Total candidate pool: %d records (indexed + un-indexed)", len(candidateRecords))
 
 	// Build blocking key index for O(1) candidate lookup per import row
 	type keyIndex struct {
