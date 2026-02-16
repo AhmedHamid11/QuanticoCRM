@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	maxRows      = 1000
+	maxRows      = 50000
 	queryTimeout = 5 * time.Second
 )
 
