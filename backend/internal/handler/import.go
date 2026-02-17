@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"time"
 
@@ -892,7 +893,9 @@ func (h *ImportHandler) processUpsertMode(
 	return c.Status(status).JSON(response)
 }
 
-// processDeleteMode handles delete operations
+// processDeleteMode handles delete operations.
+// When matching by "id", uses batch DELETE with IN clauses for performance.
+// For other match fields, falls back to per-row find + delete.
 func (h *ImportHandler) processDeleteMode(
 	c *fiber.Ctx,
 	orgID, entityName, tableName string,
@@ -901,12 +904,17 @@ func (h *ImportHandler) processDeleteMode(
 	options ImportCSVRequest,
 	response *ImportCSVResponse,
 ) error {
+	// Fast path: batch delete by ID (avoids N find + N delete queries)
+	if options.MatchField == "id" {
+		return h.processDeleteByID(c, orgID, entityName, tableName, records, options, response)
+	}
+
+	// Slow path: per-row find + delete for non-ID match fields
 	var deletedIDs []string
 	var errors []BulkError
 	var skipped int
 
 	for i, record := range records {
-		// Find existing record
 		existingID, _, err := h.findExistingRecord(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, record, fields)
 		if err != nil {
 			if options.SkipErrors {
@@ -919,12 +927,10 @@ func (h *ImportHandler) processDeleteMode(
 		}
 
 		if existingID == "" {
-			// Record not found - skip
 			skipped++
 			continue
 		}
 
-		// Delete the record
 		query := fmt.Sprintf("DELETE FROM %s WHERE id = ? AND org_id = ?", tableName)
 		_, err = h.getDB(c).ExecContext(c.Context(), query, existingID, orgID)
 		if err != nil {
@@ -939,7 +945,6 @@ func (h *ImportHandler) processDeleteMode(
 
 		deletedIDs = append(deletedIDs, existingID)
 
-		// Fire tripwires for delete
 		if options.FireTripwires && h.tripwireService != nil {
 			go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, existingID, "DELETE", record, nil)
 		}
@@ -952,6 +957,69 @@ func (h *ImportHandler) processDeleteMode(
 	if len(errors) > 0 {
 		response.Errors = errors
 	}
+	return c.JSON(response)
+}
+
+// processDeleteByID batch-deletes records by ID using IN clauses.
+// Processes in batches of 500 to avoid query size limits.
+func (h *ImportHandler) processDeleteByID(
+	c *fiber.Ctx,
+	orgID, entityName, tableName string,
+	records []map[string]interface{},
+	options ImportCSVRequest,
+	response *ImportCSVResponse,
+) error {
+	const batchSize = 500
+
+	// Collect all IDs from the CSV
+	var allIDs []string
+	for _, record := range records {
+		id, ok := record["id"]
+		if !ok || id == nil {
+			continue
+		}
+		idStr := fmt.Sprintf("%v", id)
+		if idStr != "" {
+			allIDs = append(allIDs, idStr)
+		}
+	}
+
+	var totalDeleted int64
+
+	// Delete in batches
+	for i := 0; i < len(allIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(allIDs) {
+			end = len(allIDs)
+		}
+		batch := allIDs[i:end]
+
+		placeholders := make([]string, len(batch))
+		args := make([]interface{}, 0, len(batch)+1)
+		args = append(args, orgID)
+		for j, id := range batch {
+			placeholders[j] = "?"
+			args = append(args, id)
+		}
+
+		query := fmt.Sprintf("DELETE FROM %s WHERE org_id = ? AND id IN (%s)",
+			tableName, strings.Join(placeholders, ","))
+
+		result, err := h.getDB(c).ExecContext(c.Context(), query, args...)
+		if err != nil {
+			log.Printf("[IMPORT-DELETE] Batch delete failed at offset %d: %v", i, err)
+			response.Failed = len(allIDs) - int(totalDeleted)
+			response.Errors = append(response.Errors, BulkError{Index: i, Error: err.Error()})
+			break
+		}
+
+		rowsAffected, _ := result.RowsAffected()
+		totalDeleted += rowsAffected
+	}
+
+	response.Deleted = int(totalDeleted)
+	response.Skipped = len(allIDs) - int(totalDeleted)
+	response.IDs = allIDs
 
 	return c.JSON(response)
 }
