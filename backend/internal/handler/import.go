@@ -970,6 +970,7 @@ func (h *ImportHandler) processDeleteByID(
 	response *ImportCSVResponse,
 ) error {
 	const batchSize = 500
+	db := h.getDB(c)
 
 	// Collect all IDs from the CSV
 	var allIDs []string
@@ -984,7 +985,24 @@ func (h *ImportHandler) processDeleteByID(
 		}
 	}
 
-	var totalDeleted int64
+	log.Printf("[IMPORT-DELETE] Starting batch delete: %d IDs from %d records, table=%s, org=%s",
+		len(allIDs), len(records), tableName, orgID)
+
+	if len(allIDs) > 0 {
+		log.Printf("[IMPORT-DELETE] Sample IDs: [%s, %s, ...]", allIDs[0], allIDs[min(1, len(allIDs)-1)])
+	}
+
+	// Count records before delete for verification
+	var countBefore int64
+	countRow := db.QueryRowContext(c.Context(),
+		fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE org_id = ?", tableName), orgID)
+	if err := countRow.Scan(&countBefore); err != nil {
+		log.Printf("[IMPORT-DELETE] Pre-delete count failed: %v", err)
+	} else {
+		log.Printf("[IMPORT-DELETE] Records before delete: %d", countBefore)
+	}
+
+	var totalRowsAffected int64
 
 	// Delete in batches
 	for i := 0; i < len(allIDs); i += batchSize {
@@ -993,6 +1011,7 @@ func (h *ImportHandler) processDeleteByID(
 			end = len(allIDs)
 		}
 		batch := allIDs[i:end]
+		batchNum := i/batchSize + 1
 
 		placeholders := make([]string, len(batch))
 		args := make([]interface{}, 0, len(batch)+1)
@@ -1005,22 +1024,41 @@ func (h *ImportHandler) processDeleteByID(
 		query := fmt.Sprintf("DELETE FROM %s WHERE org_id = ? AND id IN (%s)",
 			tableName, strings.Join(placeholders, ","))
 
-		result, err := h.getDB(c).ExecContext(c.Context(), query, args...)
+		result, err := db.ExecContext(c.Context(), query, args...)
 		if err != nil {
-			log.Printf("[IMPORT-DELETE] Batch delete failed at offset %d: %v", i, err)
-			response.Failed = len(allIDs) - int(totalDeleted)
+			log.Printf("[IMPORT-DELETE] Batch %d failed at offset %d: %v", batchNum, i, err)
+			response.Failed = len(allIDs) - int(totalRowsAffected)
 			response.Errors = append(response.Errors, BulkError{Index: i, Error: err.Error()})
 			break
 		}
 
 		rowsAffected, _ := result.RowsAffected()
-		totalDeleted += rowsAffected
+		totalRowsAffected += rowsAffected
+		log.Printf("[IMPORT-DELETE] Batch %d: %d IDs submitted, %d rows affected", batchNum, len(batch), rowsAffected)
 	}
 
-	response.Deleted = int(totalDeleted)
-	response.Skipped = len(allIDs) - int(totalDeleted)
-	response.IDs = allIDs
+	// Count records after delete for verified results
+	var countAfter int64
+	countRow = db.QueryRowContext(c.Context(),
+		fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE org_id = ?", tableName), orgID)
+	if err := countRow.Scan(&countAfter); err != nil {
+		log.Printf("[IMPORT-DELETE] Post-delete count failed: %v", err)
+		// Fall back to RowsAffected
+		response.Deleted = int(totalRowsAffected)
+		response.Skipped = len(allIDs) - int(totalRowsAffected)
+	} else {
+		verifiedDeleted := int(countBefore - countAfter)
+		log.Printf("[IMPORT-DELETE] Records after delete: %d (verified deleted: %d, RowsAffected total: %d)",
+			countAfter, verifiedDeleted, totalRowsAffected)
+		// Use verified count - more reliable than RowsAffected with Turso
+		response.Deleted = verifiedDeleted
+		response.Skipped = len(allIDs) - verifiedDeleted
+		if response.Skipped < 0 {
+			response.Skipped = 0
+		}
+	}
 
+	response.IDs = allIDs
 	return c.JSON(response)
 }
 
