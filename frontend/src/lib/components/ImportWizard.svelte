@@ -152,6 +152,7 @@
 	let analyzeResult: AnalyzeResult | null = $state(null);
 	let importResult: ImportResponse | null = $state(null);
 	let loading = $state(false);
+	let loadingMessage = $state('');
 	let error = $state('');
 	let availableFields: AvailableField[] = $state([]);
 
@@ -314,6 +315,9 @@
 
 		loading = true;
 		error = '';
+		const totalRows = analyzeResult?.totalRows || previewData?.totalRows || 0;
+		const modeLabel = importMode === 'delete' ? 'Deleting' : importMode === 'update' ? 'Updating' : importMode === 'upsert' ? 'Upserting' : 'Importing';
+		loadingMessage = `${modeLabel} ${totalRows.toLocaleString()} records...`;
 
 		try {
 			// For delete mode, ensure match field column is mapped
@@ -454,6 +458,7 @@
 			addToast('Import failed', 'error');
 		} finally {
 			loading = false;
+			loadingMessage = '';
 		}
 	}
 
@@ -1509,10 +1514,31 @@
 	<!-- Loading Overlay -->
 	{#if loading}
 		<div class="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-6 shadow-xl">
-				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-				<p class="mt-4 text-gray-600">Processing...</p>
+			<div class="bg-white rounded-lg p-8 shadow-xl min-w-[350px] max-w-md">
+				{#if loadingMessage}
+					<div class="text-center">
+						<p class="text-lg font-medium text-gray-800 mb-4">{loadingMessage}</p>
+						<div class="w-full bg-gray-200 rounded-full h-2.5 mb-3 overflow-hidden">
+							<div class="bg-blue-600 h-2.5 rounded-full animate-progress-bar"></div>
+						</div>
+						<p class="text-sm text-gray-500">This may take a moment for large files</p>
+					</div>
+				{:else}
+					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+					<p class="mt-4 text-gray-600 text-center">Processing...</p>
+				{/if}
 			</div>
 		</div>
 	{/if}
 </div>
+
+<style>
+	@keyframes progress-indeterminate {
+		0% { width: 0%; margin-left: 0%; }
+		50% { width: 60%; margin-left: 20%; }
+		100% { width: 0%; margin-left: 100%; }
+	}
+	:global(.animate-progress-bar) {
+		animation: progress-indeterminate 1.8s ease-in-out infinite;
+	}
+</style>
