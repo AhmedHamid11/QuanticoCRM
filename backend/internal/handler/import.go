@@ -521,6 +521,9 @@ func (h *ImportHandler) processCreateMode(
 			}
 		}
 
+		log.Printf("[IMPORT-CREATE] Starting bulk insert: %d records into %s (org=%s)", len(createList), tableName, orgID)
+		createStart := time.Now()
+
 		batchSize := DefaultBatchSize
 		for batchStart := 0; batchStart < len(createList); batchStart += batchSize {
 			batchEnd := batchStart + batchSize
@@ -530,6 +533,8 @@ func (h *ImportHandler) processCreateMode(
 
 			batch := createList[batchStart:batchEnd]
 			batchIDs, batchErrors := h.processBatch(c.Context(), h.getDB(c), orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
+			log.Printf("[IMPORT-CREATE] Batch %d-%d: %d created, %d errors (elapsed: %v)",
+				batchStart, batchEnd, len(batchIDs), len(batchErrors), time.Since(createStart))
 
 			createdIDs = append(createdIDs, batchIDs...)
 			errors = append(errors, batchErrors...)
@@ -1883,13 +1888,70 @@ func (h *ImportHandler) processBatch(
 	var createdIDs []string
 	var errors []BulkError
 
+	// Filter out failed records
+	type validRecord struct {
+		index  int
+		record map[string]interface{}
+	}
+	var validRecords []validRecord
+	for i, record := range records {
+		globalIndex := batchOffset + i
+		if failedIndices[globalIndex] {
+			continue
+		}
+		validRecords = append(validRecords, validRecord{index: globalIndex, record: record})
+	}
+
+	if len(validRecords) == 0 {
+		return nil, nil
+	}
+
+	// Build deterministic column list from field definitions (same for all rows)
+	columns := []string{"id", "org_id"}
+	for _, field := range fields {
+		if field.Name == "id" {
+			continue
+		}
+		if field.Type == entity.FieldTypeLink {
+			baseName := strings.TrimSuffix(field.Name, "Id")
+			snakeName := util.CamelToSnake(baseName)
+			columns = append(columns, quoteIdentifier(snakeName+"_id"))
+			columns = append(columns, quoteIdentifier(snakeName+"_name"))
+			continue
+		}
+		if field.Type == entity.FieldTypeLinkMultiple {
+			snakeName := util.CamelToSnake(field.Name)
+			columns = append(columns, quoteIdentifier(snakeName+"_ids"))
+			columns = append(columns, quoteIdentifier(snakeName+"_names"))
+			continue
+		}
+		columns = append(columns, quoteIdentifier(util.CamelToSnake(field.Name)))
+	}
+	columns = append(columns, "created_at", "modified_at", "created_by_id", "modified_by_id")
+
+	numCols := len(columns)
+
+	// Build single-row placeholder: (?,?,?...)
+	phParts := make([]string, numCols)
+	for i := range phParts {
+		phParts[i] = "?"
+	}
+	rowPlaceholder := "(" + strings.Join(phParts, ",") + ")"
+
+	// Calculate max rows per multi-row INSERT to stay within parameter limits
+	// Turso/libsql supports up to 32766 params; use conservative limit
+	maxRowsPerInsert := 500 / numCols
+	if maxRowsPerInsert < 1 {
+		maxRowsPerInsert = 1
+	}
+	if maxRowsPerInsert > 100 {
+		maxRowsPerInsert = 100
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		for i := range records {
-			errors = append(errors, BulkError{
-				Index: batchOffset + i,
-				Error: "Failed to start transaction: " + err.Error(),
-			})
+		for _, vr := range validRecords {
+			errors = append(errors, BulkError{Index: vr.index, Error: "Failed to start transaction: " + err.Error()})
 		}
 		return nil, errors
 	}
@@ -1900,29 +1962,79 @@ func (h *ImportHandler) processBatch(
 		}
 	}()
 
-	for i, record := range records {
-		globalIndex := batchOffset + i
+	// Process in sub-batches using multi-row INSERT
+	for subStart := 0; subStart < len(validRecords); subStart += maxRowsPerInsert {
+		subEnd := subStart + maxRowsPerInsert
+		if subEnd > len(validRecords) {
+			subEnd = len(validRecords)
+		}
+		subBatch := validRecords[subStart:subEnd]
 
-		if failedIndices[globalIndex] {
+		var rowPlaceholders []string
+		var allValues []interface{}
+		var batchIDs []string
+
+		for _, vr := range subBatch {
+			record := vr.record
+			id := sfid.New("Rec")
+			batchIDs = append(batchIDs, id)
+
+			allValues = append(allValues, id, orgID)
+
+			for _, field := range fields {
+				if field.Name == "id" {
+					continue
+				}
+				if field.Type == entity.FieldTypeLink {
+					baseName := strings.TrimSuffix(field.Name, "Id")
+					idKey := baseName + "Id"
+					nameKey := baseName + "Name"
+					allValues = append(allValues, record[idKey])
+					allValues = append(allValues, record[nameKey])
+					continue
+				}
+				if field.Type == entity.FieldTypeLinkMultiple {
+					idsKey := field.Name + "Ids"
+					namesKey := field.Name + "Names"
+					allValues = append(allValues, record[idsKey])
+					allValues = append(allValues, record[namesKey])
+					continue
+				}
+				// Regular field
+				val := record[field.Name]
+				if val == nil && field.DefaultValue != nil && *field.DefaultValue != "" {
+					val = *field.DefaultValue
+				}
+				allValues = append(allValues, val)
+			}
+
+			allValues = append(allValues, now, now, userID, userID)
+			rowPlaceholders = append(rowPlaceholders, rowPlaceholder)
+		}
+
+		query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
+			tableName, strings.Join(columns, ", "), strings.Join(rowPlaceholders, ", "))
+
+		_, err := tx.ExecContext(ctx, query, allValues...)
+		if err != nil {
+			if skipErrors {
+				// Fall back to individual inserts for this sub-batch
+				for _, vr := range subBatch {
+					id, insertErr := h.insertRecord(ctx, tx, orgID, userID, tableName, fields, vr.record, now)
+					if insertErr != nil {
+						errors = append(errors, BulkError{Index: vr.index, Error: insertErr.Error()})
+					} else {
+						createdIDs = append(createdIDs, id)
+					}
+				}
+			} else {
+				tx.Rollback()
+				return nil, []BulkError{{Index: subBatch[0].index, Error: err.Error()}}
+			}
 			continue
 		}
 
-		id, err := h.insertRecord(ctx, tx, orgID, userID, tableName, fields, record, now)
-		if err != nil {
-			if skipErrors {
-				errors = append(errors, BulkError{
-					Index: globalIndex,
-					Error: err.Error(),
-				})
-				continue
-			}
-			tx.Rollback()
-			return nil, []BulkError{{
-				Index: globalIndex,
-				Error: err.Error(),
-			}}
-		}
-		createdIDs = append(createdIDs, id)
+		createdIDs = append(createdIDs, batchIDs...)
 	}
 
 	if err := tx.Commit(); err != nil {
