@@ -25,10 +25,12 @@ type ImportDuplicateService struct {
 
 // AuditEntry represents a single row's resolution for the audit report
 type AuditEntry struct {
-	RowIndex  int
-	Action    string
-	MatchedID string
-	Reason    string
+	RowIndex   int
+	Action     string
+	MatchedID  string
+	CreatedID  string                 // New Quantico record ID (if created/imported)
+	Reason     string
+	RecordData map[string]interface{} // Key fields from the CSV row for identification
 }
 
 // NewImportDuplicateService creates a new ImportDuplicateService
@@ -515,21 +517,47 @@ func (s *ImportDuplicateService) extractRecordName(record map[string]interface{}
 }
 
 // GenerateAuditReport creates a CSV report of all import resolution actions
+// Includes record data columns so users can identify records for external merges
 func (s *ImportDuplicateService) GenerateAuditReport(entries []AuditEntry) []byte {
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
 
-	// Write header
-	writer.Write([]string{"Row Number", "Action", "Matched Record ID", "Reason"})
+	// Collect all unique record data field names across all entries (ordered)
+	fieldOrder := []string{}
+	fieldSeen := map[string]bool{}
+	for _, entry := range entries {
+		for key := range entry.RecordData {
+			if !fieldSeen[key] {
+				fieldSeen[key] = true
+				fieldOrder = append(fieldOrder, key)
+			}
+		}
+	}
+	sort.Strings(fieldOrder)
+
+	// Write header: fixed columns + dynamic record data columns
+	header := []string{"Row Number", "Action", "Created Record ID", "Matched Record ID", "Reason"}
+	header = append(header, fieldOrder...)
+	writer.Write(header)
 
 	// Write entries
 	for _, entry := range entries {
-		writer.Write([]string{
+		row := []string{
 			fmt.Sprintf("%d", entry.RowIndex+1), // Convert to 1-based for user display
 			entry.Action,
+			entry.CreatedID,
 			entry.MatchedID,
 			entry.Reason,
-		})
+		}
+		// Append record data values in field order
+		for _, key := range fieldOrder {
+			val := ""
+			if v, ok := entry.RecordData[key]; ok && v != nil {
+				val = fmt.Sprintf("%v", v)
+			}
+			row = append(row, val)
+		}
+		writer.Write(row)
 	}
 
 	writer.Flush()

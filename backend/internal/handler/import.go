@@ -436,10 +436,11 @@ func (h *ImportHandler) processCreateMode(
 		if withinFileSkipMap[i] {
 			response.Skipped++
 			auditEntries = append(auditEntries, service.AuditEntry{
-				RowIndex:  i,
-				Action:    "Skipped",
-				MatchedID: "",
-				Reason:    "Within-file duplicate (not selected as keeper)",
+				RowIndex:   i,
+				Action:     "Skipped",
+				MatchedID:  "",
+				Reason:     "Within-file duplicate (not selected as keeper)",
+				RecordData: records[i],
 			})
 			continue
 		}
@@ -450,37 +451,41 @@ func (h *ImportHandler) processCreateMode(
 			case "skip":
 				response.Skipped++
 				auditEntries = append(auditEntries, service.AuditEntry{
-					RowIndex:  i,
-					Action:    "Skipped",
-					MatchedID: resolution.SelectedMatchID,
-					Reason:    "User chose to skip (duplicate of existing record)",
+					RowIndex:   i,
+					Action:     "Skipped",
+					MatchedID:  resolution.SelectedMatchID,
+					Reason:     "User chose to skip (duplicate of existing record)",
+					RecordData: records[i],
 				})
 				continue
 			case "update":
 				recordsToUpdate[i] = resolution.SelectedMatchID
 				auditEntries = append(auditEntries, service.AuditEntry{
-					RowIndex:  i,
-					Action:    "Updated",
-					MatchedID: resolution.SelectedMatchID,
-					Reason:    "User chose to update existing record",
+					RowIndex:   i,
+					Action:     "Updated",
+					MatchedID:  resolution.SelectedMatchID,
+					Reason:     "User chose to update existing record",
+					RecordData: records[i],
 				})
 				continue
 			case "merge":
 				response.Merged++
 				auditEntries = append(auditEntries, service.AuditEntry{
-					RowIndex:  i,
-					Action:    "Sent to Merge",
-					MatchedID: resolution.SelectedMatchID,
-					Reason:    "User chose to merge via merge wizard",
+					RowIndex:   i,
+					Action:     "Sent to Merge",
+					MatchedID:  resolution.SelectedMatchID,
+					Reason:     "User chose to merge via merge wizard",
+					RecordData: records[i],
 				})
 				continue
 			case "import":
 				// Fall through to create normally
 				auditEntries = append(auditEntries, service.AuditEntry{
-					RowIndex:  i,
-					Action:    "Imported",
-					MatchedID: "",
-					Reason:    "User chose to import as new record",
+					RowIndex:   i,
+					Action:     "Imported",
+					MatchedID:  "",
+					Reason:     "User chose to import as new record",
+					RecordData: records[i],
 				})
 			}
 		}
@@ -539,6 +544,18 @@ func (h *ImportHandler) processCreateMode(
 			createdIDs = append(createdIDs, batchIDs...)
 			errors = append(errors, batchErrors...)
 
+			// Add audit entries for created records
+			for i, id := range batchIDs {
+				recordIdx := createIndices[batchStart+i]
+				auditEntries = append(auditEntries, service.AuditEntry{
+					RowIndex:   recordIdx,
+					Action:     "Imported",
+					CreatedID:  id,
+					Reason:     "Created new record",
+					RecordData: records[recordIdx],
+				})
+			}
+
 			// Fire tripwires
 			if options.FireTripwires && h.tripwireService != nil {
 				for i, id := range batchIDs {
@@ -557,7 +574,7 @@ func (h *ImportHandler) processCreateMode(
 		response.Errors = errors
 	}
 
-	// Generate audit report if we have audit entries
+	// Always generate audit report when there are audit entries (includes created records too)
 	if len(auditEntries) > 0 && h.duplicateService != nil {
 		reportCSV := h.duplicateService.GenerateAuditReport(auditEntries)
 		response.AuditReport = base64.StdEncoding.EncodeToString(reportCSV)
