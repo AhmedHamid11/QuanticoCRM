@@ -1926,7 +1926,8 @@ func (h *ImportHandler) processBatch(
 	// Build deterministic column list from field definitions (same for all rows)
 	columns := []string{"id", "org_id"}
 	for _, field := range fields {
-		if field.Name == "id" {
+		if field.Name == "id" || field.Name == "createdAt" || field.Name == "modifiedAt" ||
+			field.Name == "createdById" || field.Name == "modifiedById" {
 			continue
 		}
 		if field.Type == entity.FieldTypeLink {
@@ -1999,7 +2000,8 @@ func (h *ImportHandler) processBatch(
 			allValues = append(allValues, id, orgID)
 
 			for _, field := range fields {
-				if field.Name == "id" {
+				if field.Name == "id" || field.Name == "createdAt" || field.Name == "modifiedAt" ||
+					field.Name == "createdById" || field.Name == "modifiedById" {
 					continue
 				}
 				if field.Type == entity.FieldTypeLink {

@@ -168,6 +168,11 @@
 	let duplicateCheckError = $state('');
 	let showAllClear = $state(false);
 
+	// Audit report field picker state
+	let auditHeaders: string[] = $state([]);
+	let auditRows: string[][] = $state([]);
+	let selectedAuditFields: Set<string> = $state(new Set());
+
 	// Handle file selection
 	async function handleFileSelect(event: Event) {
 		const input = event.target as HTMLInputElement;
@@ -443,6 +448,9 @@
 			}
 
 			importResult = await response.json();
+			if (importResult?.auditReport) {
+				parseAuditCSV(importResult.auditReport);
+			}
 			step = 3;
 			// Build success message based on mode
 			const result = importResult!;
@@ -771,13 +779,87 @@
 		executeImport();
 	}
 
-	function downloadAuditReport(base64Data: string) {
+	function parseCSVLine(line: string): string[] {
+		const fields: string[] = [];
+		let current = '';
+		let inQuotes = false;
+		for (let i = 0; i < line.length; i++) {
+			const ch = line[i];
+			if (inQuotes) {
+				if (ch === '"') {
+					if (i + 1 < line.length && line[i + 1] === '"') {
+						current += '"';
+						i++;
+					} else {
+						inQuotes = false;
+					}
+				} else {
+					current += ch;
+				}
+			} else {
+				if (ch === '"') {
+					inQuotes = true;
+				} else if (ch === ',') {
+					fields.push(current);
+					current = '';
+				} else {
+					current += ch;
+				}
+			}
+		}
+		fields.push(current);
+		return fields;
+	}
+
+	function parseAuditCSV(base64Data: string) {
 		const binaryString = atob(base64Data);
 		const bytes = new Uint8Array(binaryString.length);
 		for (let i = 0; i < binaryString.length; i++) {
 			bytes[i] = binaryString.charCodeAt(i);
 		}
-		const blob = new Blob([bytes], { type: 'text/csv' });
+		const decoder = new TextDecoder('utf-8');
+		const csvText = decoder.decode(bytes);
+		const lines = csvText.split('\n').filter(l => l.trim().length > 0);
+		if (lines.length === 0) return;
+
+		auditHeaders = parseCSVLine(lines[0]);
+		auditRows = [];
+		for (let i = 1; i < lines.length; i++) {
+			auditRows.push(parseCSVLine(lines[i]));
+		}
+		// Dynamic data columns are everything after the 5 fixed columns
+		const dataFields = auditHeaders.slice(5);
+		selectedAuditFields = new Set(dataFields);
+	}
+
+	function csvEscape(value: string): string {
+		if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+			return '"' + value.replace(/"/g, '""') + '"';
+		}
+		return value;
+	}
+
+	function downloadFilteredAuditReport() {
+		const fixedCount = 5;
+		const includeIndices: number[] = [];
+		for (let i = 0; i < fixedCount && i < auditHeaders.length; i++) {
+			includeIndices.push(i);
+		}
+		for (let i = fixedCount; i < auditHeaders.length; i++) {
+			if (selectedAuditFields.has(auditHeaders[i])) {
+				includeIndices.push(i);
+			}
+		}
+
+		const filteredHeaders = includeIndices.map(i => auditHeaders[i]);
+		const lines = [filteredHeaders.map(h => csvEscape(h)).join(',')];
+		for (const row of auditRows) {
+			const filteredRow = includeIndices.map(i => csvEscape(row[i] || ''));
+			lines.push(filteredRow.join(','));
+		}
+
+		const csvContent = lines.join('\n');
+		const blob = new Blob([csvContent], { type: 'text/csv' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
@@ -1472,19 +1554,57 @@
 					</div>
 				{/if}
 
-				<!-- Audit report download button -->
-				{#if importResult.auditReport}
-					<div class="mt-4">
-						<button
-							onclick={() => downloadAuditReport(importResult!.auditReport!)}
-							class="inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-white hover:bg-green-50"
-						>
-							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-							</svg>
-							Download Audit Report
-						</button>
-						<p class="text-xs text-gray-500 mt-1">CSV file showing what happened to each flagged row</p>
+				<!-- Audit report download -->
+				{#if importResult.auditReport && auditHeaders.length > 0}
+					<div class="mt-4 border border-gray-200 rounded-lg p-4">
+						<div class="flex items-center justify-between mb-3">
+							<h4 class="text-sm font-medium text-gray-700">Audit Report</h4>
+							<button
+								onclick={() => downloadFilteredAuditReport()}
+								class="inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-white hover:bg-green-50"
+							>
+								<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+								</svg>
+								Download
+							</button>
+						</div>
+
+						<p class="text-xs text-gray-500 mb-2">Select which data fields to include (Row Number, Action, IDs, and Reason are always included):</p>
+
+						<div class="flex items-center gap-3 mb-2">
+							<button
+								onclick={() => {
+									const dataFields = auditHeaders.slice(5);
+									selectedAuditFields = new Set(dataFields);
+								}}
+								class="text-xs text-blue-600 hover:text-blue-800"
+							>Select All</button>
+							<button
+								onclick={() => { selectedAuditFields = new Set(); }}
+								class="text-xs text-blue-600 hover:text-blue-800"
+							>Deselect All</button>
+						</div>
+
+						<div class="flex flex-wrap gap-2">
+							{#each auditHeaders.slice(5) as field}
+								<label class="inline-flex items-center gap-1 px-2 py-1 rounded border text-xs cursor-pointer
+									{selectedAuditFields.has(field) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-500'}">
+									<input
+										type="checkbox"
+										checked={selectedAuditFields.has(field)}
+										onchange={() => {
+											const next = new Set(selectedAuditFields);
+											if (next.has(field)) next.delete(field);
+											else next.add(field);
+											selectedAuditFields = next;
+										}}
+										class="w-3 h-3"
+									/>
+									{field}
+								</label>
+							{/each}
+						</div>
 					</div>
 				{/if}
 			</div>
