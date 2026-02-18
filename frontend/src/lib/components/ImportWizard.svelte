@@ -158,7 +158,25 @@
 
 	// Import mode settings
 	let importMode: ImportMode = $state('create');
+
+	// Fields available for column mapping — excludes 'id' in create mode since IDs are auto-generated
+	let mappableFields = $derived(
+		importMode === 'create'
+			? availableFields.filter(f => f.name.toLowerCase() !== 'id')
+			: availableFields
+	);
 	let matchField: string = $state(''); // For update/upsert/delete - which field identifies records
+
+	// Clear ID mappings when switching to create mode (IDs are auto-generated)
+	$effect(() => {
+		if (importMode === 'create') {
+			for (const [header, field] of Object.entries(columnMapping)) {
+				if (field.toLowerCase() === 'id') {
+					columnMapping[header] = '';
+				}
+			}
+		}
+	});
 
 	// Duplicate detection state
 	let duplicateResult: DuplicateCheckResult | null = $state(null);
@@ -1091,7 +1109,7 @@
 												class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 											>
 												<option value="">-- Skip this column --</option>
-												{#each availableFields.filter(f => !(importMode === 'create' && f.name.toLowerCase() === 'id')) as field}
+												{#each mappableFields as field}
 													<option value={field.name}>{field.label || field.name}</option>
 												{/each}
 											</select>
