@@ -103,7 +103,22 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 	// Create index on org_id for multi-tenant query performance
 	indexSQL := fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_org_id ON %s(org_id)", tableName, tableName)
 	_, err = conn.ExecContext(ctx, indexSQL)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Create COLLATE NOCASE index on (org_id, name) for fast case-insensitive lookups during import
+	// Only if the entity actually has a "name" field
+	for _, field := range fields {
+		if field.Name == "name" {
+			nocaseIndexSQL := fmt.Sprintf(
+				"CREATE INDEX IF NOT EXISTS idx_%s_org_name_nocase ON %s(org_id, name COLLATE NOCASE)",
+				tableName, tableName)
+			_, err = conn.ExecContext(ctx, nocaseIndexSQL)
+			return err
+		}
+	}
+	return nil
 }
 
 // EnsureTableExistsRaw is the legacy version that accepts *sql.DB directly

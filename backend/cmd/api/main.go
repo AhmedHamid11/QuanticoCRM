@@ -16,6 +16,7 @@ import (
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/service"
+	"github.com/fastcrm/backend/internal/turso"
 	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
@@ -301,6 +302,11 @@ func main() {
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
 	importJobRepo := repo.NewImportJobRepo()
 	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService, importDuplicateService, importJobRepo, dbManager)
+	// Wire up Turso quota service for import preflight checks (optional — degrades gracefully)
+	if tursoAPIClient, err := turso.NewClient(); err == nil {
+		importHandler.SetImportQuotaService(service.NewImportQuotaService(tursoAPIClient))
+		log.Println("Import preflight quota checks enabled (Turso API configured)")
+	}
 	metadataHandler := handler.NewMetadataHandler(metadataRepo)
 	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
 	listViewHandler := handler.NewListViewHandler(listViewRepo)

@@ -265,3 +265,51 @@ func (c *Client) GetDatabaseURL(db *Database) string {
 func (c *Client) GetDatabaseURLByName(dbName string) string {
 	return fmt.Sprintf("libsql://%s-%s.turso.io", dbName, c.orgName)
 }
+
+// UsageResponse represents Turso organization usage data
+type UsageResponse struct {
+	Organization struct {
+		Name string `json:"name"`
+	} `json:"organization"`
+	Usage struct {
+		RowsRead    int64 `json:"rows_read"`
+		RowsWritten int64 `json:"rows_written"`
+		StorageBytes int64 `json:"storage_bytes"`
+	} `json:"usage"`
+	Instances map[string]struct {
+		Usage struct {
+			RowsRead    int64 `json:"rows_read"`
+			RowsWritten int64 `json:"rows_written"`
+			StorageBytes int64 `json:"storage_bytes"`
+		} `json:"usage"`
+	} `json:"instances,omitempty"`
+}
+
+// GetUsage fetches the current billing period usage for the Turso organization.
+func (c *Client) GetUsage(ctx context.Context) (*UsageResponse, error) {
+	url := fmt.Sprintf("%s/organizations/%s/usage", c.baseURL, c.orgName)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.apiToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get usage: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get usage: status %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result UsageResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse usage response: %w", err)
+	}
+
+	return &result, nil
+}

@@ -8,6 +8,7 @@ import (
 // ImportJob tracks the progress of a background import operation.
 type ImportJob struct {
 	ID        string              `json:"id"`
+	OrgID     string              `json:"-"` // for tenant isolation, not exposed to client
 	Status    string              `json:"status"` // "running", "complete", "error"
 	Progress  ImportProgressEvent `json:"progress"`
 	Response  *ImportCSVResponse  `json:"response,omitempty"`
@@ -36,11 +37,12 @@ func init() {
 	}()
 }
 
-func (s *ImportProgressStore) Create(id string, total int) *ImportJob {
+func (s *ImportProgressStore) Create(id string, orgID string, total int) *ImportJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	job := &ImportJob{
 		ID:     id,
+		OrgID:  orgID,
 		Status: "running",
 		Progress: ImportProgressEvent{
 			Type:  "progress",

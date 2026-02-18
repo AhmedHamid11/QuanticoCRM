@@ -39,15 +39,16 @@ type ImportProgressEvent struct {
 
 // ImportHandler handles CSV import operations
 type ImportHandler struct {
-	db                *sql.DB
-	metadataRepo      *repo.MetadataRepo
-	csvParser         *service.CSVParser
-	csvValidator      *service.CSVValidatorService
-	tripwireService   TripwireServiceInterface
-	validationService ValidationServiceInterface
-	duplicateService  *service.ImportDuplicateService
-	importJobRepo     *repo.ImportJobRepo
-	dbManager         DBManagerInterface
+	db                  *sql.DB
+	metadataRepo        *repo.MetadataRepo
+	csvParser           *service.CSVParser
+	csvValidator        *service.CSVValidatorService
+	tripwireService     TripwireServiceInterface
+	validationService   ValidationServiceInterface
+	duplicateService    *service.ImportDuplicateService
+	importJobRepo       *repo.ImportJobRepo
+	dbManager           DBManagerInterface
+	importQuotaService  *service.ImportQuotaService
 }
 
 // DBManagerInterface is the subset of db.Manager methods needed by import handler
@@ -81,6 +82,11 @@ func NewImportHandler(
 	return h
 }
 
+// SetImportQuotaService sets the Turso quota service for preflight checks
+func (h *ImportHandler) SetImportQuotaService(svc *service.ImportQuotaService) {
+	h.importQuotaService = svc
+}
+
 // getMetadataRepo returns a metadata repo using the tenant database from context
 func (h *ImportHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo {
 	if tenantDB := middleware.GetTenantDB(c); tenantDB != nil {
@@ -106,6 +112,45 @@ const (
 	ImportModeUpsert ImportMode = "upsert" // Create or update based on match field
 	ImportModeDelete ImportMode = "delete" // Delete records by ID or match field
 )
+
+// importReadBudget tracks estimated Turso row reads during an import and aborts if exceeded.
+// This is a defense-in-depth measure — even with batching + indexes, unexpected conditions
+// (missing indexes, huge tables) could cause runaway reads.
+type importReadBudget struct {
+	max  int64 // maximum allowed reads
+	used int64 // reads consumed so far
+}
+
+// newImportReadBudget creates a budget based on record count.
+// Default: recordCount * 100 reads, minimum 10,000.
+func newImportReadBudget(recordCount int) *importReadBudget {
+	max := int64(recordCount) * 100
+	if max < 10000 {
+		max = 10000
+	}
+	return &importReadBudget{max: max}
+}
+
+// charge adds reads to the budget. Returns an error if budget is exceeded.
+func (b *importReadBudget) charge(reads int64) error {
+	if b == nil {
+		return nil
+	}
+	b.used += reads
+	if b.used > b.max {
+		return fmt.Errorf("import read budget exceeded: used %d of %d allowed row reads — aborting to protect Turso quota", b.used, b.max)
+	}
+	return nil
+}
+
+// summary returns a string summarizing budget usage (for logging).
+func (b *importReadBudget) summary() string {
+	if b == nil {
+		return "no budget"
+	}
+	pct := float64(b.used) / float64(b.max) * 100
+	return fmt.Sprintf("%d/%d reads (%.0f%%)", b.used, b.max, pct)
+}
 
 // LookupResolution specifies how to resolve a lookup field value to an ID
 type LookupResolution struct {
@@ -361,9 +406,12 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, nil)
 	}
 
+	// Create read budget to protect Turso quota (defense in depth)
+	budget := newImportReadBudget(len(parseResult.Records))
+
 	// Resolve lookup field values to IDs (e.g., company name -> account ID)
 	if len(options.LookupResolution) > 0 {
-		lookupErrors, err := h.resolveLookups(c.Context(), h.getDB(c), orgID, userID, parseResult.Records, fields, options.LookupResolution)
+		lookupErrors, err := h.resolveLookups(c.Context(), h.getDB(c), orgID, userID, parseResult.Records, fields, options.LookupResolution, budget)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -450,8 +498,8 @@ func (h *ImportHandler) handleAsyncImport(
 	db := h.getDB(c)
 	jobID := sfid.New("Imp")
 
-	// Create progress tracking job
-	importProgressStore.Create(jobID, len(parseResult.Records))
+	// Create progress tracking job (scoped to orgID for tenant isolation)
+	importProgressStore.Create(jobID, orgID, len(parseResult.Records))
 
 	// Start processing in background goroutine
 	go func() {
@@ -461,9 +509,12 @@ func (h *ImportHandler) handleAsyncImport(
 		response.MappedHeaders = parseResult.MappedHeaders
 		response.TotalRows = parseResult.RowCount
 
+		// Create read budget for async import
+		asyncBudget := newImportReadBudget(len(parseResult.Records))
+
 		// Resolve lookup fields in background (e.g., company name -> account ID)
 		if len(options.LookupResolution) > 0 {
-			lookupErrors, err := h.resolveLookups(context.Background(), db, orgID, userID, parseResult.Records, fields, options.LookupResolution)
+			lookupErrors, err := h.resolveLookups(context.Background(), db, orgID, userID, parseResult.Records, fields, options.LookupResolution, asyncBudget)
 			if err != nil {
 				importProgressStore.SetError(jobID, fmt.Sprintf("Lookup resolution failed: %v", err))
 				return
@@ -486,7 +537,7 @@ func (h *ImportHandler) handleAsyncImport(
 		)
 
 		importProgressStore.Complete(jobID, &response)
-		log.Printf("[IMPORT] Job %s completed: %d created, %d failed", jobID, response.Created, response.Failed)
+		log.Printf("[IMPORT] Job %s completed: %d created, %d failed, read budget: %s", jobID, response.Created, response.Failed, asyncBudget.summary())
 	}()
 
 	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
@@ -501,8 +552,9 @@ func (h *ImportHandler) GetImportProgress(c *fiber.Ctx) error {
 	if jobID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "jobID required"})
 	}
+	orgID := c.Locals("orgID").(string)
 	job := importProgressStore.Get(jobID)
-	if job == nil {
+	if job == nil || job.OrgID != orgID {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Job not found"})
 	}
 	return c.JSON(job)
@@ -819,7 +871,7 @@ func (h *ImportHandler) updateExistingRecord(
 	importRow map[string]interface{},
 	now string,
 ) error {
-	tableName := util.CamelToSnake(entityName)
+	tableName := util.GetTableName(entityName)
 
 	// Get field definitions to properly handle the update
 	fields, err := h.metadataRepo.ListFields(ctx, orgID, entityName)
@@ -908,6 +960,12 @@ func (h *ImportHandler) processUpdateMode(
 	response *ImportCSVResponse,
 	errors []BulkError,
 ) error {
+	// Batch pre-fetch all existing records
+	existingMap, err := h.batchFindExistingRecords(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, records, fields, failedIndices)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Batch lookup failed: %v", err)})
+	}
+
 	var updatedIDs []string
 	var skipped int
 
@@ -916,26 +974,20 @@ func (h *ImportHandler) processUpdateMode(
 			continue
 		}
 
-		// Find existing record
-		existingID, oldRecord, err := h.findExistingRecord(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, record, fields)
-		if err != nil {
-			if options.SkipErrors {
-				errors = append(errors, BulkError{Index: i, Error: err.Error()})
-				continue
-			}
-			response.Failed = len(errors) + 1
-			response.Errors = append(errors, BulkError{Index: i, Error: err.Error()})
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
+		matchValue, ok := record[options.MatchField]
+		if !ok {
+			skipped++
+			continue
 		}
+		matchStr := fmt.Sprintf("%v", matchValue)
 
-		if existingID == "" {
-			// Record not found - skip
+		info, found := existingMap[strings.ToLower(matchStr)]
+		if !found {
 			skipped++
 			continue
 		}
 
-		// Update the record
-		if err := h.updateRecord(c.Context(), h.getDB(c), orgID, userID, tableName, existingID, fields, record, now); err != nil {
+		if err := h.updateRecord(c.Context(), h.getDB(c), orgID, userID, tableName, info.id, fields, record, now); err != nil {
 			if options.SkipErrors {
 				errors = append(errors, BulkError{Index: i, Error: err.Error()})
 				continue
@@ -945,11 +997,10 @@ func (h *ImportHandler) processUpdateMode(
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
 		}
 
-		updatedIDs = append(updatedIDs, existingID)
+		updatedIDs = append(updatedIDs, info.id)
 
-		// Fire tripwires
 		if options.FireTripwires && h.tripwireService != nil {
-			go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, existingID, "UPDATE", oldRecord, record)
+			go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, info.id, "UPDATE", info.oldRecord, record)
 		}
 	}
 
@@ -976,6 +1027,12 @@ func (h *ImportHandler) processUpsertMode(
 	response *ImportCSVResponse,
 	errors []BulkError,
 ) error {
+	// Batch pre-fetch all existing records
+	existingMap, err := h.batchFindExistingRecords(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, records, fields, failedIndices)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Batch lookup failed: %v", err)})
+	}
+
 	var createdIDs []string
 	var updatedIDs []string
 
@@ -984,21 +1041,18 @@ func (h *ImportHandler) processUpsertMode(
 			continue
 		}
 
-		// Find existing record
-		existingID, oldRecord, err := h.findExistingRecord(c.Context(), h.getDB(c), orgID, tableName, options.MatchField, record, fields)
-		if err != nil {
-			if options.SkipErrors {
-				errors = append(errors, BulkError{Index: i, Error: err.Error()})
-				continue
-			}
-			response.Failed = len(errors) + 1
-			response.Errors = append(errors, BulkError{Index: i, Error: err.Error()})
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
+		matchValue, ok := record[options.MatchField]
+		if !ok {
+			// No match value — treat as new record
+			matchValue = ""
 		}
+		matchStr := fmt.Sprintf("%v", matchValue)
 
-		if existingID != "" {
+		info, found := existingMap[strings.ToLower(matchStr)]
+
+		if found {
 			// Update existing record
-			if err := h.updateRecord(c.Context(), h.getDB(c), orgID, userID, tableName, existingID, fields, record, now); err != nil {
+			if err := h.updateRecord(c.Context(), h.getDB(c), orgID, userID, tableName, info.id, fields, record, now); err != nil {
 				if options.SkipErrors {
 					errors = append(errors, BulkError{Index: i, Error: err.Error()})
 					continue
@@ -1007,11 +1061,10 @@ func (h *ImportHandler) processUpsertMode(
 				response.Errors = append(errors, BulkError{Index: i, Error: err.Error()})
 				return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
 			}
-			updatedIDs = append(updatedIDs, existingID)
+			updatedIDs = append(updatedIDs, info.id)
 
-			// Fire tripwires for update
 			if options.FireTripwires && h.tripwireService != nil {
-				go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, existingID, "UPDATE", oldRecord, record)
+				go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, info.id, "UPDATE", info.oldRecord, record)
 			}
 		} else {
 			// Create new record
@@ -1050,7 +1103,6 @@ func (h *ImportHandler) processUpsertMode(
 
 			createdIDs = append(createdIDs, id)
 
-			// Fire tripwires for create
 			if options.FireTripwires && h.tripwireService != nil {
 				go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, id, "CREATE", nil, record)
 			}
@@ -1304,6 +1356,149 @@ func (h *ImportHandler) findExistingRecord(
 	}
 
 	return existingID, oldRecord, nil
+}
+
+// batchFindExistingRecords pre-fetches existing records in bulk for update/upsert modes.
+// Instead of one SELECT per record, it collects unique match values and queries in batches of 500.
+// Returns a map: lowered match value -> {id, oldRecord}.
+func (h *ImportHandler) batchFindExistingRecords(
+	ctx context.Context,
+	db *sql.DB,
+	orgID, tableName, matchField string,
+	records []map[string]interface{},
+	fields []entity.FieldDef,
+	failedIndices map[int]bool,
+	budget ...*importReadBudget,
+) (map[string]existingRecordInfo, error) {
+	colName := matchField
+	if matchField != "id" {
+		colName = util.CamelToSnake(matchField)
+	}
+
+	// Collect unique match values
+	uniqueValues := make(map[string]string) // lowered -> original
+	for i, record := range records {
+		if failedIndices[i] {
+			continue
+		}
+		matchValue, ok := record[matchField]
+		if !ok {
+			continue
+		}
+		valueStr := fmt.Sprintf("%v", matchValue)
+		if valueStr == "" {
+			continue
+		}
+		lowered := strings.ToLower(valueStr)
+		if _, exists := uniqueValues[lowered]; !exists {
+			uniqueValues[lowered] = valueStr
+		}
+	}
+
+	result := make(map[string]existingRecordInfo, len(uniqueValues))
+	if len(uniqueValues) == 0 {
+		return result, nil
+	}
+
+	// Query in batches of 500
+	allValues := make([]string, 0, len(uniqueValues))
+	for _, orig := range uniqueValues {
+		allValues = append(allValues, orig)
+	}
+
+	const batchSize = 500
+	for i := 0; i < len(allValues); i += batchSize {
+		end := i + batchSize
+		if end > len(allValues) {
+			end = len(allValues)
+		}
+		batch := allValues[i:end]
+
+		placeholders := make([]string, len(batch))
+		args := make([]interface{}, 0, len(batch)+1)
+		args = append(args, orgID)
+		for j, v := range batch {
+			placeholders[j] = "?"
+			args = append(args, v)
+		}
+
+		var bgt *importReadBudget
+		if len(budget) > 0 {
+			bgt = budget[0]
+		}
+
+		query := fmt.Sprintf("SELECT * FROM %s WHERE org_id = ? AND %s COLLATE NOCASE IN (%s)",
+			tableName, quoteIdentifier(colName), strings.Join(placeholders, ","))
+
+		rows, err := db.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("batch find existing records failed: %w", err)
+		}
+
+		columns, err := rows.Columns()
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+
+		matchColIdx := -1
+		for ci, col := range columns {
+			if col == colName {
+				matchColIdx = ci
+				break
+			}
+		}
+
+		var rowCount int64
+		for rows.Next() {
+			rowCount++
+			values := make([]interface{}, len(columns))
+			valuePtrs := make([]interface{}, len(columns))
+			for vi := range values {
+				valuePtrs[vi] = &values[vi]
+			}
+			if err := rows.Scan(valuePtrs...); err != nil {
+				rows.Close()
+				return nil, err
+			}
+
+			oldRecord := make(map[string]interface{})
+			var existingID string
+			var matchVal string
+			for ci, col := range columns {
+				if col == "id" {
+					if v, ok := values[ci].(string); ok {
+						existingID = v
+					}
+				}
+				if ci == matchColIdx {
+					matchVal = fmt.Sprintf("%v", values[ci])
+				}
+				oldRecord[col] = values[ci]
+			}
+
+			if matchVal != "" {
+				result[strings.ToLower(matchVal)] = existingRecordInfo{
+					id:        existingID,
+					oldRecord: oldRecord,
+				}
+			}
+		}
+		rows.Close()
+
+		// Charge budget for actual rows read (not estimated batch size)
+		if err := bgt.charge(rowCount); err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+// existingRecordInfo holds pre-fetched record data for batch lookups
+type existingRecordInfo struct {
+	id        string
+	oldRecord map[string]interface{}
 }
 
 // updateRecord updates an existing record
@@ -1650,12 +1845,12 @@ func (h *ImportHandler) AnalyzeLookups(c *fiber.Ctx) error {
 			args := make([]interface{}, 0, len(batch)+1)
 			args = append(args, orgID)
 			for j, v := range batch {
-				placeholders[j] = "LOWER(?)"
+				placeholders[j] = "?"
 				args = append(args, v)
 			}
 
 			query := fmt.Sprintf(
-				"SELECT LOWER(%s) FROM %s WHERE org_id = ? AND LOWER(%s) IN (%s)",
+				"SELECT %s FROM %s WHERE org_id = ? AND %s COLLATE NOCASE IN (%s)",
 				quoteIdentifier(matchColumn),
 				relatedTable,
 				quoteIdentifier(matchColumn),
@@ -1669,7 +1864,7 @@ func (h *ImportHandler) AnalyzeLookups(c *fiber.Ctx) error {
 			for rows.Next() {
 				var val string
 				if err := rows.Scan(&val); err == nil {
-					existingValues[val] = true
+					existingValues[strings.ToLower(val)] = true
 				}
 			}
 			rows.Close()
@@ -1842,9 +2037,10 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 	})
 }
 
-// resolveLookups resolves lookup field values to actual record IDs
-// For each field with lookup resolution configured, it queries the related entity
-// by the specified match field and replaces the value with the actual record ID
+// resolveLookups resolves lookup field values to actual record IDs using batch queries.
+// Instead of one SELECT per record, it collects unique values across all records,
+// resolves them in batch (500 at a time), then applies cached results.
+// This reduces 48K individual queries to ~96 batch queries for a 48K-record import.
 func (h *ImportHandler) resolveLookups(
 	ctx context.Context,
 	db *sql.DB,
@@ -1852,26 +2048,163 @@ func (h *ImportHandler) resolveLookups(
 	records []map[string]interface{},
 	fields []entity.FieldDef,
 	lookupResolution map[string]LookupResolution,
+	budget ...*importReadBudget,
 ) ([]BulkError, error) {
 	if len(lookupResolution) == 0 {
 		return nil, nil
 	}
 
-	var errors []BulkError
-
 	// Build a map of link fields for quick lookup
-	// Map both "account" and "accountId" to the same field for flexible matching
 	linkFields := make(map[string]*entity.FieldDef)
 	for i := range fields {
 		if fields[i].Type == entity.FieldTypeLink {
 			linkFields[fields[i].Name] = &fields[i]
-			// Also map with "Id" suffix since LookupResolution uses that format
 			linkFields[fields[i].Name+"Id"] = &fields[i]
 		}
 	}
 
-	// Cache for resolved lookups: relatedEntity -> matchValue -> recordID
-	lookupCache := make(map[string]map[string]string)
+	// --- Phase A: Collect unique lookup values per (relatedEntity, matchField) ---
+	type lookupKey struct {
+		relatedEntity string
+		matchField    string
+		matchColumn   string
+		relatedTable  string
+	}
+	// fieldName -> lookupKey (derived from resolution + field def)
+	fieldKeys := make(map[string]*lookupKey)
+	// lookupKey string -> set of unique values (lowered -> original)
+	uniqueValues := make(map[string]map[string]string)
+
+	for fieldName, resolution := range lookupResolution {
+		field, ok := linkFields[fieldName]
+		if !ok {
+			continue
+		}
+		relatedEntity := ""
+		if field.LinkEntity != nil {
+			relatedEntity = *field.LinkEntity
+		}
+		if relatedEntity == "" {
+			continue
+		}
+
+		lk := &lookupKey{
+			relatedEntity: relatedEntity,
+			matchField:    resolution.MatchField,
+			matchColumn:   util.CamelToSnake(resolution.MatchField),
+			relatedTable:  util.GetTableName(relatedEntity),
+		}
+		fieldKeys[fieldName] = lk
+		cacheKey := relatedEntity + ":" + resolution.MatchField
+
+		if uniqueValues[cacheKey] == nil {
+			uniqueValues[cacheKey] = make(map[string]string)
+		}
+
+		for _, record := range records {
+			lookupValue, ok := record[fieldName]
+			if !ok {
+				continue
+			}
+			valueStr, ok := lookupValue.(string)
+			if !ok || valueStr == "" || strings.HasPrefix(valueStr, "Rec") {
+				continue
+			}
+			lowered := strings.ToLower(valueStr)
+			if _, exists := uniqueValues[cacheKey][lowered]; !exists {
+				uniqueValues[cacheKey][lowered] = valueStr // keep first original casing
+			}
+		}
+	}
+
+	// --- Phase B: Batch-resolve all unique values ---
+	// Cache: relatedEntity:matchField -> lowered value -> {id, displayName}
+	type resolvedLookup struct {
+		id          string
+		displayName string
+	}
+	lookupCache := make(map[string]map[string]resolvedLookup)
+
+	const batchSize = 500
+	for cacheKey, valuesMap := range uniqueValues {
+		if len(valuesMap) == 0 {
+			continue
+		}
+
+		lookupCache[cacheKey] = make(map[string]resolvedLookup)
+
+		// Find the lookupKey info for this cacheKey
+		var lk *lookupKey
+		for _, fk := range fieldKeys {
+			if fk.relatedEntity+":"+fk.matchField == cacheKey {
+				lk = fk
+				break
+			}
+		}
+		if lk == nil {
+			continue
+		}
+
+		// Collect all lowered values into a slice
+		allLowered := make([]string, 0, len(valuesMap))
+		for lowered := range valuesMap {
+			allLowered = append(allLowered, lowered)
+		}
+
+		// Query in batches of 500
+		for i := 0; i < len(allLowered); i += batchSize {
+			end := i + batchSize
+			if end > len(allLowered) {
+				end = len(allLowered)
+			}
+			batch := allLowered[i:end]
+
+			placeholders := make([]string, len(batch))
+			args := make([]interface{}, 0, len(batch)+1)
+			args = append(args, orgID)
+			for j, v := range batch {
+				placeholders[j] = "?"
+				args = append(args, valuesMap[v]) // use original casing for param
+			}
+
+			query := fmt.Sprintf(
+				"SELECT id, COALESCE(%s, '') FROM %s WHERE org_id = ? AND %s COLLATE NOCASE IN (%s)",
+				quoteIdentifier(lk.matchColumn),
+				lk.relatedTable,
+				quoteIdentifier(lk.matchColumn),
+				strings.Join(placeholders, ","),
+			)
+
+			var bgt *importReadBudget
+			if len(budget) > 0 {
+				bgt = budget[0]
+			}
+
+			rows, err := db.QueryContext(ctx, query, args...)
+			if err != nil {
+				return nil, fmt.Errorf("batch lookup query failed for %s: %w", lk.relatedEntity, err)
+			}
+			var rowCount int64
+			for rows.Next() {
+				var id, name string
+				if err := rows.Scan(&id, &name); err != nil {
+					rows.Close()
+					return nil, fmt.Errorf("batch lookup scan failed: %w", err)
+				}
+				lookupCache[cacheKey][strings.ToLower(name)] = resolvedLookup{id: id, displayName: name}
+				rowCount++
+			}
+			rows.Close()
+
+			// Charge budget for actual rows read (not estimated batch size)
+			if err := bgt.charge(rowCount); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// --- Phase C: Apply results to records, create missing if needed ---
+	var errors []BulkError
 
 	for rowIdx, record := range records {
 		for fieldName, resolution := range lookupResolution {
@@ -1880,30 +2213,20 @@ func (h *ImportHandler) resolveLookups(
 				continue
 			}
 
-			// Get the value to look up
-			// fieldName is already the full field name (e.g., "accountId") from LookupResolution
 			lookupValue, ok := record[fieldName]
 			if !ok {
 				continue
 			}
-
 			valueStr, ok := lookupValue.(string)
 			if !ok || valueStr == "" {
 				continue
 			}
-
-			// Check if this looks like an existing ID (starts with record prefix)
 			if strings.HasPrefix(valueStr, "Rec") {
-				// Already an ID, skip resolution
 				continue
 			}
 
-			// Get the related entity from field definition
-			relatedEntity := ""
-			if field.LinkEntity != nil {
-				relatedEntity = *field.LinkEntity
-			}
-			if relatedEntity == "" {
+			lk := fieldKeys[fieldName]
+			if lk == nil {
 				errors = append(errors, BulkError{
 					Index: rowIdx,
 					Error: fmt.Sprintf("Field '%s' has no related entity configured", fieldName),
@@ -1911,109 +2234,66 @@ func (h *ImportHandler) resolveLookups(
 				continue
 			}
 
-			// Initialize cache for this entity if needed
-			if _, ok := lookupCache[relatedEntity]; !ok {
-				lookupCache[relatedEntity] = make(map[string]string)
-			}
+			cacheKey := lk.relatedEntity + ":" + lk.matchField
+			baseName := strings.TrimSuffix(field.Name, "Id")
+			idKey := baseName + "Id"
+			nameKey := baseName + "Name"
 
-			// Check cache first
-			if cachedID, ok := lookupCache[relatedEntity][valueStr]; ok {
-				// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
-				// We need the base name (e.g., "account") to build proper keys
-				baseName := strings.TrimSuffix(field.Name, "Id")
-				idKey := baseName + "Id"
-				record[idKey] = cachedID
-				record[baseName+"Name"] = valueStr
-				// Only delete original if it's different from what we just set
+			// Check batch cache
+			if resolved, ok := lookupCache[cacheKey][strings.ToLower(valueStr)]; ok {
+				record[idKey] = resolved.id
+				record[nameKey] = valueStr
 				if fieldName != idKey {
 					delete(record, fieldName)
 				}
 				continue
 			}
 
-			// Look up the record in the related entity's table
-			relatedTable := util.GetTableName(relatedEntity)
-			matchColumn := util.CamelToSnake(resolution.MatchField)
-
-			query := fmt.Sprintf(
-				"SELECT id, COALESCE(%s, '') as match_value FROM %s WHERE org_id = ? AND LOWER(%s) = LOWER(?) LIMIT 1",
-				quoteIdentifier(matchColumn),
-				relatedTable,
-				quoteIdentifier(matchColumn),
-			)
-
-			var foundID, foundName string
-			err := db.QueryRowContext(ctx, query, orgID, valueStr).Scan(&foundID, &foundName)
-			if err != nil {
-				if err == sql.ErrNoRows {
-					// Record not found - check if we should create it
-					if resolution.CreateIfNotFound {
-						// Get the data for this new record
-						newData := make(map[string]interface{})
-						if resolution.NewRecordData != nil {
-							if data, ok := resolution.NewRecordData[valueStr]; ok {
-								newData = data
-							}
-						}
-						// Always set the match field (e.g., name)
-						newData[resolution.MatchField] = valueStr
-
-						// Create the new record
-						newID, createErr := h.createRelatedRecord(ctx, db, orgID, userID, relatedEntity, newData)
-						if createErr != nil {
-							errors = append(errors, BulkError{
-								Index: rowIdx,
-								Error: fmt.Sprintf("Failed to create %s '%s': %v", relatedEntity, valueStr, createErr),
-							})
-							delete(record, fieldName)
-							continue
-						}
-
-						// Cache and use the new ID
-						lookupCache[relatedEntity][valueStr] = newID
-						// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
-						// We need the base name (e.g., "account") to build proper keys
-						baseName := strings.TrimSuffix(field.Name, "Id")
-						idKey := baseName + "Id"
-						nameKey := baseName + "Name"
-						record[idKey] = newID
-						record[nameKey] = valueStr
-						// Only delete original if it's different from what we just set
-						if fieldName != idKey {
-							delete(record, fieldName)
-						}
-						continue
+			// Not found — create if allowed
+			if resolution.CreateIfNotFound {
+				// Check if we already created this value (from a previous row in this loop)
+				if resolved, ok := lookupCache[cacheKey][strings.ToLower(valueStr)]; ok {
+					record[idKey] = resolved.id
+					record[nameKey] = valueStr
+					if fieldName != idKey {
+						delete(record, fieldName)
 					}
+					continue
+				}
 
+				newData := make(map[string]interface{})
+				if resolution.NewRecordData != nil {
+					if data, ok := resolution.NewRecordData[valueStr]; ok {
+						newData = data
+					}
+				}
+				newData[resolution.MatchField] = valueStr
+
+				newID, createErr := h.createRelatedRecord(ctx, db, orgID, userID, lk.relatedEntity, newData)
+				if createErr != nil {
 					errors = append(errors, BulkError{
 						Index: rowIdx,
-						Error: fmt.Sprintf("No %s found with %s='%s'", relatedEntity, resolution.MatchField, valueStr),
+						Error: fmt.Sprintf("Failed to create %s '%s': %v", lk.relatedEntity, valueStr, createErr),
 					})
-					// Clear the invalid value so it doesn't try to insert garbage
 					delete(record, fieldName)
-				} else {
-					errors = append(errors, BulkError{
-						Index: rowIdx,
-						Error: fmt.Sprintf("Failed to look up %s: %v", relatedEntity, err),
-					})
+					continue
+				}
+
+				// Cache the newly created record so subsequent rows reuse it
+				lookupCache[cacheKey][strings.ToLower(valueStr)] = resolvedLookup{id: newID, displayName: valueStr}
+				record[idKey] = newID
+				record[nameKey] = valueStr
+				if fieldName != idKey {
+					delete(record, fieldName)
 				}
 				continue
 			}
 
-			// Cache the result
-			lookupCache[relatedEntity][valueStr] = foundID
-
-			// Update record with resolved ID and name
-			// For link fields, field.Name may already have "Id" suffix (e.g., "accountId")
-			// We need the base name (e.g., "account") to build proper keys
-			baseName := strings.TrimSuffix(field.Name, "Id")
-			idKey := baseName + "Id"
-			record[idKey] = foundID
-			record[baseName+"Name"] = valueStr
-			// Only delete original if it's different from what we just set
-			if fieldName != idKey {
-				delete(record, fieldName)
-			}
+			errors = append(errors, BulkError{
+				Index: rowIdx,
+				Error: fmt.Sprintf("No %s found with %s='%s'", lk.relatedEntity, resolution.MatchField, valueStr),
+			})
+			delete(record, fieldName)
 		}
 	}
 
@@ -2554,6 +2834,36 @@ func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
 	return nil
 }
 
+// PreflightCheck handles GET /api/v1/entities/:entity/import/preflight-check
+// Returns estimated Turso row reads and current usage, warning if near quota.
+func (h *ImportHandler) PreflightCheck(c *fiber.Ctx) error {
+	recordCount := c.QueryInt("recordCount", 0)
+	if recordCount <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "recordCount query param required (positive integer)"})
+	}
+
+	lookupFieldCount := c.QueryInt("lookupFieldCount", 0)
+
+	if h.importQuotaService == nil {
+		// No quota service configured — return estimate only
+		estimated := service.EstimateImportCost(recordCount, lookupFieldCount, true)
+		return c.JSON(service.PreflightResult{
+			EstimatedReads:   estimated,
+			MonthlyLimit:     service.TursoFreeRowReads,
+			RemainingBudget:  service.TursoFreeRowReads,
+			QuotaUnavailable: true,
+			Warning:          "Turso quota check not configured",
+		})
+	}
+
+	result, err := h.importQuotaService.CheckQuota(c.Context(), recordCount, lookupFieldCount)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(result)
+}
+
 // RegisterRoutes registers import routes
 func (h *ImportHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/entities/:entity/import/csv", h.ImportCSV)
@@ -2561,5 +2871,6 @@ func (h *ImportHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/entities/:entity/import/csv/analyze", h.AnalyzeCSV)
 	app.Post("/entities/:entity/import/csv/analyze-lookups", h.AnalyzeLookups)
 	app.Post("/entities/:entity/import/csv/check-duplicates", h.CheckDuplicates)
+	app.Get("/entities/:entity/import/preflight-check", h.PreflightCheck)
 	app.Get("/import/progress/:jobID", h.GetImportProgress)
 }
