@@ -1523,21 +1523,42 @@
 							</div>
 						</label>
 						{#each group.rows as row, rowIdx}
-							<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 {withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx] ? 'bg-blue-50' : ''}">
-								<input
-									type="radio"
-									name="group-{group.groupId}"
-									checked={withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx]}
-									onchange={() => setWithinFileSelection(group.groupId, group.rowIndices[rowIdx])}
-									class="mt-1"
-								/>
-								<div class="flex-1 min-w-0">
-									<span class="text-sm font-medium text-gray-900">Row {group.rowIndices[rowIdx] + 1}</span>
-									<div class="text-xs text-gray-500 mt-0.5 truncate">
-										{Object.entries(row).slice(0, 4).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+							{@const isSelected = withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx]}
+							{@const matchField = group.groupId.split(':')[0] || ''}
+							{@const nonEmptyEntries = Object.entries(row).filter(([_, v]) => v != null && v !== '')}
+							<div class="border-b last:border-b-0 {isSelected ? 'bg-blue-50' : ''}">
+								<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
+									<input
+										type="radio"
+										name="group-{group.groupId}"
+										checked={isSelected}
+										onchange={() => setWithinFileSelection(group.groupId, group.rowIndices[rowIdx])}
+										class="mt-1"
+									/>
+									<div class="flex-1 min-w-0">
+										<span class="text-sm font-medium text-gray-900">Row {group.rowIndices[rowIdx] + 1}</span>
+										<div class="text-xs text-gray-500 mt-0.5">
+											{nonEmptyEntries.slice(0, 4).map(([k, v]) => `${k}: ${v}`).join(' | ')}
+											{#if nonEmptyEntries.length > 4}
+												<span class="text-gray-400"> +{nonEmptyEntries.length - 4} more</span>
+											{/if}
+										</div>
 									</div>
-								</div>
-							</label>
+								</label>
+								<details class="px-4 pb-3 ml-10">
+									<summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800 select-none">
+										Show all {nonEmptyEntries.length} fields
+									</summary>
+									<div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+										{#each nonEmptyEntries as [field, value]}
+											<div class="flex justify-between gap-2 py-0.5 {field === matchField ? 'bg-yellow-50 px-1 rounded' : ''}">
+												<span class="text-gray-500 font-medium shrink-0">{field}</span>
+												<span class="text-gray-900 text-right truncate">{value}</span>
+											</div>
+										{/each}
+									</div>
+								</details>
+							</div>
 						{/each}
 					</div>
 				</div>
