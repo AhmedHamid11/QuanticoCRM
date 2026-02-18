@@ -420,6 +420,8 @@
 				const skipIndices: number[] = [];
 				for (const group of duplicateResult.withinFileGroups) {
 					const keepIdx = withinFileSelections.get(group.groupId) ?? group.keepIndex;
+					// -1 means "Keep All" — don't skip any rows in this group
+					if (keepIdx === -1) continue;
 					for (const rowIdx of group.rowIndices) {
 						if (rowIdx !== keepIdx) {
 							skipIndices.push(rowIdx);
@@ -1504,9 +1506,22 @@
 							<span class="px-2 py-0.5 rounded text-xs font-medium text-red-600 bg-red-50">100% match</span>
 							<span class="text-xs text-gray-400">{group.rowIndices.length} rows</span>
 						</div>
-						<p class="text-xs text-orange-600 mt-1">These rows appear to be duplicates of each other. Select which one to keep:</p>
+						<p class="text-xs text-orange-600 mt-1">These rows appear to be duplicates of each other. Select which one to keep, or import all:</p>
 					</div>
 					<div class="divide-y">
+						<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 {withinFileSelections.get(group.groupId) === -1 ? 'bg-green-50' : ''}">
+							<input
+								type="radio"
+								name="group-{group.groupId}"
+								checked={withinFileSelections.get(group.groupId) === -1}
+								onchange={() => setWithinFileSelection(group.groupId, -1)}
+								class="mt-1"
+							/>
+							<div class="flex-1 min-w-0">
+								<span class="text-sm font-medium text-green-700">Keep All — Not Duplicates</span>
+								<div class="text-xs text-gray-500 mt-0.5">Import all rows in this group</div>
+							</div>
+						</label>
 						{#each group.rows as row, rowIdx}
 							<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 {withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx] ? 'bg-blue-50' : ''}">
 								<input
