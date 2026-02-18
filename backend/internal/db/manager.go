@@ -364,6 +364,19 @@ func (m *Manager) cleanupIdleConnections() {
 
 		idleTime := now.Sub(conn.LastUsed)
 		if idleTime > m.maxIdleTime {
+			// Check if the connection has active SQL queries before closing.
+			// During long operations (e.g. large CSV imports), the connection is
+			// actively used but LastUsed only updates on acquisition, not on each query.
+			if conn.DB != nil {
+				stats := conn.DB.Stats()
+				if stats.InUse > 0 {
+					// Connection is actively executing queries — update LastUsed and skip
+					conn.LastUsed = now
+					log.Printf("[CONN-MANAGER] Org=%s Connection appears idle (%v) but has %d active queries, keeping alive", orgID, idleTime, stats.InUse)
+					continue
+				}
+			}
+
 			log.Printf("[CONN-MANAGER] Org=%s Closing IDLE connection (idle for %v)", orgID, idleTime)
 			// If TenantDB wrapper exists, use its Close method which handles cleanup properly
 			// This ensures the wrapper knows the connection is closed and can reconnect later
@@ -378,6 +391,17 @@ func (m *Manager) cleanupIdleConnections() {
 	}
 	if closedCount > 0 {
 		log.Printf("[CONN-MANAGER] Cleanup complete: closed %d idle connections, %d active", closedCount, len(m.connections))
+	}
+}
+
+// TouchConnection updates the LastUsed timestamp for an org's connection.
+// Call this during long-running operations to prevent the cleanup loop from
+// closing the connection while it's in use.
+func (m *Manager) TouchConnection(orgID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if conn, exists := m.connections[orgID]; exists {
+		conn.LastUsed = time.Now()
 	}
 }
 

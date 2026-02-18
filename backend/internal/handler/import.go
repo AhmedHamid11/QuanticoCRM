@@ -23,6 +23,20 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// ImportProgressEvent represents a streaming progress event during import
+type ImportProgressEvent struct {
+	Type      string             `json:"type"`                // "progress" or "complete"
+	Processed int                `json:"processed"`
+	Total     int                `json:"total"`
+	Created   int                `json:"created"`
+	Updated   int                `json:"updated"`
+	Failed    int                `json:"failed"`
+	Skipped   int                `json:"skipped"`
+	Merged    int                `json:"merged,omitempty"`
+	Phase     string             `json:"phase,omitempty"`     // "validating", "importing"
+	Response  *ImportCSVResponse `json:"response,omitempty"`  // Only for "complete" type
+}
+
 // ImportHandler handles CSV import operations
 type ImportHandler struct {
 	db                *sql.DB
@@ -33,6 +47,12 @@ type ImportHandler struct {
 	validationService ValidationServiceInterface
 	duplicateService  *service.ImportDuplicateService
 	importJobRepo     *repo.ImportJobRepo
+	dbManager         DBManagerInterface
+}
+
+// DBManagerInterface is the subset of db.Manager methods needed by import handler
+type DBManagerInterface interface {
+	TouchConnection(orgID string)
 }
 
 // NewImportHandler creates a new ImportHandler
@@ -43,8 +63,9 @@ func NewImportHandler(
 	validationService ValidationServiceInterface,
 	duplicateService *service.ImportDuplicateService,
 	importJobRepo *repo.ImportJobRepo,
+	dbManager ...DBManagerInterface,
 ) *ImportHandler {
-	return &ImportHandler{
+	h := &ImportHandler{
 		db:                db,
 		metadataRepo:      metadataRepo,
 		csvParser:         service.NewCSVParser(),
@@ -54,6 +75,10 @@ func NewImportHandler(
 		duplicateService:  duplicateService,
 		importJobRepo:     importJobRepo,
 	}
+	if len(dbManager) > 0 {
+		h.dbManager = dbManager[0]
+	}
+	return h
 }
 
 // getMetadataRepo returns a metadata repo using the tenant database from context
@@ -386,10 +411,16 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 		return c.JSON(response)
 	}
 
+	// Check for streaming progress support (create mode only — other modes are fast enough)
+	streamProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
+	if streamProgress {
+		return h.handleStreamingImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, errors)
+	}
+
 	// Process based on mode
 	switch mode {
 	case ImportModeCreate:
-		return h.processCreateMode(c, orgID, userID, entityName, tableName, fields, parseResult.Records, failedIndices, now, options, &response, errors)
+		return h.processCreateMode(c, orgID, userID, entityName, tableName, fields, parseResult.Records, failedIndices, now, options, &response, errors, nil)
 	case ImportModeUpdate:
 		return h.processUpdateMode(c, orgID, userID, entityName, tableName, fields, parseResult.Records, failedIndices, now, options, &response, errors)
 	case ImportModeUpsert:
@@ -401,7 +432,63 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 	}
 }
 
-// processCreateMode handles create (insert) operations
+// handleStreamingImport handles CSV import with NDJSON streaming progress
+func (h *ImportHandler) handleStreamingImport(
+	c *fiber.Ctx,
+	orgID, userID, entityName, tableName string,
+	fields []entity.FieldDef,
+	parseResult *service.CSVParseResult,
+	failedIndices map[int]bool,
+	now string,
+	options ImportCSVRequest,
+	errors []BulkError,
+) error {
+	// Extract dependencies before entering stream writer
+	db := h.getDB(c)
+
+	c.Set("Content-Type", "application/x-ndjson")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("X-Accel-Buffering", "no")
+
+	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+		writeEvent := func(event ImportProgressEvent) {
+			data, _ := json.Marshal(event)
+			w.Write(data)
+			w.Write([]byte("\n"))
+			w.Flush()
+		}
+
+		var response ImportCSVResponse
+		response.Mode = options.Mode
+		response.Headers = parseResult.Headers
+		response.MappedHeaders = parseResult.MappedHeaders
+		response.TotalRows = parseResult.RowCount
+
+		// Create a progress callback for the batch processing
+		progressFn := func(event ImportProgressEvent) {
+			writeEvent(event)
+			// Touch the connection to prevent idle cleanup during long imports
+			if h.dbManager != nil {
+				h.dbManager.TouchConnection(orgID)
+			}
+		}
+
+		// Run create mode with streaming progress
+		h.processCreateModeInternal(
+			context.Background(), db, orgID, userID, entityName, tableName,
+			fields, parseResult.Records, failedIndices, now, options, &response, errors, progressFn,
+		)
+
+		// Write final complete event with full response
+		writeEvent(ImportProgressEvent{
+			Type:     "complete",
+			Response: &response,
+		})
+	})
+	return nil
+}
+
+// processCreateMode handles create (insert) operations (non-streaming path)
 func (h *ImportHandler) processCreateMode(
 	c *fiber.Ctx,
 	orgID, userID, entityName, tableName string,
@@ -412,10 +499,43 @@ func (h *ImportHandler) processCreateMode(
 	options ImportCSVRequest,
 	response *ImportCSVResponse,
 	errors []BulkError,
+	progressFn func(ImportProgressEvent),
 ) error {
+	ctx := c.Context()
+	db := h.getDB(c)
+
+	h.processCreateModeInternal(ctx, db, orgID, userID, entityName, tableName, fields, records, failedIndices, now, options, response, errors, progressFn)
+
+	if progressFn != nil {
+		return nil // Streaming handler sends the response
+	}
+
+	if response.Failed > 0 && !options.SkipErrors {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
+	}
+	return c.Status(fiber.StatusCreated).JSON(response)
+}
+
+// processCreateModeInternal is the core create logic shared by streaming and non-streaming paths.
+// It populates the response pointer and optionally emits progress events via progressFn.
+func (h *ImportHandler) processCreateModeInternal(
+	ctx context.Context,
+	db *sql.DB,
+	orgID, userID, entityName, tableName string,
+	fields []entity.FieldDef,
+	records []map[string]interface{},
+	failedIndices map[int]bool,
+	now string,
+	options ImportCSVRequest,
+	response *ImportCSVResponse,
+	errors []BulkError,
+	progressFn func(ImportProgressEvent),
+) {
 	var createdIDs []string
 	var updatedIDs []string
 	var auditEntries []service.AuditEntry
+
+	totalRecords := len(records)
 
 	// Build skip map from within-file indices
 	withinFileSkipMap := make(map[int]bool)
@@ -494,17 +614,21 @@ func (h *ImportHandler) processCreateMode(
 		recordsToCreate[i] = records[i]
 	}
 
+	// Track how many records were resolved before batch processing
+	preProcessed := response.Skipped + response.Merged + len(recordsToUpdate) + len(failedIndices)
+
 	// Process updates
 	for rowIdx, recordID := range recordsToUpdate {
-		err := h.updateExistingRecord(c.Context(), h.getDB(c), orgID, userID, entityName, recordID, records[rowIdx], now)
+		err := h.updateExistingRecord(ctx, db, orgID, userID, entityName, recordID, records[rowIdx], now)
 		if err != nil {
-			if options.SkipErrors {
-				errors = append(errors, BulkError{Index: rowIdx, Error: err.Error()})
-				continue
+			errors = append(errors, BulkError{Index: rowIdx, Error: err.Error()})
+			if !options.SkipErrors && progressFn == nil {
+				// Non-streaming: set response and return early (caller sends HTTP error)
+				response.Failed = len(errors)
+				response.Errors = errors
+				return
 			}
-			response.Failed = len(errors) + 1
-			response.Errors = append(errors, BulkError{Index: rowIdx, Error: err.Error()})
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
+			continue
 		}
 		updatedIDs = append(updatedIDs, recordID)
 
@@ -537,7 +661,7 @@ func (h *ImportHandler) processCreateMode(
 			}
 
 			batch := createList[batchStart:batchEnd]
-			batchIDs, batchErrors := h.processBatch(c.Context(), h.getDB(c), orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
+			batchIDs, batchErrors := h.processBatch(ctx, db, orgID, userID, tableName, fields, batch, batchStart, failedIndices, now, options.SkipErrors)
 			log.Printf("[IMPORT-CREATE] Batch %d-%d: %d created, %d errors (elapsed: %v)",
 				batchStart, batchEnd, len(batchIDs), len(batchErrors), time.Since(createStart))
 
@@ -562,6 +686,26 @@ func (h *ImportHandler) processCreateMode(
 					recordIdx := createIndices[batchStart+i]
 					go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, id, "CREATE", nil, records[recordIdx])
 				}
+			}
+
+			// Emit streaming progress after each batch
+			if progressFn != nil {
+				progressFn(ImportProgressEvent{
+					Type:      "progress",
+					Phase:     "importing",
+					Processed: preProcessed + batchEnd,
+					Total:     totalRecords,
+					Created:   len(createdIDs),
+					Updated:   len(updatedIDs),
+					Failed:    len(errors),
+					Skipped:   response.Skipped,
+					Merged:    response.Merged,
+				})
+			}
+
+			// Keep connection alive during long imports
+			if h.dbManager != nil {
+				h.dbManager.TouchConnection(orgID)
 			}
 		}
 	}
@@ -637,7 +781,7 @@ func (h *ImportHandler) processCreateMode(
 			}
 
 			// Atomically persist job + decisions in a single transaction (no orphaned rows)
-			if err := h.importJobRepo.SaveJobWithDecisions(c.Context(), h.getDB(c), job, decisions); err != nil {
+			if err := h.importJobRepo.SaveJobWithDecisions(ctx, db, job, decisions); err != nil {
 				fmt.Printf("[IMPORT] Warning: failed to persist import job and decisions: %v\n", err)
 				response.Warnings = append(response.Warnings, "Import succeeded but failed to save import tracking data")
 			} else {
@@ -645,12 +789,6 @@ func (h *ImportHandler) processCreateMode(
 			}
 		}()
 	}
-
-	if response.Failed > 0 && !options.SkipErrors {
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(response)
 }
 
 // updateExistingRecord updates an existing record with import row values

@@ -300,7 +300,7 @@ func main() {
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
 	importJobRepo := repo.NewImportJobRepo()
-	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService, importDuplicateService, importJobRepo)
+	importHandler := handler.NewImportHandler(masterDB, metadataRepo, tripwireService, validationService, importDuplicateService, importJobRepo, dbManager)
 	metadataHandler := handler.NewMetadataHandler(metadataRepo)
 	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
 	listViewHandler := handler.NewListViewHandler(listViewRepo)

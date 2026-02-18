@@ -156,6 +156,20 @@
 	let error = $state('');
 	let availableFields: AvailableField[] = $state([]);
 
+	// Streaming import progress
+	interface ImportProgress {
+		processed: number;
+		total: number;
+		created: number;
+		updated: number;
+		failed: number;
+		skipped: number;
+		merged: number;
+		startTime: number;
+		phase: string;
+	}
+	let importProgress: ImportProgress | null = $state(null);
+
 	// Import mode settings
 	let importMode: ImportMode = $state('create');
 
@@ -374,6 +388,14 @@
 		}
 	}
 
+	function formatElapsed(ms: number): string {
+		const secs = Math.floor(ms / 1000);
+		const mins = Math.floor(secs / 60);
+		const remainSecs = secs % 60;
+		if (mins > 0) return `${mins}m ${remainSecs}s`;
+		return `${secs}s`;
+	}
+
 	// Execute import
 	async function executeImport() {
 		if (!file) return;
@@ -383,6 +405,20 @@
 		const totalRows = analyzeResult?.totalRows || previewData?.totalRows || 0;
 		const modeLabel = importMode === 'delete' ? 'Deleting' : importMode === 'update' ? 'Updating' : importMode === 'upsert' ? 'Upserting' : 'Importing';
 		loadingMessage = `${modeLabel} ${totalRows.toLocaleString()} records...`;
+		const useStreaming = importMode === 'create' && totalRows > 0;
+		if (useStreaming) {
+			importProgress = {
+				processed: 0,
+				total: totalRows,
+				created: 0,
+				updated: 0,
+				failed: 0,
+				skipped: 0,
+				merged: 0,
+				startTime: Date.now(),
+				phase: 'importing'
+			};
+		}
 
 		try {
 			// For delete mode, ensure match field column is mapped
@@ -494,22 +530,84 @@
 			formData.append('file', file);
 			formData.append('options', JSON.stringify(options));
 
+			const headers: Record<string, string> = {
+				'Authorization': `Bearer ${auth.accessToken || ''}`,
+				'X-CSRF-Token': getCsrfToken()
+			};
+			if (useStreaming) {
+				headers['X-Stream-Progress'] = 'true';
+				headers['Accept'] = 'application/x-ndjson';
+			}
+
 			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv`, {
 				method: 'POST',
 				body: formData,
 				credentials: 'include',
-				headers: {
-					'Authorization': `Bearer ${auth.accessToken || ''}`,
-					'X-CSRF-Token': getCsrfToken()
-				}
+				headers
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.error || 'Import failed');
+			const contentType = response.headers.get('Content-Type') || '';
+
+			if (contentType.includes('ndjson') && response.body) {
+				// Streaming mode — read NDJSON lines for real-time progress
+				const reader = response.body.getReader();
+				const decoder = new TextDecoder();
+				let buffer = '';
+
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() || '';
+
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const event = JSON.parse(line);
+							if (event.type === 'progress') {
+								importProgress = {
+									processed: event.processed,
+									total: event.total,
+									created: event.created || 0,
+									updated: event.updated || 0,
+									failed: event.failed || 0,
+									skipped: event.skipped || 0,
+									merged: event.merged || 0,
+									startTime: importProgress?.startTime || Date.now(),
+									phase: event.phase || 'importing'
+								};
+							} else if (event.type === 'complete' && event.response) {
+								importResult = event.response;
+							}
+						} catch (e) {
+							console.warn('Failed to parse progress event:', line);
+						}
+					}
+				}
+				// Process remaining buffer
+				if (buffer.trim()) {
+					try {
+						const event = JSON.parse(buffer);
+						if (event.type === 'complete' && event.response) {
+							importResult = event.response;
+						}
+					} catch (e) { /* ignore */ }
+				}
+
+				if (!importResult) {
+					throw new Error('Import stream ended without completion event');
+				}
+			} else {
+				// Non-streaming fallback
+				if (!response.ok) {
+					const errorData = await response.json();
+					throw new Error(errorData.error || 'Import failed');
+				}
+				importResult = await response.json();
 			}
 
-			importResult = await response.json();
 			if (importResult?.auditReport) {
 				parseAuditCSV(importResult.auditReport);
 			}
@@ -529,6 +627,7 @@
 		} finally {
 			loading = false;
 			loadingMessage = '';
+			importProgress = null;
 		}
 	}
 
@@ -1573,9 +1672,9 @@
 										</div>
 									</div>
 								</label>
-								<details class="px-4 pb-3 ml-10">
+								<details open class="px-4 pb-3 ml-10">
 									<summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800 select-none">
-										Show all {groupFields.length} fields
+										{groupFields.length} fields
 									</summary>
 									<table class="mt-2 w-full text-xs">
 										<tbody>
@@ -1773,8 +1872,57 @@
 	<!-- Loading Overlay -->
 	{#if loading}
 		<div class="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-8 shadow-xl min-w-[350px] max-w-md">
-				{#if loadingMessage}
+			<div class="bg-white rounded-lg p-8 shadow-xl min-w-[400px] max-w-lg">
+				{#if importProgress && importProgress.total > 0}
+					{@const pct = Math.min(Math.round(importProgress.processed / importProgress.total * 100), 100)}
+					{@const elapsed = Date.now() - importProgress.startTime}
+					{@const rate = elapsed > 1000 && importProgress.processed > 0 ? Math.round(importProgress.processed / (elapsed / 1000)) : 0}
+					{@const eta = rate > 0 ? Math.round((importProgress.total - importProgress.processed) / rate * 1000) : 0}
+					<div class="text-center">
+						<p class="text-lg font-semibold text-gray-800">Importing records...</p>
+
+						<!-- Progress bar -->
+						<div class="w-full bg-gray-200 rounded-full h-3 mt-4 overflow-hidden">
+							<div class="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+								style="width: {pct}%"></div>
+						</div>
+
+						<!-- Count and percentage -->
+						<p class="text-2xl font-bold text-gray-900 mt-3">
+							{importProgress.processed.toLocaleString()} <span class="text-base font-normal text-gray-400">of</span> {importProgress.total.toLocaleString()}
+						</p>
+						<p class="text-sm text-gray-500">{pct}% complete</p>
+
+						<!-- Stats breakdown -->
+						<div class="flex justify-center gap-4 mt-3 text-xs">
+							{#if importProgress.created > 0}
+								<span class="px-2 py-1 rounded bg-green-50 text-green-700 font-medium">{importProgress.created.toLocaleString()} created</span>
+							{/if}
+							{#if importProgress.updated > 0}
+								<span class="px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">{importProgress.updated.toLocaleString()} updated</span>
+							{/if}
+							{#if importProgress.failed > 0}
+								<span class="px-2 py-1 rounded bg-red-50 text-red-700 font-medium">{importProgress.failed.toLocaleString()} failed</span>
+							{/if}
+							{#if importProgress.skipped > 0}
+								<span class="px-2 py-1 rounded bg-gray-100 text-gray-600 font-medium">{importProgress.skipped.toLocaleString()} skipped</span>
+							{/if}
+						</div>
+
+						<!-- Time stats -->
+						<div class="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400 flex justify-center gap-3">
+							<span>Elapsed: {formatElapsed(elapsed)}</span>
+							{#if eta > 0 && pct < 100}
+								<span>&middot;</span>
+								<span>~{formatElapsed(eta)} remaining</span>
+							{/if}
+							{#if rate > 0}
+								<span>&middot;</span>
+								<span>{rate.toLocaleString()} records/sec</span>
+							{/if}
+						</div>
+					</div>
+				{:else if loadingMessage}
 					<div class="text-center">
 						<p class="text-lg font-medium text-gray-800 mb-4">{loadingMessage}</p>
 						<div class="w-full bg-gray-200 rounded-full h-2.5 mb-3 overflow-hidden">
