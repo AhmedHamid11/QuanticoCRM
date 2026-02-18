@@ -34,7 +34,7 @@ func NewCSVParser() *CSVParser {
 }
 
 // MaxCSVRows is the maximum number of rows allowed in a CSV import
-const MaxCSVRows = 10000
+const MaxCSVRows = 100000
 
 // Parse parses a CSV file and maps headers to entity fields
 func (p *CSVParser) Parse(reader io.Reader, fields []entity.FieldDef) (*CSVParseResult, error) {
