@@ -1526,6 +1526,7 @@
 							{@const isSelected = withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx]}
 							{@const matchField = group.groupId.split(':')[0] || ''}
 							{@const nonEmptyEntries = Object.entries(row).filter(([_, v]) => v != null && v !== '')}
+							{@const allEntries = Object.entries(row)}
 							<div class="border-b last:border-b-0 {isSelected ? 'bg-blue-50' : ''}">
 								<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
 									<input
@@ -1547,13 +1548,17 @@
 								</label>
 								<details class="px-4 pb-3 ml-10">
 									<summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800 select-none">
-										Show all {nonEmptyEntries.length} fields
+										Show all {allEntries.length} fields
 									</summary>
 									<div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-										{#each nonEmptyEntries as [field, value]}
+										{#each allEntries as [field, value]}
 											<div class="flex justify-between gap-2 py-0.5 {field === matchField ? 'bg-yellow-50 px-1 rounded' : ''}">
 												<span class="text-gray-500 font-medium shrink-0">{field}</span>
-												<span class="text-gray-900 text-right truncate">{value}</span>
+												{#if value != null && value !== ''}
+													<span class="text-gray-900 text-right truncate">{value}</span>
+												{:else}
+													<span class="text-gray-300 text-right italic">(empty)</span>
+												{/if}
 											</div>
 										{/each}
 									</div>
