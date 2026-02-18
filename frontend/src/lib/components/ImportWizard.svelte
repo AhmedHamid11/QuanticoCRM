@@ -1501,6 +1501,8 @@
 
 			<!-- Within-file duplicate groups -->
 			{#each duplicateResult.withinFileGroups || [] as group}
+				{@const groupFields = [...new Set(group.rows.flatMap(r => Object.keys(r)))].sort()}
+				{@const matchField = group.groupId.split(':')[0] || ''}
 				<div class="border rounded-lg overflow-hidden">
 					<div class="bg-orange-50 px-4 py-3 border-b">
 						<div class="flex items-center gap-2">
@@ -1526,9 +1528,7 @@
 						</label>
 						{#each group.rows as row, rowIdx}
 							{@const isSelected = withinFileSelections.get(group.groupId) === group.rowIndices[rowIdx]}
-							{@const matchField = group.groupId.split(':')[0] || ''}
 							{@const nonEmptyEntries = Object.entries(row).filter(([_, v]) => v != null && v !== '')}
-							{@const allEntries = Object.entries(row)}
 							<div class="border-b last:border-b-0 {isSelected ? 'bg-blue-50' : ''}">
 								<label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50">
 									<input
@@ -1550,10 +1550,11 @@
 								</label>
 								<details class="px-4 pb-3 ml-10">
 									<summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800 select-none">
-										Show all {allEntries.length} fields
+										Show all {groupFields.length} fields
 									</summary>
 									<div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-										{#each allEntries as [field, value]}
+										{#each groupFields as field}
+											{@const value = row[field]}
 											<div class="flex justify-between gap-2 py-0.5 {field === matchField ? 'bg-yellow-50 px-1 rounded' : ''}">
 												<span class="text-gray-500 font-medium shrink-0">{field}</span>
 												{#if value != null && value !== ''}
