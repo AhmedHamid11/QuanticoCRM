@@ -248,8 +248,8 @@ func (r *QuoteRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Quot
 			COALESCE(q.billing_address_country, ''), COALESCE(q.billing_address_postal_code, ''),
 			COALESCE(q.shipping_address_street, ''), COALESCE(q.shipping_address_city, ''), COALESCE(q.shipping_address_state, ''),
 			COALESCE(q.shipping_address_country, ''), COALESCE(q.shipping_address_postal_code, ''),
-			COALESCE(q.description, ''), COALESCE(q.terms, ''), COALESCE(q.notes, ''), q.assigned_user_id,
-			q.created_by_id, q.modified_by_id, q.created_at, q.modified_at, COALESCE(q.deleted, 0),
+			COALESCE(q.description, ''), COALESCE(q.terms, ''), COALESCE(q.notes, ''), COALESCE(q.assigned_user_id, ''),
+			COALESCE(q.created_by_id, ''), COALESCE(q.modified_by_id, ''), COALESCE(q.created_at, ''), COALESCE(q.modified_at, ''), COALESCE(q.deleted, 0),
 			COALESCE(q.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
@@ -410,8 +410,8 @@ func (r *QuoteRepo) ListByOrg(ctx context.Context, orgID string, params entity.Q
 			COALESCE(q.billing_address_country, ''), COALESCE(q.billing_address_postal_code, ''),
 			COALESCE(q.shipping_address_street, ''), COALESCE(q.shipping_address_city, ''), COALESCE(q.shipping_address_state, ''),
 			COALESCE(q.shipping_address_country, ''), COALESCE(q.shipping_address_postal_code, ''),
-			COALESCE(q.description, ''), COALESCE(q.terms, ''), COALESCE(q.notes, ''), q.assigned_user_id,
-			q.created_by_id, q.modified_by_id, q.created_at, q.modified_at, COALESCE(q.deleted, 0),
+			COALESCE(q.description, ''), COALESCE(q.terms, ''), COALESCE(q.notes, ''), COALESCE(q.assigned_user_id, ''),
+			COALESCE(q.created_by_id, ''), COALESCE(q.modified_by_id, ''), COALESCE(q.created_at, ''), COALESCE(q.modified_at, ''), COALESCE(q.deleted, 0),
 			COALESCE(q.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
