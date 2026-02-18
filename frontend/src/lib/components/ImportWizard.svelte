@@ -175,17 +175,46 @@
 
 	const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB - must match backend UploadBodyLimit
 
-	// Handle file selection
-	async function handleFileSelect(event: Event) {
+	// Drag and drop state
+	let isDragging = $state(false);
+	let fileInputRef: HTMLInputElement | undefined = $state(undefined);
+
+	// Handle file selection from input
+	function handleFileSelect(event: Event) {
 		const input = event.target as HTMLInputElement;
 		if (!input.files || input.files.length === 0) return;
+		processFile(input.files[0]);
+	}
 
-		const selected = input.files[0];
+	// Handle drop
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		isDragging = false;
+		const files = event.dataTransfer?.files;
+		if (!files || files.length === 0) return;
+		const dropped = files[0];
+		if (!dropped.name.toLowerCase().endsWith('.csv')) {
+			error = 'Please drop a CSV file.';
+			return;
+		}
+		processFile(dropped);
+	}
 
+	function handleDragOver(event: DragEvent) {
+		event.preventDefault();
+		isDragging = true;
+	}
+
+	function handleDragLeave(event: DragEvent) {
+		event.preventDefault();
+		isDragging = false;
+	}
+
+	// Process selected/dropped file
+	async function processFile(selected: File) {
 		if (selected.size > MAX_FILE_SIZE) {
 			const sizeMB = (selected.size / (1024 * 1024)).toFixed(1);
 			error = `File is too large (${sizeMB} MB). Maximum allowed size is 10 MB. Please split your file into smaller chunks and import them separately.`;
-			input.value = '';
 			return;
 		}
 
@@ -929,12 +958,37 @@
 					<label class="block text-sm font-medium text-gray-700 mb-2">
 						Select CSV File
 					</label>
-					<input
-						type="file"
-						accept=".csv"
-						onchange={handleFileSelect}
-						class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
-					/>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors {isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'}"
+						ondrop={handleDrop}
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						onclick={() => fileInputRef?.click()}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef?.click(); }}
+						role="button"
+						tabindex="0"
+					>
+						<input
+							bind:this={fileInputRef}
+							type="file"
+							accept=".csv"
+							onchange={handleFileSelect}
+							class="hidden"
+						/>
+						<svg class="mx-auto h-10 w-10 {isDragging ? 'text-blue-500' : 'text-gray-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+						</svg>
+						{#if isDragging}
+							<p class="mt-2 text-sm font-medium text-blue-600">Drop your CSV file here</p>
+						{:else}
+							<p class="mt-2 text-sm text-gray-600">
+								<span class="font-medium text-blue-600 hover:text-blue-500">Click to choose a file</span>
+								or drag and drop
+							</p>
+							<p class="mt-1 text-xs text-gray-500">CSV files up to 10 MB</p>
+						{/if}
+					</div>
 				</div>
 			{:else}
 				<div class="mb-4">
