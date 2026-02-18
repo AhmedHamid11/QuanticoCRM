@@ -2265,13 +2265,14 @@ func (h *ImportHandler) ensureTableExists(ctx context.Context, db *sql.DB, orgID
 
 // CheckDuplicates handles POST /api/v1/entities/:entity/import/csv/check-duplicates
 // Streams progress as NDJSON lines, with the final line containing the full result.
+//
+// The stream starts immediately to prevent Railway/proxy timeouts on large files.
+// All heavy work (CSV parsing, dedup) happens inside the stream writer.
 func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 	entityName := c.Params("entity")
 
-	// --- All validation happens before streaming (errors return normal JSON) ---
-
-	// Verify entity exists
+	// Quick validation that can fail with normal HTTP status codes
 	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -2280,36 +2281,28 @@ func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Entity not found"})
 	}
 
-	// Get the uploaded file
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No file uploaded. Use 'file' field in multipart form."})
 	}
-
-	// Validate file size (max 50MB)
 	if fileHeader.Size > 50*1024*1024 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "File too large. Maximum size is 50MB."})
 	}
-
-	// Validate file extension
 	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".csv") {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid file type. Only CSV files are accepted."})
 	}
 
-	// Open the file
 	file, err := fileHeader.Open()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read uploaded file"})
 	}
 	defer file.Close()
 
-	// Read file content into buffer
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read file content"})
 	}
 
-	// Parse options from form data (column mapping)
 	var options ImportCSVRequest
 	if optionsStr := c.FormValue("options"); optionsStr != "" {
 		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
@@ -2317,78 +2310,88 @@ func (h *ImportHandler) CheckDuplicates(c *fiber.Ctx) error {
 		}
 	}
 
-	// Get field definitions
-	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	// Parse CSV
-	var parseResult *service.CSVParseResult
-	if len(options.ColumnMapping) > 0 {
-		parseResult, err = h.csvParser.ParseWithMapping(bytes.NewReader(fileContent), options.ColumnMapping)
-	} else {
-		parseResult, err = h.csvParser.Parse(bytes.NewReader(fileContent), fields)
-	}
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	if len(parseResult.Records) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "No valid records found in CSV"})
-	}
-
-	// Get tenant database connection
+	// Capture tenant DB and metadata repo before entering the stream writer
 	tenantDB := middleware.GetTenantDB(c)
 	if tenantDB == nil {
 		tenantDB = h.db
 	}
+	metaRepo := h.getMetadataRepo(c)
 
-	// --- Stream NDJSON progress + result ---
+	// Start NDJSON stream immediately to keep the connection alive
 	c.Set("Content-Type", "application/x-ndjson")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("X-Accel-Buffering", "no")
 
-	// Capture values needed inside the stream writer closure
 	ctx := c.Context()
-	records := parseResult.Records
-
 	ctx.SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		// Progress callback writes NDJSON lines
-		onProgress := func(p service.DuplicateCheckProgress) {
-			line, _ := json.Marshal(map[string]interface{}{
-				"type":          "progress",
-				"phase":         p.Phase,
-				"processedRows": p.ProcessedRows,
-				"totalRows":     p.TotalRows,
-				"duplicatesFound": p.DuplicatesFound,
-			})
+		// Helper to write an NDJSON line and flush
+		writeLine := func(v interface{}) {
+			line, _ := json.Marshal(v)
 			w.Write(line)
 			w.Write([]byte("\n"))
 			w.Flush()
+		}
+		writeError := func(msg string) {
+			writeLine(map[string]interface{}{"type": "error", "error": msg})
+		}
+
+		// Send initial progress to confirm the stream is open
+		writeLine(map[string]interface{}{
+			"type": "progress", "phase": "parsing", "processedRows": 0, "totalRows": 0, "duplicatesFound": 0,
+		})
+
+		// Heavy work: parse CSV inside the stream so timeouts don't kill us
+		fields, err := metaRepo.ListFields(context.Background(), orgID, entityName)
+		if err != nil {
+			writeError(fmt.Sprintf("Failed to load fields: %v", err))
+			return
+		}
+
+		var parseResult *service.CSVParseResult
+		if len(options.ColumnMapping) > 0 {
+			parseResult, err = h.csvParser.ParseWithMapping(bytes.NewReader(fileContent), options.ColumnMapping)
+		} else {
+			parseResult, err = h.csvParser.Parse(bytes.NewReader(fileContent), fields)
+		}
+		// Free raw file bytes now that parsing is done
+		fileContent = nil
+
+		if err != nil {
+			writeError(fmt.Sprintf("CSV parse error: %v", err))
+			return
+		}
+		if len(parseResult.Records) == 0 {
+			writeError("No valid records found in CSV")
+			return
+		}
+
+		records := parseResult.Records
+
+		// Send parsing-complete progress
+		writeLine(map[string]interface{}{
+			"type": "progress", "phase": "preparing", "processedRows": 0, "totalRows": len(records), "duplicatesFound": 0,
+		})
+
+		// Run duplicate detection with streaming progress
+		onProgress := func(p service.DuplicateCheckProgress) {
+			writeLine(map[string]interface{}{
+				"type":            "progress",
+				"phase":           p.Phase,
+				"processedRows":   p.ProcessedRows,
+				"totalRows":       p.TotalRows,
+				"duplicatesFound": p.DuplicatesFound,
+			})
 		}
 
 		result, err := h.duplicateService.CheckDuplicatesWithProgress(
 			context.Background(), tenantDB, orgID, entityName, records, onProgress,
 		)
 		if err != nil {
-			errLine, _ := json.Marshal(map[string]interface{}{
-				"type":  "error",
-				"error": fmt.Sprintf("Duplicate detection failed: %v. You can skip duplicate checking and proceed with import.", err),
-			})
-			w.Write(errLine)
-			w.Write([]byte("\n"))
-			w.Flush()
+			writeError(fmt.Sprintf("Duplicate detection failed: %v. You can skip duplicate checking and proceed with import.", err))
 			return
 		}
 
-		resultLine, _ := json.Marshal(map[string]interface{}{
-			"type":   "result",
-			"result": result,
-		})
-		w.Write(resultLine)
-		w.Write([]byte("\n"))
-		w.Flush()
+		writeLine(map[string]interface{}{"type": "result", "result": result})
 	}))
 
 	return nil
