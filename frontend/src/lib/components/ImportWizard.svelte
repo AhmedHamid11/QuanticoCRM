@@ -1503,12 +1503,19 @@
 			{#each duplicateResult.withinFileGroups || [] as group}
 				{@const groupFields = [...new Set(group.rows.flatMap(r => Object.keys(r)))].sort()}
 				{@const matchField = group.groupId.split(':')[0] || ''}
+				{@const differingFields = new Set(groupFields.filter(f => {
+					const vals = group.rows.map(r => r[f] ?? '');
+					return !vals.every(v => v === vals[0]);
+				}))}
 				<div class="border rounded-lg overflow-hidden">
 					<div class="bg-orange-50 px-4 py-3 border-b">
 						<div class="flex items-center gap-2">
 							<h4 class="text-sm font-medium text-orange-800">Duplicate Rows Within File</h4>
 							<span class="px-2 py-0.5 rounded text-xs font-medium text-red-600 bg-red-50">100% match</span>
 							<span class="text-xs text-gray-400">{group.rowIndices.length} rows</span>
+							{#if differingFields.size > 0}
+								<span class="text-xs text-orange-600">&middot; {differingFields.size} field{differingFields.size > 1 ? 's' : ''} differ</span>
+							{/if}
 						</div>
 						<p class="text-xs text-orange-600 mt-1">These rows appear to be duplicates of each other. Select which one to keep, or import all:</p>
 					</div>
@@ -1552,19 +1559,24 @@
 									<summary class="text-xs text-blue-600 cursor-pointer hover:text-blue-800 select-none">
 										Show all {groupFields.length} fields
 									</summary>
-									<div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-										{#each groupFields as field}
-											{@const value = row[field]}
-											<div class="flex justify-between gap-2 py-0.5 {field === matchField ? 'bg-yellow-50 px-1 rounded' : ''}">
-												<span class="text-gray-500 font-medium shrink-0">{field}</span>
-												{#if value != null && value !== ''}
-													<span class="text-gray-900 text-right truncate">{value}</span>
-												{:else}
-													<span class="text-gray-300 text-right italic">(empty)</span>
-												{/if}
-											</div>
-										{/each}
-									</div>
+									<table class="mt-2 w-full text-xs">
+										<tbody>
+											{#each groupFields as field, fieldIdx}
+												{@const value = row[field]}
+												{@const isDiff = differingFields.has(field)}
+												<tr class="{fieldIdx % 2 === 0 ? 'bg-gray-50' : ''} {isDiff ? 'border-l-2 border-l-amber-400' : ''}">
+													<td class="py-1 pl-2 pr-4 font-medium whitespace-nowrap {isDiff ? 'text-amber-800' : 'text-gray-400'}" style="width: 40%">{field}</td>
+													<td class="py-1 pr-2 {isDiff ? 'text-gray-900 font-medium' : value != null && value !== '' ? 'text-gray-600' : 'text-gray-300 italic'}">
+														{#if value != null && value !== ''}
+															{value}
+														{:else}
+															(empty)
+														{/if}
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
 								</details>
 							</div>
 						{/each}
