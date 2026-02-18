@@ -536,7 +536,6 @@
 			};
 			if (useStreaming) {
 				headers['X-Stream-Progress'] = 'true';
-				headers['Accept'] = 'application/x-ndjson';
 			}
 
 			const response = await fetch(`${API_BASE}/entities/${entityName}/import/csv`, {
@@ -546,66 +545,19 @@
 				headers
 			});
 
-			const contentType = response.headers.get('Content-Type') || '';
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || 'Import failed');
+			}
 
-			if (contentType.includes('ndjson') && response.body) {
-				// Streaming mode — read NDJSON lines for real-time progress
-				const reader = response.body.getReader();
-				const decoder = new TextDecoder();
-				let buffer = '';
+			const data = await response.json();
 
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-
-					buffer += decoder.decode(value, { stream: true });
-					const lines = buffer.split('\n');
-					buffer = lines.pop() || '';
-
-					for (const line of lines) {
-						if (!line.trim()) continue;
-						try {
-							const event = JSON.parse(line);
-							if (event.type === 'progress') {
-								importProgress = {
-									processed: event.processed,
-									total: event.total,
-									created: event.created || 0,
-									updated: event.updated || 0,
-									failed: event.failed || 0,
-									skipped: event.skipped || 0,
-									merged: event.merged || 0,
-									startTime: importProgress?.startTime || Date.now(),
-									phase: event.phase || 'importing'
-								};
-							} else if (event.type === 'complete' && event.response) {
-								importResult = event.response;
-							}
-						} catch (e) {
-							console.warn('Failed to parse progress event:', line);
-						}
-					}
-				}
-				// Process remaining buffer
-				if (buffer.trim()) {
-					try {
-						const event = JSON.parse(buffer);
-						if (event.type === 'complete' && event.response) {
-							importResult = event.response;
-						}
-					} catch (e) { /* ignore */ }
-				}
-
-				if (!importResult) {
-					throw new Error('Import stream ended without completion event');
-				}
+			if (data.jobID && useStreaming) {
+				// Async mode — poll for progress
+				importResult = await pollImportProgress(data.jobID, headers);
 			} else {
-				// Non-streaming fallback
-				if (!response.ok) {
-					const errorData = await response.json();
-					throw new Error(errorData.error || 'Import failed');
-				}
-				importResult = await response.json();
+				// Synchronous response (non-streaming modes or small imports)
+				importResult = data;
 			}
 
 			if (importResult?.auditReport) {
@@ -629,6 +581,52 @@
 			loadingMessage = '';
 			importProgress = null;
 		}
+	}
+
+	async function pollImportProgress(jobID: string, headers: Record<string, string>): Promise<any> {
+		const pollInterval = 1500; // 1.5 seconds
+		const maxWait = 30 * 60 * 1000; // 30 minutes timeout
+		const startTime = Date.now();
+
+		while (Date.now() - startTime < maxWait) {
+			await new Promise(r => setTimeout(r, pollInterval));
+			try {
+				const res = await fetch(`${API_BASE}/import/progress/${jobID}`, {
+					credentials: 'include',
+					headers: {
+						'Authorization': headers['Authorization'],
+						'X-CSRF-Token': headers['X-CSRF-Token']
+					}
+				});
+				if (!res.ok) continue;
+				const job = await res.json();
+
+				if (job.progress) {
+					importProgress = {
+						processed: job.progress.processed || 0,
+						total: job.progress.total || 0,
+						created: job.progress.created || 0,
+						updated: job.progress.updated || 0,
+						failed: job.progress.failed || 0,
+						skipped: job.progress.skipped || 0,
+						merged: job.progress.merged || 0,
+						startTime: importProgress?.startTime || Date.now(),
+						phase: job.progress.phase || 'importing'
+					};
+				}
+
+				if (job.status === 'complete' && job.response) {
+					return job.response;
+				}
+				if (job.status === 'error') {
+					throw new Error(job.error || 'Import failed on server');
+				}
+			} catch (e) {
+				if (e instanceof Error && e.message.includes('Import failed')) throw e;
+				// Network hiccup — keep polling
+			}
+		}
+		throw new Error('Import timed out after 30 minutes');
 	}
 
 	function getCsrfToken(): string {

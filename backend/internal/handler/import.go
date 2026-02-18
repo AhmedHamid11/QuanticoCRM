@@ -411,10 +411,10 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 		return c.JSON(response)
 	}
 
-	// Check for streaming progress support (create mode only — other modes are fast enough)
-	streamProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
-	if streamProgress {
-		return h.handleStreamingImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, errors)
+	// Check for async progress support (create mode only — other modes are fast enough)
+	asyncProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
+	if asyncProgress {
+		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, errors)
 	}
 
 	// Process based on mode
@@ -432,8 +432,9 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 	}
 }
 
-// handleStreamingImport handles CSV import with NDJSON streaming progress
-func (h *ImportHandler) handleStreamingImport(
+// handleAsyncImport starts the import in a background goroutine and returns a job ID.
+// The frontend polls GetImportProgress to track progress.
+func (h *ImportHandler) handleAsyncImport(
 	c *fiber.Ctx,
 	orgID, userID, entityName, tableName string,
 	fields []entity.FieldDef,
@@ -443,49 +444,53 @@ func (h *ImportHandler) handleStreamingImport(
 	options ImportCSVRequest,
 	errors []BulkError,
 ) error {
-	// Extract dependencies before entering stream writer
 	db := h.getDB(c)
+	jobID := sfid.New("Imp")
 
-	c.Set("Content-Type", "application/x-ndjson")
-	c.Set("Cache-Control", "no-cache")
-	c.Set("X-Accel-Buffering", "no")
+	// Create progress tracking job
+	importProgressStore.Create(jobID, len(parseResult.Records))
 
-	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
-		writeEvent := func(event ImportProgressEvent) {
-			data, _ := json.Marshal(event)
-			w.Write(data)
-			w.Write([]byte("\n"))
-			w.Flush()
-		}
-
+	// Start processing in background goroutine
+	go func() {
 		var response ImportCSVResponse
 		response.Mode = options.Mode
 		response.Headers = parseResult.Headers
 		response.MappedHeaders = parseResult.MappedHeaders
 		response.TotalRows = parseResult.RowCount
 
-		// Create a progress callback for the batch processing
 		progressFn := func(event ImportProgressEvent) {
-			writeEvent(event)
-			// Touch the connection to prevent idle cleanup during long imports
+			importProgressStore.Update(jobID, event)
 			if h.dbManager != nil {
 				h.dbManager.TouchConnection(orgID)
 			}
 		}
 
-		// Run create mode with streaming progress
 		h.processCreateModeInternal(
 			context.Background(), db, orgID, userID, entityName, tableName,
 			fields, parseResult.Records, failedIndices, now, options, &response, errors, progressFn,
 		)
 
-		// Write final complete event with full response
-		writeEvent(ImportProgressEvent{
-			Type:     "complete",
-			Response: &response,
-		})
+		importProgressStore.Complete(jobID, &response)
+		log.Printf("[IMPORT] Job %s completed: %d created, %d failed", jobID, response.Created, response.Failed)
+	}()
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"jobID": jobID,
+		"total": len(parseResult.Records),
 	})
-	return nil
+}
+
+// GetImportProgress returns the current progress of an async import job.
+func (h *ImportHandler) GetImportProgress(c *fiber.Ctx) error {
+	jobID := c.Params("jobID")
+	if jobID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "jobID required"})
+	}
+	job := importProgressStore.Get(jobID)
+	if job == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Job not found"})
+	}
+	return c.JSON(job)
 }
 
 // processCreateMode handles create (insert) operations (non-streaming path)
@@ -2542,4 +2547,5 @@ func (h *ImportHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/entities/:entity/import/csv/analyze", h.AnalyzeCSV)
 	app.Post("/entities/:entity/import/csv/analyze-lookups", h.AnalyzeLookups)
 	app.Post("/entities/:entity/import/csv/check-duplicates", h.CheckDuplicates)
+	app.Get("/import/progress/:jobID", h.GetImportProgress)
 }
