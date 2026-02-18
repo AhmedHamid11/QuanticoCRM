@@ -352,9 +352,18 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 	response.MappedHeaders = parseResult.MappedHeaders
 	response.TotalRows = parseResult.RowCount
 
+	// Check for async progress support BEFORE lookups and validation (create mode only).
+	// Lookups and validation already ran during the analyze step — skip them here to
+	// return the 202 response immediately instead of blocking for minutes on large imports.
+	asyncProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
+	if asyncProgress {
+		failedIndices := make(map[int]bool)
+		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, nil)
+	}
+
 	// Resolve lookup field values to IDs (e.g., company name -> account ID)
 	if len(options.LookupResolution) > 0 {
-		lookupErrors, err := h.resolveLookups(c.Context(), c, orgID, parseResult.Records, fields, options.LookupResolution)
+		lookupErrors, err := h.resolveLookups(c.Context(), h.getDB(c), orgID, userID, parseResult.Records, fields, options.LookupResolution)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -363,15 +372,6 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 			response.Errors = lookupErrors
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(response)
 		}
-	}
-
-	// Check for async progress support BEFORE validation (create mode only).
-	// Async imports skip per-row validation here — the analyze step already validated.
-	// This avoids blocking the 202 response for minutes on large imports.
-	asyncProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
-	if asyncProgress {
-		failedIndices := make(map[int]bool)
-		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, nil)
 	}
 
 	// Determine validation operation based on mode
@@ -460,6 +460,18 @@ func (h *ImportHandler) handleAsyncImport(
 		response.Headers = parseResult.Headers
 		response.MappedHeaders = parseResult.MappedHeaders
 		response.TotalRows = parseResult.RowCount
+
+		// Resolve lookup fields in background (e.g., company name -> account ID)
+		if len(options.LookupResolution) > 0 {
+			lookupErrors, err := h.resolveLookups(context.Background(), db, orgID, userID, parseResult.Records, fields, options.LookupResolution)
+			if err != nil {
+				importProgressStore.SetError(jobID, fmt.Sprintf("Lookup resolution failed: %v", err))
+				return
+			}
+			if len(lookupErrors) > 0 {
+				errors = append(errors, lookupErrors...)
+			}
+		}
 
 		progressFn := func(event ImportProgressEvent) {
 			importProgressStore.Update(jobID, event)
@@ -1835,8 +1847,8 @@ func (h *ImportHandler) PreviewCSV(c *fiber.Ctx) error {
 // by the specified match field and replaces the value with the actual record ID
 func (h *ImportHandler) resolveLookups(
 	ctx context.Context,
-	c *fiber.Ctx,
-	orgID string,
+	db *sql.DB,
+	orgID, userID string,
 	records []map[string]interface{},
 	fields []entity.FieldDef,
 	lookupResolution map[string]LookupResolution,
@@ -1931,7 +1943,7 @@ func (h *ImportHandler) resolveLookups(
 			)
 
 			var foundID, foundName string
-			err := h.getDB(c).QueryRowContext(ctx, query, orgID, valueStr).Scan(&foundID, &foundName)
+			err := db.QueryRowContext(ctx, query, orgID, valueStr).Scan(&foundID, &foundName)
 			if err != nil {
 				if err == sql.ErrNoRows {
 					// Record not found - check if we should create it
@@ -1947,7 +1959,7 @@ func (h *ImportHandler) resolveLookups(
 						newData[resolution.MatchField] = valueStr
 
 						// Create the new record
-						newID, createErr := h.createRelatedRecord(ctx, c, orgID, relatedEntity, newData)
+						newID, createErr := h.createRelatedRecord(ctx, db, orgID, userID, relatedEntity, newData)
 						if createErr != nil {
 							errors = append(errors, BulkError{
 								Index: rowIdx,
@@ -2011,15 +2023,14 @@ func (h *ImportHandler) resolveLookups(
 // createRelatedRecord creates a new record in a related entity table during import
 func (h *ImportHandler) createRelatedRecord(
 	ctx context.Context,
-	c *fiber.Ctx,
-	orgID string,
+	db *sql.DB,
+	orgID, userID string,
 	entityName string,
 	data map[string]interface{},
 ) (string, error) {
-	userID := c.Locals("userID").(string)
-
-	// Get field definitions for the related entity
-	fields, err := h.getMetadataRepo(c).ListFields(ctx, orgID, entityName)
+	// Get field definitions for the related entity using the provided db
+	metaRepo := h.metadataRepo.WithRawDB(db)
+	fields, err := metaRepo.ListFields(ctx, orgID, entityName)
 	if err != nil {
 		return "", fmt.Errorf("failed to get fields for %s: %w", entityName, err)
 	}
@@ -2060,7 +2071,7 @@ func (h *ImportHandler) createRelatedRecord(
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
 		tableName, strings.Join(columns, ", "), strings.Join(placeholders, ", "))
 
-	_, err = h.getDB(c).ExecContext(ctx, query, values...)
+	_, err = db.ExecContext(ctx, query, values...)
 	if err != nil {
 		return "", err
 	}
