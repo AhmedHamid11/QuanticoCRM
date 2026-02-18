@@ -365,6 +365,15 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 		}
 	}
 
+	// Check for async progress support BEFORE validation (create mode only).
+	// Async imports skip per-row validation here — the analyze step already validated.
+	// This avoids blocking the 202 response for minutes on large imports.
+	asyncProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
+	if asyncProgress {
+		failedIndices := make(map[int]bool)
+		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, nil)
+	}
+
 	// Determine validation operation based on mode
 	validationOp := "CREATE"
 	if mode == ImportModeUpdate || mode == ImportModeUpsert {
@@ -409,12 +418,6 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 		response.Failed = len(errors)
 		response.Errors = errors
 		return c.JSON(response)
-	}
-
-	// Check for async progress support (create mode only — other modes are fast enough)
-	asyncProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
-	if asyncProgress {
-		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, errors)
 	}
 
 	// Process based on mode
