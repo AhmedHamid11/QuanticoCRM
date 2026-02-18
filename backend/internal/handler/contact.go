@@ -128,6 +128,7 @@ func (h *ContactHandler) List(c *fiber.Ctx) error {
 
 	result, err := h.getRepo(c).ListByOrg(c.Context(), orgID, params)
 	if err != nil {
+		log.Printf("[ERROR] %s %s: %v", c.Method(), c.Path(), err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -172,6 +173,7 @@ func (h *ContactHandler) Get(c *fiber.Ctx) error {
 
 	contact, err := h.getRepo(c).GetByID(c.Context(), orgID, id)
 	if err != nil {
+		log.Printf("[ERROR] %s %s: %v", c.Method(), c.Path(), err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -243,6 +245,7 @@ func (h *ContactHandler) Create(c *fiber.Ctx) error {
 
 	contact, err := h.getRepo(c).Create(c.Context(), orgID, input, userID)
 	if err != nil {
+		log.Printf("[ERROR] %s %s: %v", c.Method(), c.Path(), err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -306,6 +309,7 @@ func (h *ContactHandler) Update(c *fiber.Ctx) error {
 
 	contact, err := h.getRepo(c).Update(c.Context(), orgID, id, input, userID)
 	if err != nil {
+		log.Printf("[ERROR] %s %s: %v", c.Method(), c.Path(), err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})
@@ -387,6 +391,7 @@ func (h *ContactHandler) ListTasks(c *fiber.Ctx) error {
 	// First verify the contact exists
 	contact, err := h.getRepo(c).GetByID(c.Context(), orgID, contactID)
 	if err != nil {
+		log.Printf("[ERROR] %s %s: %v", c.Method(), c.Path(), err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})

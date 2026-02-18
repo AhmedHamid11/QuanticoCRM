@@ -110,10 +110,10 @@ func (r *ContactRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Co
 	// LEFT JOIN accounts to resolve account display name dynamically
 	query := `
 		SELECT c.id, c.org_id, COALESCE(c.salutation_name, ''), COALESCE(c.first_name, ''), COALESCE(c.last_name, ''),
-			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), c.do_not_call,
+			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), COALESCE(c.do_not_call, 0),
 			COALESCE(c.description, ''), COALESCE(c.address_street, ''), COALESCE(c.address_city, ''), COALESCE(c.address_state, ''),
 			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(a.name, c.account_name, ''), COALESCE(c.assigned_user_id, ''),
-			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, c.deleted,
+			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, COALESCE(c.deleted, 0),
 			COALESCE(c.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
@@ -226,10 +226,10 @@ func (r *ContactRepo) ListByOrg(ctx context.Context, orgID string, params entity
 	offset := (params.Page - 1) * params.PageSize
 	selectQuery := fmt.Sprintf(`
 		SELECT c.id, c.org_id, COALESCE(c.salutation_name, ''), COALESCE(c.first_name, ''), COALESCE(c.last_name, ''),
-			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), c.do_not_call,
+			COALESCE(c.email_address, ''), COALESCE(c.phone_number, ''), COALESCE(c.phone_number_type, ''), COALESCE(c.do_not_call, 0),
 			COALESCE(c.description, ''), COALESCE(c.address_street, ''), COALESCE(c.address_city, ''), COALESCE(c.address_state, ''),
 			COALESCE(c.address_country, ''), COALESCE(c.address_postal_code, ''), COALESCE(c.account_id, ''), COALESCE(a.name, c.account_name, ''), COALESCE(c.assigned_user_id, ''),
-			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, c.deleted,
+			COALESCE(c.created_by_id, ''), COALESCE(c.modified_by_id, ''), c.created_at, c.modified_at, COALESCE(c.deleted, 0),
 			COALESCE(c.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name

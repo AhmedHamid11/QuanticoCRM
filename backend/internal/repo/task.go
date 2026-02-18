@@ -111,7 +111,7 @@ func (r *TaskRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Task,
 		SELECT t.id, t.org_id, t.subject, t.description, t.status, t.priority, t.type,
 			t.due_date, t.parent_id, t.parent_type, COALESCE(t.parent_name, ''),
 			t.gmail_message_id, t.assigned_user_id, t.created_by_id, t.modified_by_id,
-			t.created_at, t.modified_at, t.deleted, COALESCE(t.custom_fields, '{}'),
+			t.created_at, t.modified_at, COALESCE(t.deleted, 0), COALESCE(t.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
 		FROM tasks t
@@ -257,7 +257,7 @@ func (r *TaskRepo) ListByOrg(ctx context.Context, orgID string, params entity.Ta
 		SELECT t.id, t.org_id, t.subject, t.description, t.status, t.priority, t.type,
 			t.due_date, t.parent_id, t.parent_type, COALESCE(t.parent_name, ''),
 			t.gmail_message_id, t.assigned_user_id, t.created_by_id, t.modified_by_id,
-			t.created_at, t.modified_at, t.deleted, COALESCE(t.custom_fields, '{}'),
+			t.created_at, t.modified_at, COALESCE(t.deleted, 0), COALESCE(t.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
 		%s ORDER BY t.%s %s LIMIT ? OFFSET ?

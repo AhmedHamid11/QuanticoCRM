@@ -120,7 +120,7 @@ func (r *AccountRepo) GetByID(ctx context.Context, orgID, id string) (*entity.Ac
 			COALESCE(a.shipping_address_street, ''), COALESCE(a.shipping_address_city, ''), COALESCE(a.shipping_address_state, ''),
 			COALESCE(a.shipping_address_country, ''), COALESCE(a.shipping_address_postal_code, ''),
 			COALESCE(a.description, ''), a.stage, a.assigned_user_id, a.created_by_id, a.modified_by_id,
-			a.created_at, a.modified_at, a.deleted, COALESCE(a.custom_fields, '{}'),
+			a.created_at, a.modified_at, COALESCE(a.deleted, 0), COALESCE(a.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
 		FROM accounts a
@@ -240,7 +240,7 @@ func (r *AccountRepo) ListByOrg(ctx context.Context, orgID string, params entity
 			COALESCE(a.shipping_address_street, ''), COALESCE(a.shipping_address_city, ''), COALESCE(a.shipping_address_state, ''),
 			COALESCE(a.shipping_address_country, ''), COALESCE(a.shipping_address_postal_code, ''),
 			COALESCE(a.description, ''), a.stage, a.assigned_user_id, a.created_by_id, a.modified_by_id,
-			a.created_at, a.modified_at, a.deleted, COALESCE(a.custom_fields, '{}'),
+			a.created_at, a.modified_at, COALESCE(a.deleted, 0), COALESCE(a.custom_fields, '{}'),
 			'' AS created_by_name,
 			'' AS modified_by_name
 		%s ORDER BY a.%s %s LIMIT ? OFFSET ?
