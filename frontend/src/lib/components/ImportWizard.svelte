@@ -173,12 +173,23 @@
 	let auditRows: string[][] = $state([]);
 	let selectedAuditFields: Set<string> = $state(new Set());
 
+	const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB - must match backend UploadBodyLimit
+
 	// Handle file selection
 	async function handleFileSelect(event: Event) {
 		const input = event.target as HTMLInputElement;
 		if (!input.files || input.files.length === 0) return;
 
-		file = input.files[0];
+		const selected = input.files[0];
+
+		if (selected.size > MAX_FILE_SIZE) {
+			const sizeMB = (selected.size / (1024 * 1024)).toFixed(1);
+			error = `File is too large (${sizeMB} MB). Maximum allowed size is 10 MB. Please split your file into smaller chunks and import them separately.`;
+			input.value = '';
+			return;
+		}
+
+		file = selected;
 		error = '';
 		loading = true;
 
