@@ -54,6 +54,10 @@ func main() {
 		)
 	`)
 	if err != nil {
+		if isTursoPlanLimitError(err) {
+			log.Printf("[MIGRATE] WARNING: Turso plan limit reached — operations are blocked. Skipping migrations. App will start without them.")
+			return
+		}
 		log.Fatalf("Failed to create migrations table: %v", err)
 	}
 
@@ -61,6 +65,10 @@ func main() {
 	applied := make(map[string]bool)
 	rows, err := db.Query("SELECT name FROM _migrations")
 	if err != nil {
+		if isTursoPlanLimitError(err) {
+			log.Printf("[MIGRATE] WARNING: Turso plan limit reached — reads are blocked. Skipping migrations. App will start without them.")
+			return
+		}
 		log.Fatalf("Failed to query migrations: %v", err)
 	}
 	for rows.Next() {
@@ -191,4 +199,13 @@ func isTableNotExistsError(err error) bool {
 	return strings.Contains(errStr, "no such table") ||
 		strings.Contains(errStr, "table does not exist") ||
 		strings.Contains(errStr, "table not found")
+}
+
+// isTursoPlanLimitError detects when Turso blocks operations due to plan limits
+func isTursoPlanLimitError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "operations are forbidden") ||
+		strings.Contains(errStr, "reads are blocked") ||
+		strings.Contains(errStr, "writes are blocked") ||
+		strings.Contains(errStr, "need to upgrade your plan")
 }

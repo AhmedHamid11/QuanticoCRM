@@ -21,5 +21,6 @@ COPY --from=builder /app/migrate /app/migrate
 COPY --from=builder /app/static /app/static
 WORKDIR /app
 EXPOSE 8080
-# Run migrations (embedded in binary) then start API
-CMD /app/migrate && /app/api
+# Run migrations then start API — semicolon ensures API starts even if migrations
+# fail (e.g. Turso plan limits). The app handles missing schema gracefully.
+CMD /app/migrate; /app/api
