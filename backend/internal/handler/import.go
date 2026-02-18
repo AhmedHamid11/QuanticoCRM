@@ -1468,26 +1468,58 @@ func (h *ImportHandler) AnalyzeLookups(c *fiber.Ctx) error {
 			}
 		}
 
-		// Query to check which values exist
+		// Batch-query to find which values already exist (avoids per-value round-trips)
 		relatedTable := util.GetTableName(relatedEntity)
 		matchColumn := util.CamelToSnake(resolution.MatchField)
 
-		for matchValue, rowIndices := range values {
-			// Check if this value exists
+		// Collect all unique values into a slice for batching
+		allValues := make([]string, 0, len(values))
+		for v := range values {
+			allValues = append(allValues, v)
+		}
+
+		// Query in batches of 500 (SQLite parameter limit is 999)
+		existingValues := make(map[string]bool)
+		const batchSize = 500
+		for i := 0; i < len(allValues); i += batchSize {
+			end := i + batchSize
+			if end > len(allValues) {
+				end = len(allValues)
+			}
+			batch := allValues[i:end]
+
+			placeholders := make([]string, len(batch))
+			args := make([]interface{}, 0, len(batch)+1)
+			args = append(args, orgID)
+			for j, v := range batch {
+				placeholders[j] = "LOWER(?)"
+				args = append(args, v)
+			}
+
 			query := fmt.Sprintf(
-				"SELECT COUNT(*) FROM %s WHERE org_id = ? AND LOWER(%s) = LOWER(?)",
+				"SELECT LOWER(%s) FROM %s WHERE org_id = ? AND LOWER(%s) IN (%s)",
+				quoteIdentifier(matchColumn),
 				relatedTable,
 				quoteIdentifier(matchColumn),
+				strings.Join(placeholders, ","),
 			)
 
-			var count int
-			err := h.getDB(c).QueryRowContext(c.Context(), query, orgID, matchValue).Scan(&count)
+			rows, err := h.getDB(c).QueryContext(c.Context(), query, args...)
 			if err != nil {
 				continue
 			}
+			for rows.Next() {
+				var val string
+				if err := rows.Scan(&val); err == nil {
+					existingValues[val] = true
+				}
+			}
+			rows.Close()
+		}
 
-			if count == 0 {
-				// This value doesn't exist - add to missing list
+		// Any value not found is missing
+		for matchValue, rowIndices := range values {
+			if !existingValues[strings.ToLower(matchValue)] {
 				missingLookups = append(missingLookups, MissingLookup{
 					FieldName:      fieldName,
 					RelatedEntity:  relatedEntity,
