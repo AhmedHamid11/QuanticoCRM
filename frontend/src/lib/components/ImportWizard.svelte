@@ -249,6 +249,8 @@
 			const mapping: Record<string, string> = {};
 			preview.headers.forEach((header: string, idx: number) => {
 				if (preview.mappedHeaders[idx]) {
+					// Skip auto-mapping to 'id' field in insert mode (ID is auto-generated)
+					if (importMode === 'create' && preview.mappedHeaders[idx] === 'id') return;
 					mapping[header] = preview.mappedHeaders[idx];
 				}
 			});
@@ -1089,7 +1091,7 @@
 												class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 											>
 												<option value="">-- Skip this column --</option>
-												{#each availableFields as field}
+												{#each availableFields.filter(f => !(importMode === 'create' && f.name === 'id')) as field}
 													<option value={field.name}>{field.label || field.name}</option>
 												{/each}
 											</select>
