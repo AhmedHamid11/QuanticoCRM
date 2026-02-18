@@ -22,9 +22,7 @@ const STORAGE_KEY = 'quantico_auth';
 // Mutex to prevent concurrent refresh attempts (causes token reuse detection)
 let refreshPromise: Promise<boolean> | null = null;
 
-// Cross-tab refresh coordination via localStorage lock.
-// Prevents two browser tabs from refreshing simultaneously, which causes
-// the backend to detect "token reuse" and revoke the entire session family.
+// Cross-tab refresh coordination via localStorage lock (fallback).
 const REFRESH_LOCK_KEY = 'quantico_refresh_lock';
 const LOCK_TTL_MS = 10000; // 10s max lock hold time
 
@@ -64,27 +62,54 @@ function waitForRefreshLock(): Promise<void> {
 	});
 }
 
-// Silent refresh function - declared here so it can be used before definition
+// Perform the actual refresh with cross-tab coordination
+async function doCoordinatedRefresh(): Promise<boolean> {
+	// Use Web Locks API for atomic cross-tab coordination (supported in all modern browsers)
+	if (typeof navigator !== 'undefined' && navigator.locks) {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), LOCK_TTL_MS);
+		try {
+			return await navigator.locks.request(
+				'quantico-refresh-token',
+				{ signal: controller.signal },
+				async () => doSilentRefresh()
+			);
+		} catch (e) {
+			// Lock aborted (timeout) or not available — fall through to localStorage
+			if (e instanceof DOMException && e.name === 'AbortError') {
+				console.warn('[AUTH] Web Lock timed out, falling back to localStorage lock');
+			} else {
+				throw e;
+			}
+		} finally {
+			clearTimeout(timeout);
+		}
+	}
+
+	// Fallback: localStorage-based coordination
+	if (isRefreshLockedByOtherTab()) {
+		await waitForRefreshLock();
+	}
+	setRefreshLock();
+	try {
+		return await doSilentRefresh();
+	} finally {
+		clearRefreshLock();
+	}
+}
+
+// Silent refresh function — single entry point for all refresh attempts.
+// In-tab mutex: all concurrent callers share one promise.
+// Cross-tab mutex: Web Locks API (atomic) with localStorage fallback.
 async function silentRefresh(): Promise<boolean> {
 	// In-tab mutex: if this tab is already refreshing, wait for the same promise
 	if (refreshPromise) {
 		return refreshPromise;
 	}
 
-	// Cross-tab mutex: if another tab is refreshing, wait for it to finish
-	// then refresh ourselves (each tab needs its own access token in memory)
-	if (isRefreshLockedByOtherTab()) {
-		await waitForRefreshLock();
-	}
-
-	refreshPromise = (async () => {
-		setRefreshLock();
-		try {
-			return await doSilentRefresh();
-		} finally {
-			clearRefreshLock();
-		}
-	})();
+	// Set refreshPromise synchronously (before any await) so all concurrent
+	// in-tab callers see it and coalesce onto the same promise.
+	refreshPromise = doCoordinatedRefresh();
 	try {
 		return await refreshPromise;
 	} finally {
