@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
@@ -67,9 +69,14 @@ func NewCORS(allowOrigins []string, isDevelopment bool) fiber.Handler {
 	})
 }
 
-// BodyLimit returns middleware that limits request body size
+// BodyLimit returns middleware that limits request body size.
+// Import/upload paths are excluded — they use Fiber's global BodyLimit (10 MB) instead.
 func BodyLimit(limit int) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		path := c.Path()
+		if strings.Contains(path, "/import/csv") {
+			return c.Next()
+		}
 		if len(c.Body()) > limit {
 			return c.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
 				"error": "Request body too large",
