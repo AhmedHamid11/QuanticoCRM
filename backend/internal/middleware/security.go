@@ -12,8 +12,9 @@ const (
 	// DefaultBodyLimit is the default request body size limit (1MB)
 	DefaultBodyLimit = 1 * 1024 * 1024
 
-	// UploadBodyLimit is the body size limit for file uploads (10MB)
-	UploadBodyLimit = 10 * 1024 * 1024
+	// UploadBodyLimit is the body size limit for file uploads (50MB)
+	// Must accommodate large CSV imports (48K+ records)
+	UploadBodyLimit = 50 * 1024 * 1024
 )
 
 // HSTS returns middleware that adds HTTP Strict Transport Security header

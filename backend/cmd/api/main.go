@@ -338,8 +338,8 @@ func main() {
 
 	// Create Fiber app with environment-aware error handling
 	app := fiber.New(fiber.Config{
-		// SECURITY: Maximum request body size (10MB for upload endpoints)
-		// Individual routes can apply stricter limits via BodyLimit middleware
+		// Maximum request body size (50MB for large CSV imports)
+		// Individual routes apply stricter 1MB limit via BodyLimit middleware
 		BodyLimit: middleware.UploadBodyLimit,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			// Check if it's already an APIError (from handlers using NewAPIError)
