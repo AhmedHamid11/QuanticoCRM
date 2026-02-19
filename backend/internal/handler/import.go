@@ -503,6 +503,15 @@ func (h *ImportHandler) handleAsyncImport(
 
 	// Start processing in background goroutine
 	go func() {
+		// Recover from panics so progress doesn't stay stuck at 0% forever
+		defer func() {
+			if r := recover(); r != nil {
+				errMsg := fmt.Sprintf("Import crashed: %v", r)
+				log.Printf("[IMPORT] PANIC in job %s: %v", jobID, r)
+				importProgressStore.SetError(jobID, errMsg)
+			}
+		}()
+
 		var response ImportCSVResponse
 		response.Mode = options.Mode
 		response.Headers = parseResult.Headers
@@ -514,6 +523,11 @@ func (h *ImportHandler) handleAsyncImport(
 
 		// Resolve lookup fields in background (e.g., company name -> account ID)
 		if len(options.LookupResolution) > 0 {
+			importProgressStore.Update(jobID, ImportProgressEvent{
+				Type:  "progress",
+				Phase: "resolving_lookups",
+				Total: len(parseResult.Records),
+			})
 			lookupErrors, err := h.resolveLookups(context.Background(), db, orgID, userID, parseResult.Records, fields, options.LookupResolution, asyncBudget)
 			if err != nil {
 				importProgressStore.SetError(jobID, fmt.Sprintf("Lookup resolution failed: %v", err))
@@ -530,6 +544,13 @@ func (h *ImportHandler) handleAsyncImport(
 				h.dbManager.TouchConnection(orgID)
 			}
 		}
+
+		// Emit initial progress so frontend knows processing has started
+		progressFn(ImportProgressEvent{
+			Type:  "progress",
+			Phase: "importing",
+			Total: len(parseResult.Records),
+		})
 
 		h.processCreateModeInternal(
 			context.Background(), db, orgID, userID, entityName, tableName,

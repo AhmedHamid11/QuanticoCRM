@@ -667,7 +667,7 @@
 					throw new Error(job.error || 'Import failed on server');
 				}
 			} catch (e) {
-				if (e instanceof Error && e.message.includes('Import failed')) throw e;
+				if (e instanceof Error && (e.message.includes('Import failed') || e.message.includes('Import crashed') || e.message.includes('Import timed'))) throw e;
 				// Network hiccup — keep polling
 			}
 		}
@@ -1935,7 +1935,9 @@
 					{@const rate = elapsed > 1000 && importProgress.processed > 0 ? Math.round(importProgress.processed / (elapsed / 1000)) : 0}
 					{@const eta = rate > 0 ? Math.round((importProgress.total - importProgress.processed) / rate * 1000) : 0}
 					<div class="text-center">
-						<p class="text-lg font-semibold text-gray-800">Importing records...</p>
+						<p class="text-lg font-semibold text-gray-800">
+							{importProgress.phase === 'resolving_lookups' ? 'Resolving lookups...' : 'Importing records...'}
+						</p>
 
 						<!-- Progress bar -->
 						<div class="w-full bg-gray-200 rounded-full h-3 mt-4 overflow-hidden">
