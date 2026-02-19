@@ -1317,6 +1317,7 @@ func (s *ProvisioningService) createLayout(ctx context.Context, orgID, entity, l
 
 // ensureOwnerFieldsInLayouts patches existing detail layouts to include assignedUserId if missing.
 // This handles orgs provisioned before owner fields were added to the default layout.
+// Supports both v1 (flat field array) and v2 (sections with rows) layout formats.
 func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, orgID string) {
 	entities := []string{"Contact", "Account", "Task", "Quote"}
 	for _, entityName := range entities {
@@ -1334,29 +1335,48 @@ func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, or
 			continue
 		}
 
-		// Parse layout JSON and append assignedUserId to the first section
-		var sections []map[string]interface{}
-		if err := json.Unmarshal([]byte(layoutData), &sections); err != nil {
-			log.Printf("[Provisioning] WARNING: Failed to parse detail layout for %s (org=%s): %v", entityName, orgID, err)
-			continue
-		}
+		trimmed := strings.TrimSpace(layoutData)
+		var updated string
 
-		if len(sections) > 0 {
-			rows, ok := sections[0]["rows"].([]interface{})
-			if ok {
-				newRow := []interface{}{map[string]interface{}{"field": "assignedUserId"}}
-				sections[0]["rows"] = append(rows, newRow)
+		// Try v2 format first: [{label:"Overview", rows:[[{field:"name"}]]}]
+		var sections []map[string]interface{}
+		if err := json.Unmarshal([]byte(trimmed), &sections); err == nil && len(sections) > 0 {
+			if _, hasLabel := sections[0]["label"]; hasLabel {
+				// v2 sections format — append to first section's rows
+				rows, ok := sections[0]["rows"].([]interface{})
+				if ok {
+					newRow := []interface{}{map[string]interface{}{"field": "assignedUserId"}}
+					sections[0]["rows"] = append(rows, newRow)
+				}
+				b, err := json.Marshal(sections)
+				if err != nil {
+					continue
+				}
+				updated = string(b)
 			}
 		}
 
-		updated, err := json.Marshal(sections)
-		if err != nil {
+		// If not v2, try v1 format: ["fieldName1","fieldName2",...]
+		if updated == "" {
+			var fields []string
+			if err := json.Unmarshal([]byte(trimmed), &fields); err == nil {
+				fields = append(fields, "assignedUserId")
+				b, err := json.Marshal(fields)
+				if err != nil {
+					continue
+				}
+				updated = string(b)
+			}
+		}
+
+		if updated == "" {
+			log.Printf("[Provisioning] WARNING: Could not parse detail layout for %s (org=%s), skipping owner field injection", entityName, orgID)
 			continue
 		}
 
 		_, err = s.db.ExecContext(ctx,
 			`UPDATE layout_defs SET layout_data = ?, modified_at = datetime('now') WHERE org_id = ? AND entity_name = ? AND layout_type = 'detail'`,
-			string(updated), orgID, entityName,
+			updated, orgID, entityName,
 		)
 		if err != nil {
 			log.Printf("[Provisioning] ERROR: Failed to update layout for %s (org=%s): %v", entityName, orgID, err)
