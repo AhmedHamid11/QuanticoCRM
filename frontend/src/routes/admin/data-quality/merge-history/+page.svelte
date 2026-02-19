@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { mergeHistory, mergeUndo, type MergeHistoryEntry } from '$lib/api/data-quality';
+	import { mergeHistory, mergeUndo, mergeHistoryExport, type MergeHistoryEntry } from '$lib/api/data-quality';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	// State
@@ -11,6 +11,7 @@
 	let pageSize = $state(20);
 	let entityFilter = $state('');
 	let undoingSnapshot = $state<string | null>(null);
+	let downloading = $state(false);
 
 	// Available entity types for filter
 	const entityTypes = ['', 'Contact', 'Account', 'Lead', 'Opportunity', 'Task', 'Meeting', 'Call', 'Email'];
@@ -121,6 +122,19 @@
 		loadHistory();
 	}
 
+	async function handleDownloadReport() {
+		downloading = true;
+		try {
+			const params: any = {};
+			if (entityFilter) params.entityType = entityFilter;
+			await mergeHistoryExport(params);
+		} catch (err: any) {
+			toast.error(`Failed to download report: ${err.message}`);
+		} finally {
+			downloading = false;
+		}
+	}
+
 	function handlePageChange(newPage: number) {
 		page = newPage;
 		loadHistory();
@@ -141,20 +155,37 @@
 
 	<!-- Filters -->
 	<div class="bg-white rounded-lg shadow p-4">
-		<div class="flex items-center gap-4">
-			<label for="history-entity-filter" class="text-sm font-medium text-gray-700">Entity Type:</label>
-			<select
-				id="history-entity-filter"
-				name="history-entity-filter"
-				bind:value={entityFilter}
-				onchange={handleEntityFilterChange}
-				class="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-4">
+				<label for="history-entity-filter" class="text-sm font-medium text-gray-700">Entity Type:</label>
+				<select
+					id="history-entity-filter"
+					name="history-entity-filter"
+					bind:value={entityFilter}
+					onchange={handleEntityFilterChange}
+					class="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+				>
+					<option value="">All</option>
+					{#each entityTypes.slice(1) as type}
+						<option value={type}>{type}</option>
+					{/each}
+				</select>
+			</div>
+			<button
+				onclick={handleDownloadReport}
+				disabled={downloading || loading || (entries.length === 0 && !loading)}
+				class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
 			>
-				<option value="">All</option>
-				{#each entityTypes.slice(1) as type}
-					<option value={type}>{type}</option>
-				{/each}
-			</select>
+				{#if downloading}
+					<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+					Downloading...
+				{:else}
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+					</svg>
+					Download Report
+				{/if}
+			</button>
 		</div>
 	</div>
 

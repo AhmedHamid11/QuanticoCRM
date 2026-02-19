@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
@@ -298,11 +299,51 @@ func (h *MergeHandler) History(c *fiber.Ctx) error {
 	})
 }
 
+// ExportHistory handles GET /api/v1/merge/history/export
+// Returns a CSV file of all merge history for download
+func (h *MergeHandler) ExportHistory(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityType := c.Query("entityType", "")
+
+	// Fetch all snapshots (unpaginated, capped at 10k)
+	snapshots, err := h.getMergeRepo(c).ListAllByOrg(c.Context(), orgID, entityType, 10000)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			// Auto-provision and retry
+			if err2 := dedup.EnsureDedupSchema(c.Context(), h.getDBConn(c)); err2 == nil {
+				snapshots, err = h.getMergeRepo(c).ListAllByOrg(c.Context(), orgID, entityType, 10000)
+			}
+			if err != nil {
+				// Return empty CSV with just a header
+				snapshots = []entity.MergeSnapshot{}
+			}
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
+
+	// Generate CSV
+	csvBytes := h.mergeService.GenerateMergeReport(snapshots)
+
+	// Build filename
+	entitySlug := "all"
+	if entityType != "" {
+		entitySlug = strings.ToLower(entityType)
+	}
+	dateStr := time.Now().UTC().Format("2006-01-02")
+	filename := fmt.Sprintf("merge-history-%s-%s.csv", entitySlug, dateStr)
+
+	c.Set("Content-Type", "text/csv")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	return c.Send(csvBytes)
+}
+
 // RegisterRoutes registers merge routes
 func (h *MergeHandler) RegisterRoutes(app fiber.Router) {
 	merge := app.Group("/merge")
 	merge.Post("/preview", h.Preview)
 	merge.Post("/execute", h.Execute)
 	merge.Post("/undo/:snapshotId", h.Undo)
+	merge.Get("/history/export", h.ExportHistory)
 	merge.Get("/history", h.History)
 }

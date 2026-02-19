@@ -1,10 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -412,6 +416,162 @@ func (s *MergeService) UndoMerge(ctx context.Context, db *sql.DB, orgID, userID,
 	}
 
 	return nil
+}
+
+// GenerateMergeReport creates a CSV report of all merge operations.
+// Each snapshot produces 1 survivor row + N duplicate rows. Field data comes from snapshot JSON.
+func (s *MergeService) GenerateMergeReport(snapshots []entity.MergeSnapshot) []byte {
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	// First pass: collect all unique field keys across all snapshots
+	type reportRow struct {
+		RowNumber        int
+		MergeDate        string
+		MergeGroup       string
+		Action           string
+		RecordID         string
+		SurvivorRecordID string
+		MergedBy         string
+		CanUndo          string
+		EntityType       string
+		Fields           map[string]interface{}
+	}
+
+	var rows []reportRow
+	fieldSeen := map[string]bool{}
+	rowNum := 0
+
+	for _, snapshot := range snapshots {
+		// Parse survivor_before JSON
+		var survivorData map[string]interface{}
+		if err := json.Unmarshal([]byte(snapshot.SurvivorBefore), &survivorData); err != nil {
+			log.Printf("WARNING: malformed survivor_before JSON in snapshot %s: %v", snapshot.ID, err)
+			continue
+		}
+
+		// Parse duplicate_snapshots JSON
+		var dupSnapshots []map[string]interface{}
+		if err := json.Unmarshal([]byte(snapshot.DuplicateSnapshots), &dupSnapshots); err != nil {
+			log.Printf("WARNING: malformed duplicate_snapshots JSON in snapshot %s: %v", snapshot.ID, err)
+			continue
+		}
+
+		// Parse duplicate_ids JSON
+		var dupIDs []string
+		if err := json.Unmarshal([]byte(snapshot.DuplicateIDs), &dupIDs); err != nil {
+			log.Printf("WARNING: malformed duplicate_ids JSON in snapshot %s: %v", snapshot.ID, err)
+			continue
+		}
+
+		canUndo := "Yes"
+		if snapshot.ConsumedAt != nil {
+			canUndo = "No"
+		}
+
+		mergeDate := snapshot.CreatedAt.Format("2006-01-02")
+
+		// Collect field keys from survivor
+		for k := range survivorData {
+			if !isSystemField(k) {
+				fieldSeen[k] = true
+			}
+		}
+
+		// Survivor row
+		rowNum++
+		rows = append(rows, reportRow{
+			RowNumber:        rowNum,
+			MergeDate:        mergeDate,
+			MergeGroup:       snapshot.ID,
+			Action:           "Survivor",
+			RecordID:         snapshot.SurvivorID,
+			SurvivorRecordID: snapshot.SurvivorID,
+			MergedBy:         snapshot.MergedByID,
+			CanUndo:          canUndo,
+			EntityType:       snapshot.EntityType,
+			Fields:           survivorData,
+		})
+
+		// Duplicate rows
+		for i, dupID := range dupIDs {
+			var dupData map[string]interface{}
+			if i < len(dupSnapshots) {
+				dupData = dupSnapshots[i]
+				for k := range dupData {
+					if !isSystemField(k) {
+						fieldSeen[k] = true
+					}
+				}
+			}
+
+			rowNum++
+			rows = append(rows, reportRow{
+				RowNumber:        rowNum,
+				MergeDate:        mergeDate,
+				MergeGroup:       snapshot.ID,
+				Action:           "Merged (Deleted)",
+				RecordID:         dupID,
+				SurvivorRecordID: snapshot.SurvivorID,
+				MergedBy:         snapshot.MergedByID,
+				CanUndo:          canUndo,
+				EntityType:       snapshot.EntityType,
+				Fields:           dupData,
+			})
+		}
+	}
+
+	// Sort field keys alphabetically
+	var fieldOrder []string
+	for k := range fieldSeen {
+		fieldOrder = append(fieldOrder, k)
+	}
+	sort.Strings(fieldOrder)
+
+	// Write header
+	header := []string{"Row Number", "Merge Date", "Merge Group", "Action", "Record ID", "Survivor Record ID", "Merged By", "Can Undo", "Entity Type"}
+	header = append(header, fieldOrder...)
+	writer.Write(header)
+
+	// Write rows
+	for _, r := range rows {
+		row := []string{
+			fmt.Sprintf("%d", r.RowNumber),
+			r.MergeDate,
+			r.MergeGroup,
+			r.Action,
+			r.RecordID,
+			r.SurvivorRecordID,
+			r.MergedBy,
+			r.CanUndo,
+			r.EntityType,
+		}
+		for _, key := range fieldOrder {
+			val := ""
+			if r.Fields != nil {
+				if v, ok := r.Fields[key]; ok && v != nil {
+					val = fmt.Sprintf("%v", v)
+				}
+			}
+			row = append(row, val)
+		}
+		writer.Write(row)
+	}
+
+	writer.Flush()
+	return buf.Bytes()
+}
+
+// isSystemField returns true for fields that should be excluded from the dynamic columns
+func isSystemField(name string) bool {
+	switch name {
+	case "id", "orgId", "org_id", "createdAt", "created_at", "modifiedAt", "modified_at",
+		"createdById", "created_by_id", "modifiedById", "modified_by_id",
+		"archivedAt", "archived_at", "archivedReason", "archived_reason",
+		"survivorId", "survivor_id":
+		return true
+	}
+	return false
 }
 
 // Helper functions

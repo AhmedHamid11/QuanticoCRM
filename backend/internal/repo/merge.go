@@ -340,6 +340,78 @@ func (r *MergeRepo) MarkConsumed(ctx context.Context, orgID, snapshotID string) 
 	return nil
 }
 
+// ListAllByOrg retrieves all merge snapshots for an org (unpaginated, capped at maxRows) for CSV export
+func (r *MergeRepo) ListAllByOrg(ctx context.Context, orgID, entityType string, maxRows int) ([]entity.MergeSnapshot, error) {
+	if maxRows < 1 || maxRows > 10000 {
+		maxRows = 10000
+	}
+
+	query := `SELECT id, org_id, entity_type, survivor_id, survivor_before,
+	                  duplicate_ids, duplicate_snapshots, related_record_fks,
+	                  merged_by_id, consumed_at, created_at, expires_at
+	           FROM merge_snapshots
+	           WHERE org_id = ?`
+	args := []interface{}{orgID}
+
+	if entityType != "" {
+		query += " AND entity_type = ?"
+		args = append(args, entityType)
+	}
+
+	query += " ORDER BY created_at DESC LIMIT ?"
+	args = append(args, maxRows)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query merge snapshots: %w", err)
+	}
+	defer rows.Close()
+
+	var snapshots []entity.MergeSnapshot
+	for rows.Next() {
+		var snapshot entity.MergeSnapshot
+		var createdAtStr, expiresAtStr string
+		var consumedAtStr sql.NullString
+
+		err := rows.Scan(
+			&snapshot.ID,
+			&snapshot.OrgID,
+			&snapshot.EntityType,
+			&snapshot.SurvivorID,
+			&snapshot.SurvivorBefore,
+			&snapshot.DuplicateIDs,
+			&snapshot.DuplicateSnapshots,
+			&snapshot.RelatedRecordFKs,
+			&snapshot.MergedByID,
+			&consumedAtStr,
+			&createdAtStr,
+			&expiresAtStr,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan merge snapshot: %w", err)
+		}
+
+		snapshot.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)
+		snapshot.ExpiresAt, _ = time.Parse(time.RFC3339, expiresAtStr)
+
+		if consumedAtStr.Valid {
+			snapshot.ConsumedAt = &consumedAtStr.String
+		}
+
+		snapshots = append(snapshots, snapshot)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	if snapshots == nil {
+		snapshots = []entity.MergeSnapshot{}
+	}
+
+	return snapshots, nil
+}
+
 // CleanupExpired deletes expired snapshots that are past their expires_at date
 func (r *MergeRepo) CleanupExpired(ctx context.Context, orgID string) (int, error) {
 	now := time.Now().UTC().Format(time.RFC3339)

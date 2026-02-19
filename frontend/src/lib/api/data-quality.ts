@@ -1,4 +1,6 @@
 import { get, post, put, del } from '$lib/utils/api';
+import { PUBLIC_API_URL } from '$env/static/public';
+import { auth } from '$lib/stores/auth.svelte';
 
 // Re-export common types and utilities from dedup.ts
 export type {
@@ -267,6 +269,48 @@ export async function mergeHistory(params?: {
 
 	const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
 	return get<PaginatedResponse<MergeHistoryEntry>>(`/merge/history${query}`);
+}
+
+export async function mergeHistoryExport(params?: { entityType?: string }): Promise<void> {
+	const apiBase = PUBLIC_API_URL || '/api/v1';
+	const queryParams = new URLSearchParams();
+	if (params?.entityType) queryParams.set('entityType', params.entityType);
+	const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
+	const headers: Record<string, string> = {};
+	if (auth.accessToken) {
+		headers['Authorization'] = `Bearer ${auth.accessToken}`;
+	}
+
+	const response = await fetch(`${apiBase}/merge/history/export${query}`, {
+		headers,
+		credentials: 'include'
+	});
+
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({ error: 'Download failed' }));
+		throw new Error(err.error || `HTTP ${response.status}`);
+	}
+
+	const blob = await response.blob();
+
+	// Extract filename from Content-Disposition header, or use default
+	let filename = 'merge-history.csv';
+	const disposition = response.headers.get('Content-Disposition');
+	if (disposition) {
+		const match = disposition.match(/filename="?([^";\s]+)"?/);
+		if (match) filename = match[1];
+	}
+
+	// Trigger download via temporary anchor element
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
 }
 
 // --- Scan Jobs ---
