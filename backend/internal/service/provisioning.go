@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
@@ -878,6 +880,9 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	// Create system list views (My Records, Unassigned)
 	s.createDefaultSystemListViews(ctx, orgID, now)
 
+	// Ensure existing layouts include assignedUserId (patches pre-existing orgs)
+	s.ensureOwnerFieldsInLayouts(ctx, orgID)
+
 	log.Printf("[Provisioning] Completed metadata provisioning for org %s", orgID)
 	return nil
 }
@@ -1307,6 +1312,57 @@ func (s *ProvisioningService) createLayout(ctx context.Context, orgID, entity, l
 		log.Printf("[Provisioning] ERROR: failed to create %s layout for %s (org=%s): %v", layoutType, entity, orgID, err)
 	} else {
 		log.Printf("[Provisioning] Created %s layout for %s (org=%s)", layoutType, entity, orgID)
+	}
+}
+
+// ensureOwnerFieldsInLayouts patches existing detail layouts to include assignedUserId if missing.
+// This handles orgs provisioned before owner fields were added to the default layout.
+func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, orgID string) {
+	entities := []string{"Contact", "Account", "Task", "Quote"}
+	for _, entityName := range entities {
+		var layoutData string
+		err := s.db.QueryRowContext(ctx,
+			`SELECT layout_data FROM layout_defs WHERE org_id = ? AND entity_name = ? AND layout_type = 'detail'`,
+			orgID, entityName,
+		).Scan(&layoutData)
+		if err != nil {
+			continue // No layout exists — createLayout will handle it
+		}
+
+		// Check if assignedUserId is already in the layout
+		if strings.Contains(layoutData, "assignedUserId") {
+			continue
+		}
+
+		// Parse layout JSON and append assignedUserId to the first section
+		var sections []map[string]interface{}
+		if err := json.Unmarshal([]byte(layoutData), &sections); err != nil {
+			log.Printf("[Provisioning] WARNING: Failed to parse detail layout for %s (org=%s): %v", entityName, orgID, err)
+			continue
+		}
+
+		if len(sections) > 0 {
+			rows, ok := sections[0]["rows"].([]interface{})
+			if ok {
+				newRow := []interface{}{map[string]interface{}{"field": "assignedUserId"}}
+				sections[0]["rows"] = append(rows, newRow)
+			}
+		}
+
+		updated, err := json.Marshal(sections)
+		if err != nil {
+			continue
+		}
+
+		_, err = s.db.ExecContext(ctx,
+			`UPDATE layout_defs SET layout_data = ?, modified_at = datetime('now') WHERE org_id = ? AND entity_name = ? AND layout_type = 'detail'`,
+			string(updated), orgID, entityName,
+		)
+		if err != nil {
+			log.Printf("[Provisioning] ERROR: Failed to update layout for %s (org=%s): %v", entityName, orgID, err)
+		} else {
+			log.Printf("[Provisioning] Added assignedUserId to %s detail layout (org=%s)", entityName, orgID)
+		}
 	}
 }
 

@@ -282,6 +282,11 @@ func (h *QuoteHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
+	// Default assignedUserId to creating user if not set
+	if input.AssignedUserID == nil || *input.AssignedUserID == "" {
+		input.AssignedUserID = &userID
+	}
+
 	if input.Name == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "name is required",

@@ -246,6 +246,11 @@ func (h *ContactHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
+	// Default assignedUserId to creating user if not set
+	if input.AssignedUserID == nil || *input.AssignedUserID == "" {
+		input.AssignedUserID = &userID
+	}
+
 	// Validate required fields
 	if input.LastName == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

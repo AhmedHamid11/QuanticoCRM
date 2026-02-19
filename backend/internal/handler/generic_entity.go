@@ -955,6 +955,22 @@ func (h *GenericEntityHandler) Create(c *fiber.Ctx) error {
 	placeholders = append(placeholders, "?", "?", "?", "?")
 	values = append(values, now, now, userID, userID)
 
+	// Default assigned_user_id to creating user if not already set
+	if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+		hasAssigned := false
+		for _, col := range columns {
+			if col == "\"assigned_user_id\"" || col == "assigned_user_id" {
+				hasAssigned = true
+				break
+			}
+		}
+		if !hasAssigned {
+			columns = append(columns, "assigned_user_id")
+			placeholders = append(placeholders, "?")
+			values = append(values, userID)
+		}
+	}
+
 	// Validate before save
 	if h.validationService != nil {
 		result, err := h.validationService.ValidateOperation(c.Context(), orgID, entityName, "", "CREATE", nil, body)
@@ -1679,6 +1695,22 @@ func (h *GenericEntityHandler) upsertCreate(c *fiber.Ctx, orgID, entityName, tab
 	columns = append(columns, "created_at", "modified_at", "created_by_id", "modified_by_id")
 	placeholders = append(placeholders, "?", "?", "?", "?")
 	values = append(values, now, now, userID, userID)
+
+	// Default assigned_user_id to creating user if not already set
+	if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+		hasAssigned := false
+		for _, col := range columns {
+			if col == "\"assigned_user_id\"" || col == "assigned_user_id" {
+				hasAssigned = true
+				break
+			}
+		}
+		if !hasAssigned {
+			columns = append(columns, "assigned_user_id")
+			placeholders = append(placeholders, "?")
+			values = append(values, userID)
+		}
+	}
 
 	// Validate before save
 	if h.validationService != nil {

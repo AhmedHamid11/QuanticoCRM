@@ -4,6 +4,7 @@
 	import { addToast } from '$lib/stores/toast.svelte';
 
 	let isReprovisioning = $state(false);
+	let showRepairModal = $state(false);
 	let searchQuery = $state('');
 
 	type Tile = {
@@ -67,11 +68,16 @@
 		return filteredTiles.filter(t => t.section === section);
 	}
 
-	async function reprovisionMetadata() {
-		if (!confirm('This will re-create default entities, fields, layouts, and navigation for your organization. Existing customizations will be preserved. Continue?')) {
-			return;
-		}
+	function openRepairModal() {
+		showRepairModal = true;
+	}
 
+	function closeRepairModal() {
+		showRepairModal = false;
+	}
+
+	async function reprovisionMetadata() {
+		showRepairModal = false;
 		isReprovisioning = true;
 		try {
 			const result = await post<{ success: boolean; message: string }>('/admin/reprovision', {});
@@ -132,7 +138,7 @@
 							<!-- skip -->
 						{:else if tile.isButton}
 							<button
-								onclick={reprovisionMetadata}
+								onclick={openRepairModal}
 								disabled={isReprovisioning}
 								class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 {tile.borderColor} text-left w-full disabled:opacity-50 disabled:cursor-not-allowed"
 							>
@@ -186,3 +192,53 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Repair Metadata Confirmation Modal -->
+{#if showRepairModal}
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+			<!-- Background overlay -->
+			<div
+				class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+				onclick={closeRepairModal}
+			></div>
+
+			<!-- Modal panel -->
+			<div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+				<div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+					<div class="sm:flex sm:items-start">
+						<div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-rose-100 sm:mx-0 sm:h-10 sm:w-10">
+							<svg class="h-6 w-6 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+							</svg>
+						</div>
+						<div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+							<h3 class="text-lg font-semibold leading-6 text-gray-900">
+								Repair Metadata
+							</h3>
+							<div class="mt-2">
+								<p class="text-sm text-gray-500">
+									This will re-create default entities, fields, layouts, and navigation for your organization. Existing customizations will be preserved.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
+					<button
+						onclick={reprovisionMetadata}
+						class="inline-flex w-full justify-center rounded-md bg-rose-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-500 sm:w-auto"
+					>
+						Repair
+					</button>
+					<button
+						onclick={closeRepairModal}
+						class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+					>
+						Cancel
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
