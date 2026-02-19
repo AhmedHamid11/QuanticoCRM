@@ -1332,6 +1332,25 @@ func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, or
 
 		// Check if assignedUserId is already in the layout
 		if strings.Contains(layoutData, "assignedUserId") {
+			// Already present — but check if it needs visibility fix (v2-object format)
+			// This handles layouts corrupted by a previous provisioning that didn't include visibility
+			trimmed := strings.TrimSpace(layoutData)
+			var v2obj map[string]interface{}
+			if err := json.Unmarshal([]byte(trimmed), &v2obj); err == nil {
+				if _, hasVersion := v2obj["version"]; hasVersion {
+					fixed := s.fixAssignedUserVisibility(v2obj)
+					if fixed {
+						b, err := json.Marshal(v2obj)
+						if err == nil {
+							s.db.ExecContext(ctx,
+								`UPDATE layout_defs SET layout_data = ?, modified_at = datetime('now') WHERE org_id = ? AND entity_name = ? AND layout_type = 'detail'`,
+								string(b), orgID, entityName,
+							)
+							log.Printf("[Provisioning] Fixed assignedUserId visibility in %s detail layout (org=%s)", entityName, orgID)
+						}
+					}
+				}
+			}
 			continue
 		}
 
@@ -1346,7 +1365,7 @@ func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, or
 					if firstSection, ok := sectionsRaw[0].(map[string]interface{}); ok {
 						fieldsRaw, ok := firstSection["fields"].([]interface{})
 						if ok {
-							fieldsRaw = append(fieldsRaw, map[string]interface{}{"name": "assignedUserId"})
+							fieldsRaw = append(fieldsRaw, map[string]interface{}{"name": "assignedUserId", "visibility": map[string]interface{}{"type": "always"}})
 							firstSection["fields"] = fieldsRaw
 							sectionsRaw[0] = firstSection
 							v2obj["sections"] = sectionsRaw
@@ -1405,6 +1424,39 @@ func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, or
 			log.Printf("[Provisioning] Added assignedUserId to %s detail layout (org=%s)", entityName, orgID)
 		}
 	}
+}
+
+// fixAssignedUserVisibility finds assignedUserId field entries in a v2-object layout
+// and adds "visibility":{"type":"always"} if missing. Returns true if any fix was applied.
+func (s *ProvisioningService) fixAssignedUserVisibility(v2obj map[string]interface{}) bool {
+	sectionsRaw, ok := v2obj["sections"].([]interface{})
+	if !ok {
+		return false
+	}
+	fixed := false
+	for _, sectionRaw := range sectionsRaw {
+		section, ok := sectionRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		fieldsRaw, ok := section["fields"].([]interface{})
+		if !ok {
+			continue
+		}
+		for _, fieldRaw := range fieldsRaw {
+			field, ok := fieldRaw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if name, ok := field["name"].(string); ok && name == "assignedUserId" {
+				if _, hasVis := field["visibility"]; !hasVis {
+					field["visibility"] = map[string]interface{}{"type": "always"}
+					fixed = true
+				}
+			}
+		}
+	}
+	return fixed
 }
 
 // createEnumField creates an enum field with options

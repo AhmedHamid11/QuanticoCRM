@@ -150,9 +150,9 @@ func SetupTestApp(t *testing.T) *TestApp {
 	}
 
 	// Initialize handlers
-	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, nil, tripwireService, validationService, nil, nil)
-	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, db, metadataRepo, nil, tripwireService, validationService)
-	taskHandler := handler.NewTaskHandler(taskRepo, nil, tripwireService, validationService)
+	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, nil, tripwireService, validationService, nil, nil, nil)
+	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, db, metadataRepo, nil, tripwireService, validationService, nil)
+	taskHandler := handler.NewTaskHandler(taskRepo, nil, tripwireService, validationService, nil, nil)
 	adminHandler := handler.NewAdminHandler(db, metadataRepo, navigationRepo)
 	adminHandler.SetProvisioningService(provisioningService)
 	navigationHandler := handler.NewNavigationHandler(navigationRepo)
@@ -166,7 +166,7 @@ func SetupTestApp(t *testing.T) *TestApp {
 	authHandler := handler.NewAuthHandler(authService, auditLogger, middleware.CookieConfig{IsProduction: false})
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
 	bulkHandler := handler.NewBulkHandler(db, metadataRepo, tripwireService, validationService)
-	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService, nil)
+	importHandler := handler.NewImportHandler(db, metadataRepo, tripwireService, validationService, nil, nil)
 
 	// Ingest handlers
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)

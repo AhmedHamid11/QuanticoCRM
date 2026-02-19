@@ -172,7 +172,7 @@
 		reassignToUserId = '';
 
 		try {
-			ownedCounts = await authFetch<{ contacts: number; accounts: number; tasks: number; quotes: number; total: number }>(`/admin/users/${user.id}/owned-records-count`);
+			ownedCounts = await authFetch<{ contacts: number; accounts: number; tasks: number; quotes: number; total: number }>(`/users/${user.id}/owned-records-count`);
 		} catch (err) {
 			ownedCounts = { contacts: 0, accounts: 0, tasks: 0, quotes: 0, total: 0 };
 		} finally {

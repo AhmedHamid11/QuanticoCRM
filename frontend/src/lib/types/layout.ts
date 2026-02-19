@@ -162,6 +162,7 @@ export function parseLayoutData(layoutJson: string, fallbackFields: string[] = [
 
 // Evaluate visibility rule against record data (client-side)
 export function evaluateVisibility(rule: VisibilityRule, record: Record<string, unknown>): boolean {
+	if (!rule) return true;
 	if (rule.type === 'always') return true;
 	if (rule.type === 'never') return false;
 
