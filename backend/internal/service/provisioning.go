@@ -1338,34 +1338,55 @@ func (s *ProvisioningService) ensureOwnerFieldsInLayouts(ctx context.Context, or
 		trimmed := strings.TrimSpace(layoutData)
 		var updated string
 
-		// Try v2 format first: [{label:"Overview", rows:[[{field:"name"}]]}]
-		var sections []map[string]interface{}
-		if err := json.Unmarshal([]byte(trimmed), &sections); err == nil && len(sections) > 0 {
-			if _, hasLabel := sections[0]["label"]; hasLabel {
-				// v2 sections format — append to first section's rows
-				rows, ok := sections[0]["rows"].([]interface{})
-				if ok {
-					newRow := []interface{}{map[string]interface{}{"field": "assignedUserId"}}
-					sections[0]["rows"] = append(rows, newRow)
+		// Try v2-object format: {version:2, sections:[{fields:[{name:"field"}]}]}
+		var v2obj map[string]interface{}
+		if err := json.Unmarshal([]byte(trimmed), &v2obj); err == nil {
+			if _, hasVersion := v2obj["version"]; hasVersion {
+				if sectionsRaw, ok := v2obj["sections"].([]interface{}); ok && len(sectionsRaw) > 0 {
+					if firstSection, ok := sectionsRaw[0].(map[string]interface{}); ok {
+						fieldsRaw, ok := firstSection["fields"].([]interface{})
+						if ok {
+							fieldsRaw = append(fieldsRaw, map[string]interface{}{"name": "assignedUserId"})
+							firstSection["fields"] = fieldsRaw
+							sectionsRaw[0] = firstSection
+							v2obj["sections"] = sectionsRaw
+						}
+					}
 				}
-				b, err := json.Marshal(sections)
-				if err != nil {
-					continue
+				b, err := json.Marshal(v2obj)
+				if err == nil {
+					updated = string(b)
 				}
-				updated = string(b)
 			}
 		}
 
-		// If not v2, try v1 format: ["fieldName1","fieldName2",...]
+		// Try v2-array format: [{label:"Overview", rows:[[{field:"name"}]]}]
+		if updated == "" {
+			var sections []map[string]interface{}
+			if err := json.Unmarshal([]byte(trimmed), &sections); err == nil && len(sections) > 0 {
+				if _, hasLabel := sections[0]["label"]; hasLabel {
+					rows, ok := sections[0]["rows"].([]interface{})
+					if ok {
+						newRow := []interface{}{map[string]interface{}{"field": "assignedUserId"}}
+						sections[0]["rows"] = append(rows, newRow)
+					}
+					b, err := json.Marshal(sections)
+					if err == nil {
+						updated = string(b)
+					}
+				}
+			}
+		}
+
+		// Try v1 format: ["fieldName1","fieldName2",...]
 		if updated == "" {
 			var fields []string
 			if err := json.Unmarshal([]byte(trimmed), &fields); err == nil {
 				fields = append(fields, "assignedUserId")
 				b, err := json.Marshal(fields)
-				if err != nil {
-					continue
+				if err == nil {
+					updated = string(b)
 				}
-				updated = string(b)
 			}
 		}
 

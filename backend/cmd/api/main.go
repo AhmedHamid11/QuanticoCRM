@@ -526,8 +526,8 @@ func main() {
 	importProtected := api.Group("", authMiddleware.Required(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger), middleware.RequirePasswordChange(), tenantMiddleware.ResolveTenant())
 	importHandler.RegisterRoutes(importProtected)
 
-	// User management - read-only for all authenticated users
-	userHandler.RegisterRoutes(protected)
+	// NOTE: User read-only routes registered after admin routes below (line ~605)
+	// to prevent Fiber route shadowing (GET /users/:id catches /users/:id/owned-records-count)
 
 	// Navigation - visible tabs for all authenticated users
 	navigationHandler.RegisterPublicRoutes(protected)
@@ -601,8 +601,10 @@ func main() {
 	// Data Explorer for org admins (filtered to their org's data only)
 	dataExplorerHandler.RegisterOrgRoutes(adminProtected)
 
-	// User management - write operations for admins/owners only
+	// User management - write operations for admins/owners only (must be before read-only routes)
 	userHandler.RegisterAdminRoutes(adminProtected)
+	// User management - read-only for all authenticated users (after admin routes to avoid route shadowing)
+	userHandler.RegisterRoutes(protected)
 
 	// Custom pages - admin management
 	customPageHandler.RegisterAdminRoutes(adminProtected)

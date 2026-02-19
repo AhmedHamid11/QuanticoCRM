@@ -461,14 +461,13 @@ func (h *UserHandler) GetOwnedRecordsCount(c *fiber.Ctx) error {
 func (h *UserHandler) RegisterRoutes(app fiber.Router) {
 	users := app.Group("/users")
 	users.Get("/", h.List)
-	// NOTE: /:id/owned-records-count must be registered before /:id to avoid Fiber route shadowing
-	users.Get("/:id/owned-records-count", h.GetOwnedRecordsCount)
 	users.Get("/:id", h.Get)
 }
 
 // RegisterAdminRoutes registers the admin-only user management routes
 func (h *UserHandler) RegisterAdminRoutes(app fiber.Router) {
 	users := app.Group("/users")
+	users.Get("/:id/owned-records-count", h.GetOwnedRecordsCount)
 	users.Put("/:id/role", h.UpdateRole)
 	users.Put("/:id/status", h.UpdateStatus)
 	users.Delete("/:id", h.Remove)
