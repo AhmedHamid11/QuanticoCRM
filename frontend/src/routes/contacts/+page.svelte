@@ -92,7 +92,11 @@
 				params.set('search', search);
 			}
 			if (filterQuery.trim()) {
-				params.set('filter', filterQuery.trim());
+				if (filterQuery.trim().startsWith('owner:')) {
+					params.set('owner', filterQuery.trim().substring(6));
+				} else {
+					params.set('filter', filterQuery.trim());
+				}
 			}
 			if (knownTotal !== null && page > 1) {
 				params.set('knownTotal', knownTotal.toString());

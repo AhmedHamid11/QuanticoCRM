@@ -183,6 +183,14 @@ func (r *ContactRepo) ListByOrg(ctx context.Context, orgID string, params entity
 	baseQuery := `FROM contacts c LEFT JOIN accounts a ON a.id = c.account_id AND a.org_id = c.org_id AND a.deleted = 0 WHERE c.org_id = ? AND c.deleted = 0`
 	args := []any{orgID}
 
+	// Apply owner filter
+	if params.Owner == "unassigned" {
+		baseQuery += ` AND (c.assigned_user_id IS NULL OR c.assigned_user_id = '')`
+	} else if params.Owner != "" {
+		baseQuery += ` AND c.assigned_user_id = ?`
+		args = append(args, params.Owner)
+	}
+
 	if params.Search != "" {
 		baseQuery += ` AND (c.first_name LIKE ? OR c.last_name LIKE ? OR c.email_address LIKE ?)`
 		searchTerm := "%" + params.Search + "%"
@@ -410,4 +418,27 @@ func (r *ContactRepo) Delete(ctx context.Context, orgID, id string) error {
 	}
 
 	return nil
+}
+
+// CountByAssignedUser returns the number of contacts assigned to a user
+func (r *ContactRepo) CountByAssignedUser(ctx context.Context, orgID, userID string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM contacts WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		orgID, userID,
+	).Scan(&count)
+	return count, err
+}
+
+// BulkReassignByAssignedUser reassigns all contacts from one user to another
+func (r *ContactRepo) BulkReassignByAssignedUser(ctx context.Context, orgID, fromUserID, toUserID, modifiedByID string) (int64, error) {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE contacts SET assigned_user_id = ?, modified_by_id = ?, modified_at = datetime('now')
+		 WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		toUserID, modifiedByID, orgID, fromUserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

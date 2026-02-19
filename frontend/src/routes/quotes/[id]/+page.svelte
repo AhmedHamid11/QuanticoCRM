@@ -256,6 +256,13 @@
 					return value.toLocaleString();
 				}
 				return String(value);
+			case 'link':
+				if (field.linkEntity === 'User' && quote) {
+					const nameField = fieldName.replace(/Id$/, 'Name');
+					const name = (quote as unknown as Record<string, unknown>)[nameField];
+					return name ? String(name) : '-';
+				}
+				return String(value);
 			default:
 				return String(value);
 		}
@@ -274,6 +281,7 @@
 				return { href: String(value), text: String(value) };
 			case 'link':
 				if (field.linkEntity && quote) {
+					if (field.linkEntity === 'User') return null;
 					const id = (quote as unknown as Record<string, unknown>)[fieldName];
 					if (!id) return null;
 					const entityPath = field.linkEntity.toLowerCase() + 's';

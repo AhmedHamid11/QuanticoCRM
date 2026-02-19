@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -12,15 +13,25 @@ import (
 
 // TaskHandler handles HTTP requests for tasks
 type TaskHandler struct {
-	repo              *repo.TaskRepo
-	authRepo          *repo.AuthRepo
-	tripwireService   TripwireServiceInterface
-	validationService ValidationServiceInterface
+	repo                *repo.TaskRepo
+	authRepo            *repo.AuthRepo
+	tripwireService     TripwireServiceInterface
+	validationService   ValidationServiceInterface
+	notificationService NotificationServiceInterface
+	defaultDB           db.DBConn
 }
 
 // NewTaskHandler creates a new TaskHandler
-func NewTaskHandler(repo *repo.TaskRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface) *TaskHandler {
-	return &TaskHandler{repo: repo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService}
+func NewTaskHandler(repo *repo.TaskRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, notificationService NotificationServiceInterface, defaultDB db.DBConn) *TaskHandler {
+	return &TaskHandler{repo: repo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService, notificationService: notificationService, defaultDB: defaultDB}
+}
+
+// getDB returns the tenant database from context, falling back to default db
+func (h *TaskHandler) getDB(c *fiber.Ctx) db.DBConn {
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return tenantDB
+	}
+	return h.defaultDB
 }
 
 // getRepo returns the Task repo using the tenant database from context
@@ -54,6 +65,9 @@ func (h *TaskHandler) resolveUserNames(ctx context.Context, records []map[string
 	// Collect unique user IDs
 	userIDSet := make(map[string]bool)
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			userIDSet[id] = true
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			userIDSet[id] = true
 		}
@@ -81,6 +95,9 @@ func (h *TaskHandler) resolveUserNames(ctx context.Context, records []map[string
 
 	// Apply names to records
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			record["assignedUserName"] = userNames[id]
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			record["createdByName"] = userNames[id]
 		}
@@ -93,6 +110,11 @@ func (h *TaskHandler) resolveUserNames(ctx context.Context, records []map[string
 // List returns all tasks for the current organization
 func (h *TaskHandler) List(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
+
+	owner := c.Query("owner")
+	if owner == "me" {
+		owner = c.Locals("userID").(string)
+	}
 
 	params := entity.TaskListParams{
 		Search:         c.Query("search"),
@@ -109,6 +131,7 @@ func (h *TaskHandler) List(c *fiber.Ctx) error {
 		GmailMessageID: c.Query("gmailMessageId"),
 		Filter:         c.Query("filter"),
 		KnownTotal:     c.QueryInt("knownTotal", 0),
+		Owner:          owner,
 	}
 
 	result, err := h.getRepo(c).ListByOrg(c.Context(), orgID, params)
@@ -118,10 +141,13 @@ func (h *TaskHandler) List(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve user names for created_by and modified_by
+	// Resolve user names for assigned_user, created_by and modified_by
 	if h.authRepo != nil && len(result.Data) > 0 {
 		userIDSet := make(map[string]bool)
 		for _, task := range result.Data {
+			if task.AssignedUserID != nil && *task.AssignedUserID != "" {
+				userIDSet[*task.AssignedUserID] = true
+			}
 			if task.CreatedByID != nil && *task.CreatedByID != "" {
 				userIDSet[*task.CreatedByID] = true
 			}
@@ -136,6 +162,9 @@ func (h *TaskHandler) List(c *fiber.Ctx) error {
 			}
 			if userNames, err := h.authRepo.GetUserNamesByIDs(c.Context(), userIDs); err == nil {
 				for i := range result.Data {
+					if result.Data[i].AssignedUserID != nil {
+						result.Data[i].AssignedUserName = userNames[*result.Data[i].AssignedUserID]
+					}
 					if result.Data[i].CreatedByID != nil {
 						result.Data[i].CreatedByName = userNames[*result.Data[i].CreatedByID]
 					}
@@ -168,9 +197,12 @@ func (h *TaskHandler) Get(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve user names for created_by and modified_by
+	// Resolve user names for assigned_user, created_by and modified_by
 	if h.authRepo != nil {
-		userIDs := make([]string, 0, 2)
+		userIDs := make([]string, 0, 3)
+		if task.AssignedUserID != nil && *task.AssignedUserID != "" {
+			userIDs = append(userIDs, *task.AssignedUserID)
+		}
 		if task.CreatedByID != nil && *task.CreatedByID != "" {
 			userIDs = append(userIDs, *task.CreatedByID)
 		}
@@ -179,6 +211,9 @@ func (h *TaskHandler) Get(c *fiber.Ctx) error {
 		}
 		if len(userIDs) > 0 {
 			if userNames, err := h.authRepo.GetUserNamesByIDs(c.Context(), userIDs); err == nil {
+				if task.AssignedUserID != nil {
+					task.AssignedUserName = userNames[*task.AssignedUserID]
+				}
 				if task.CreatedByID != nil {
 					task.CreatedByName = userNames[*task.CreatedByID]
 				}
@@ -291,6 +326,11 @@ func (h *TaskHandler) Create(c *fiber.Ctx) error {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Task", task.ID, "CREATE", nil, StructToMap(task))
 	}
 
+	// Notify assigned user (don't notify yourself)
+	if h.notificationService != nil && task.AssignedUserID != nil && *task.AssignedUserID != "" && *task.AssignedUserID != userID {
+		go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDB(c), orgID, *task.AssignedUserID, "Task", task.ID, task.Subject)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(task)
 }
 
@@ -307,9 +347,9 @@ func (h *TaskHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	// Fetch old record for tripwire and validation evaluation
+	// Fetch old record for tripwire, validation, and notification evaluation
 	var oldRecord map[string]interface{}
-	if h.tripwireService != nil || h.validationService != nil {
+	if h.tripwireService != nil || h.validationService != nil || h.notificationService != nil {
 		oldTask, _ := h.getRepo(c).GetByID(c.Context(), orgID, id)
 		oldRecord = StructToMap(oldTask)
 	}
@@ -345,6 +385,14 @@ func (h *TaskHandler) Update(c *fiber.Ctx) error {
 	// Fire tripwires for UPDATE event
 	if h.tripwireService != nil {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Task", id, "UPDATE", oldRecord, StructToMap(task))
+	}
+
+	// Notify if assignment changed
+	if h.notificationService != nil && task.AssignedUserID != nil && *task.AssignedUserID != "" {
+		oldAssigned, _ := oldRecord["assignedUserId"].(string)
+		if *task.AssignedUserID != oldAssigned {
+			go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDB(c), orgID, *task.AssignedUserID, "Task", id, task.Subject)
+		}
 	}
 
 	return c.JSON(task)

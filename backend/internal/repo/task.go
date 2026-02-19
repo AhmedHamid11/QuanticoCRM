@@ -177,6 +177,14 @@ func (r *TaskRepo) ListByOrg(ctx context.Context, orgID string, params entity.Ta
 	baseQuery := `FROM tasks t WHERE t.org_id = ? AND t.deleted = 0`
 	args := []any{orgID}
 
+	// Apply owner filter
+	if params.Owner == "unassigned" {
+		baseQuery += ` AND (t.assigned_user_id IS NULL OR t.assigned_user_id = '')`
+	} else if params.Owner != "" {
+		baseQuery += ` AND t.assigned_user_id = ?`
+		args = append(args, params.Owner)
+	}
+
 	// Search filter
 	if params.Search != "" {
 		baseQuery += ` AND (t.subject LIKE ? OR t.description LIKE ?)`
@@ -425,4 +433,27 @@ func (r *TaskRepo) Delete(ctx context.Context, orgID, id string) error {
 	}
 
 	return nil
+}
+
+// CountByAssignedUser returns the number of tasks assigned to a user
+func (r *TaskRepo) CountByAssignedUser(ctx context.Context, orgID, userID string) (int, error) {
+	var count int
+	err := r.conn.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM tasks WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		orgID, userID,
+	).Scan(&count)
+	return count, err
+}
+
+// BulkReassignByAssignedUser reassigns all tasks from one user to another
+func (r *TaskRepo) BulkReassignByAssignedUser(ctx context.Context, orgID, fromUserID, toUserID, modifiedByID string) (int64, error) {
+	result, err := r.conn.ExecContext(ctx,
+		`UPDATE tasks SET assigned_user_id = ?, modified_by_id = ?, modified_at = datetime('now')
+		 WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		toUserID, modifiedByID, orgID, fromUserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

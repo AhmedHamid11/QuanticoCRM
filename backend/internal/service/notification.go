@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
@@ -119,6 +120,36 @@ func (s *NotificationService) CreateScanFailureNotification(ctx context.Context,
 	}
 
 	log.Printf("Created scan failure notifications for %d admin users in org %s", len(adminUsers), orgID)
+	return nil
+}
+
+// CreateAssignmentNotification creates a notification for a user when a record is assigned to them
+func (s *NotificationService) CreateAssignmentNotification(ctx context.Context, conn db.DBConn, orgID, assignedUserID, entityType, recordID, recordName string) error {
+	title := fmt.Sprintf("You've been assigned a %s", entityType)
+	message := fmt.Sprintf("%s: %s", entityType, recordName)
+	linkURL := fmt.Sprintf("/%ss/%s", strings.ToLower(entityType), recordID)
+	expiresAt := time.Now().Add(30 * 24 * time.Hour)
+
+	notification := &entity.Notification{
+		ID:          sfid.NewNotification(),
+		OrgID:       orgID,
+		UserID:      assignedUserID,
+		Type:        entity.NotificationTypeRecordAssigned,
+		Title:       title,
+		Message:     message,
+		LinkURL:     &linkURL,
+		IsRead:      false,
+		IsDismissed: false,
+		CreatedAt:   time.Now().UTC(),
+		ExpiresAt:   &expiresAt,
+	}
+
+	if err := s.notificationRepo.WithDB(conn).CreateNotification(ctx, notification); err != nil {
+		log.Printf("Warning: Failed to create assignment notification for user %s: %v", assignedUserID, err)
+		return err
+	}
+
+	log.Printf("Created assignment notification for user %s (org=%s, %s=%s)", assignedUserID, orgID, entityType, recordID)
 	return nil
 }
 

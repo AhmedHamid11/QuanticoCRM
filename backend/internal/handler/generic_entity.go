@@ -29,6 +29,11 @@ type ValidationServiceInterface interface {
 	ValidateOperation(ctx context.Context, orgID, entityType, recordID string, operation string, oldRecord, newRecord map[string]interface{}) (*entity.ValidationResult, error)
 }
 
+// NotificationServiceInterface defines the interface for notification service to avoid import cycle
+type NotificationServiceInterface interface {
+	CreateAssignmentNotification(ctx context.Context, conn db.DBConn, orgID, assignedUserID, entityType, recordID, recordName string) error
+}
+
 // RealtimeCheckerInterface defines the interface for realtime duplicate checking
 type RealtimeCheckerInterface interface {
 	CheckAsyncWithMap(conn db.DBConn, orgID, userID, entityType, recordID, recordName string, recordData map[string]interface{})
@@ -146,6 +151,9 @@ func (h *GenericEntityHandler) resolveUserNames(ctx context.Context, records []m
 	// Collect unique user IDs
 	userIDSet := make(map[string]bool)
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			userIDSet[id] = true
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			userIDSet[id] = true
 		}
@@ -173,6 +181,9 @@ func (h *GenericEntityHandler) resolveUserNames(ctx context.Context, records []m
 
 	// Apply names to records
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			record["assignedUserName"] = userNames[id]
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			record["createdByName"] = userNames[id]
 		}
@@ -280,6 +291,10 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	sortDir := c.Query("sortDir", "desc")
 	search := c.Query("search", "")
 	filter := c.Query("filter", "")
+	owner := c.Query("owner")
+	if owner == "me" {
+		owner = c.Locals("userID").(string)
+	}
 
 	// Cap pageSize at 100 to prevent excessive row reads
 	if pageSize > 100 {
@@ -332,6 +347,17 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 
 	if hasDeletedCol {
 		whereParts = append(whereParts, "t.deleted = 0")
+	}
+	// Apply owner filter
+	if owner == "unassigned" {
+		if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+			whereParts = append(whereParts, "(t.assigned_user_id IS NULL OR t.assigned_user_id = '')")
+		}
+	} else if owner != "" {
+		if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+			whereParts = append(whereParts, "t.assigned_user_id = ?")
+			whereArgs = append(whereArgs, owner)
+		}
 	}
 	if search != "" {
 		// Use entity's configured search_fields if available, otherwise skip search

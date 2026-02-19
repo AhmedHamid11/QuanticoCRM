@@ -277,9 +277,9 @@ func main() {
 	ingestAuthMiddleware := middleware.NewIngestAuthMiddleware(ingestAPIKeyService, dbManager, authRepo)
 
 	// Initialize handlers
-	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, authRepo, tripwireService, validationService, realtimeChecker, masterDBConn)
-	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, masterDB, metadataRepo, authRepo, tripwireService, validationService)
-	taskHandler := handler.NewTaskHandler(taskRepo, authRepo, tripwireService, validationService)
+	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, authRepo, tripwireService, validationService, realtimeChecker, notificationService, masterDBConn)
+	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, masterDB, metadataRepo, authRepo, tripwireService, validationService, notificationService)
+	taskHandler := handler.NewTaskHandler(taskRepo, authRepo, tripwireService, validationService, notificationService, masterDBConn)
 	adminHandler := handler.NewAdminHandlerWithManager(masterDB, dbManager, metadataRepo, navigationRepo)
 	adminHandler.SetProvisioningService(provisioningService) // Enable re-provisioning endpoint
 	navigationHandler := handler.NewNavigationHandler(navigationRepo)
@@ -298,6 +298,7 @@ func main() {
 	}
 	authHandler := handler.NewAuthHandler(authService, auditLogger, cookieConfig)
 	userHandler := handler.NewUserHandler(authRepo, auditLogger)
+	userHandler.SetEntityRepos(contactRepo, accountRepo, taskRepo, quoteRepo)
 	apiTokenHandler := handler.NewAPITokenHandler(apiTokenService)
 	bulkHandler := handler.NewBulkHandler(masterDB, metadataRepo, tripwireService, validationService)
 	importJobRepo := repo.NewImportJobRepo()
@@ -310,7 +311,7 @@ func main() {
 	metadataHandler := handler.NewMetadataHandler(metadataRepo)
 	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
 	listViewHandler := handler.NewListViewHandler(listViewRepo)
-	quoteHandler := handler.NewQuoteHandler(quoteRepo, authRepo, tripwireService, validationService)
+	quoteHandler := handler.NewQuoteHandler(quoteRepo, authRepo, tripwireService, validationService, notificationService, masterDBConn)
 	pdfTemplateHandler := handler.NewPdfTemplateHandler(pdfTemplateRepo)
 	versionHandler := handler.NewVersionHandler(versionRepo, versionService, migrationRepo, authRepo)
 	schemaHandler := handler.NewSchemaHandler(masterDB, metadataRepo)

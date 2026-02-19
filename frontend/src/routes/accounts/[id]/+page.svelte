@@ -172,6 +172,13 @@
 				return new Date(String(value)).toLocaleDateString();
 			case 'datetime':
 				return new Date(String(value)).toLocaleString();
+			case 'link':
+				if (field.linkEntity === 'User' && account) {
+					const nameField = fieldName.replace(/Id$/, 'Name');
+					const name = (account as unknown as Record<string, unknown>)[nameField];
+					return name ? String(name) : '-';
+				}
+				return String(value);
 			case 'text':
 				return String(value);
 			default:
@@ -192,6 +199,7 @@
 				return { href: String(value), text: String(value) };
 			case 'link':
 				if (field.linkEntity && account) {
+					if (field.linkEntity === 'User') return null;
 					const id = (account as unknown as Record<string, unknown>)[fieldName];
 					if (!id) return null;
 					const entityPath = field.linkEntity.toLowerCase() + 's';

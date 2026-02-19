@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 
+	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -14,18 +15,19 @@ import (
 
 // AccountHandler handles HTTP requests for accounts
 type AccountHandler struct {
-	repo              *repo.AccountRepo
-	taskRepo          *repo.TaskRepo
-	db                *sql.DB
-	metadataRepo      *repo.MetadataRepo
-	authRepo          *repo.AuthRepo
-	tripwireService   TripwireServiceInterface
-	validationService ValidationServiceInterface
+	repo                *repo.AccountRepo
+	taskRepo            *repo.TaskRepo
+	db                  *sql.DB
+	metadataRepo        *repo.MetadataRepo
+	authRepo            *repo.AuthRepo
+	tripwireService     TripwireServiceInterface
+	validationService   ValidationServiceInterface
+	notificationService NotificationServiceInterface
 }
 
 // NewAccountHandler creates a new AccountHandler
-func NewAccountHandler(repo *repo.AccountRepo, taskRepo *repo.TaskRepo, db *sql.DB, metadataRepo *repo.MetadataRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface) *AccountHandler {
-	return &AccountHandler{repo: repo, taskRepo: taskRepo, db: db, metadataRepo: metadataRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService}
+func NewAccountHandler(repo *repo.AccountRepo, taskRepo *repo.TaskRepo, db *sql.DB, metadataRepo *repo.MetadataRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, notificationService NotificationServiceInterface) *AccountHandler {
+	return &AccountHandler{repo: repo, taskRepo: taskRepo, db: db, metadataRepo: metadataRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService, notificationService: notificationService}
 }
 
 // getRepo returns the Account repo using the tenant database from context
@@ -50,6 +52,14 @@ func (h *AccountHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo {
 		return h.metadataRepo.WithDB(tenantDB)
 	}
 	return h.metadataRepo
+}
+
+// getDBConn returns the tenant database connection as db.DBConn
+func (h *AccountHandler) getDBConn(c *fiber.Ctx) db.DBConn {
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return tenantDB
+	}
+	return h.db
 }
 
 // getRawDB returns the raw database connection for the tenant
@@ -85,6 +95,9 @@ func (h *AccountHandler) resolveUserNames(ctx context.Context, records []map[str
 	// Collect unique user IDs
 	userIDSet := make(map[string]bool)
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			userIDSet[id] = true
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			userIDSet[id] = true
 		}
@@ -112,6 +125,9 @@ func (h *AccountHandler) resolveUserNames(ctx context.Context, records []map[str
 
 	// Apply names to records
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			record["assignedUserName"] = userNames[id]
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			record["createdByName"] = userNames[id]
 		}
@@ -125,6 +141,11 @@ func (h *AccountHandler) resolveUserNames(ctx context.Context, records []map[str
 func (h *AccountHandler) List(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 
+	owner := c.Query("owner")
+	if owner == "me" {
+		owner = c.Locals("userID").(string)
+	}
+
 	params := entity.AccountListParams{
 		Search:     c.Query("search"),
 		SortBy:     c.Query("sortBy"),
@@ -133,6 +154,7 @@ func (h *AccountHandler) List(c *fiber.Ctx) error {
 		PageSize:   c.QueryInt("pageSize", 20),
 		Filter:     c.Query("filter"),
 		KnownTotal: c.QueryInt("knownTotal", 0),
+		Owner:      owner,
 	}
 
 	result, err := h.getRepo(c).ListByOrg(c.Context(), orgID, params)
@@ -460,6 +482,11 @@ func (h *AccountHandler) Create(c *fiber.Ctx) error {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Account", account.ID, "CREATE", nil, StructToMap(account))
 	}
 
+	// Notify assigned user (don't notify yourself)
+	if h.notificationService != nil && account.AssignedUserID != nil && *account.AssignedUserID != "" && *account.AssignedUserID != userID {
+		go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDBConn(c), orgID, *account.AssignedUserID, "Account", account.ID, account.Name)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(account)
 }
 
@@ -520,9 +547,9 @@ func (h *AccountHandler) Update(c *fiber.Ctx) error {
 		}
 	}
 
-	// Fetch old record for tripwire and validation evaluation
+	// Fetch old record for tripwire, validation, and notification evaluation
 	var oldRecord map[string]interface{}
-	if h.tripwireService != nil || h.validationService != nil {
+	if h.tripwireService != nil || h.validationService != nil || h.notificationService != nil {
 		oldAccount, _ := h.getRepo(c).GetByID(c.Context(), orgID, id)
 		oldRecord = StructToMap(oldAccount)
 	}
@@ -558,6 +585,14 @@ func (h *AccountHandler) Update(c *fiber.Ctx) error {
 	// Fire tripwires for UPDATE event
 	if h.tripwireService != nil {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Account", id, "UPDATE", oldRecord, StructToMap(account))
+	}
+
+	// Notify if assignment changed
+	if h.notificationService != nil && account.AssignedUserID != nil && *account.AssignedUserID != "" {
+		oldAssigned, _ := oldRecord["assignedUserId"].(string)
+		if *account.AssignedUserID != oldAssigned {
+			go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDBConn(c), orgID, *account.AssignedUserID, "Account", id, account.Name)
+		}
 	}
 
 	return c.JSON(account)

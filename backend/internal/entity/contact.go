@@ -22,11 +22,12 @@ type Contact struct {
 	AddressPostal   string                 `json:"addressPostalCode" db:"address_postal_code"`
 	AccountID       *string                `json:"accountId" db:"account_id"`
 	AccountName     string                 `json:"accountName" db:"account_name"`
-	AssignedUserID  *string                `json:"assignedUserId" db:"assigned_user_id"`
-	CreatedByID     *string                `json:"createdById" db:"created_by_id"`
-	CreatedByName   string                 `json:"createdByName" db:"-"`
-	ModifiedByID    *string                `json:"modifiedById" db:"modified_by_id"`
-	ModifiedByName  string                 `json:"modifiedByName" db:"-"`
+	AssignedUserID   *string                `json:"assignedUserId" db:"assigned_user_id"`
+	AssignedUserName string                 `json:"assignedUserName" db:"-"`
+	CreatedByID      *string                `json:"createdById" db:"created_by_id"`
+	CreatedByName    string                 `json:"createdByName" db:"-"`
+	ModifiedByID     *string                `json:"modifiedById" db:"modified_by_id"`
+	ModifiedByName   string                 `json:"modifiedByName" db:"-"`
 	CreatedAt       time.Time              `json:"createdAt" db:"created_at"`
 	ModifiedAt      time.Time              `json:"modifiedAt" db:"modified_at"`
 	Deleted         bool                   `json:"deleted" db:"deleted"`
@@ -96,6 +97,7 @@ type ContactListParams struct {
 	PageSize   int    `query:"pageSize"`
 	Filter     string `query:"filter"`
 	KnownTotal int    `query:"knownTotal"`
+	Owner      string `query:"owner"` // "me", "unassigned", or a user ID
 }
 
 // ContactListResponse represents the response for listing contacts

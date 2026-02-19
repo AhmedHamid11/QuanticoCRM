@@ -171,6 +171,14 @@
 				return new Date(String(value)).toLocaleDateString();
 			case 'datetime':
 				return new Date(String(value)).toLocaleString();
+			case 'link':
+				if (field.linkEntity === 'User' && contact) {
+					const nameField = fieldName.replace(/Id$/, 'Name');
+					const nameKey = fieldNameToKey(nameField) as keyof Contact;
+					const name = contact[nameKey];
+					return name ? String(name) : '-';
+				}
+				return String(value);
 			default:
 				return String(value);
 		}
@@ -189,6 +197,9 @@
 				return { href: String(value), text: String(value) };
 			case 'link':
 				if (field.linkEntity && contact) {
+					// User links render as plain text (no clickable link)
+					if (field.linkEntity === 'User') return null;
+
 					// Get the ID value for the link field
 					const key = fieldNameToKey(fieldName) as keyof Contact;
 					const id = contact[key];

@@ -2,8 +2,10 @@ package handler
 
 import (
 	"database/sql"
+	"log"
 
 	"github.com/fastcrm/backend/internal/entity"
+	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/service"
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +15,10 @@ import (
 type UserHandler struct {
 	authRepo    *repo.AuthRepo
 	auditLogger *service.AuditLogger
+	contactRepo *repo.ContactRepo
+	accountRepo *repo.AccountRepo
+	taskRepo    *repo.TaskRepo
+	quoteRepo   *repo.QuoteRepo
 }
 
 // NewUserHandler creates a new UserHandler
@@ -21,6 +27,14 @@ func NewUserHandler(authRepo *repo.AuthRepo, auditLogger *service.AuditLogger) *
 		authRepo:    authRepo,
 		auditLogger: auditLogger,
 	}
+}
+
+// SetEntityRepos sets the entity repos used for owned-records counting and bulk reassignment
+func (h *UserHandler) SetEntityRepos(contactRepo *repo.ContactRepo, accountRepo *repo.AccountRepo, taskRepo *repo.TaskRepo, quoteRepo *repo.QuoteRepo) {
+	h.contactRepo = contactRepo
+	h.accountRepo = accountRepo
+	h.taskRepo = taskRepo
+	h.quoteRepo = quoteRepo
 }
 
 // List returns all users in the current organization
@@ -69,7 +83,8 @@ type UpdateRoleInput struct {
 
 // UpdateStatusInput represents the input for updating a user's active status
 type UpdateStatusInput struct {
-	IsActive bool `json:"isActive"`
+	IsActive   bool    `json:"isActive"`
+	ReassignTo *string `json:"reassignTo,omitempty"`
 }
 
 // UpdateRole updates a user's role in the current organization
@@ -251,6 +266,45 @@ func (h *UserHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 	}
 
+	// Bulk reassign records if deactivating and reassignTo is provided
+	if !input.IsActive && input.ReassignTo != nil && *input.ReassignTo != "" {
+		// Validate target user exists in org and is active
+		targetReassignUser, err := h.authRepo.GetUserByIDInOrg(c.Context(), *input.ReassignTo, orgID)
+		if err != nil || targetReassignUser == nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Reassign target user not found in this organization",
+			})
+		}
+		if !targetReassignUser.IsActive {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Cannot reassign to an inactive user",
+			})
+		}
+
+		// Use tenant DB for entity operations
+		if h.contactRepo != nil && h.accountRepo != nil && h.taskRepo != nil && h.quoteRepo != nil {
+			tenantDB := middleware.GetTenantDBConn(c)
+			contactRepo := h.contactRepo
+			accountRepo := h.accountRepo
+			taskRepo := h.taskRepo
+			quoteRepo := h.quoteRepo
+			if tenantDB != nil {
+				contactRepo = contactRepo.WithDB(tenantDB)
+				accountRepo = accountRepo.WithDB(tenantDB)
+				taskRepo = taskRepo.WithDB(tenantDB)
+				quoteRepo = quoteRepo.WithDB(tenantDB)
+			}
+
+			ctx := c.Context()
+			cCount, _ := contactRepo.BulkReassignByAssignedUser(ctx, orgID, targetUserID, *input.ReassignTo, currentUserID)
+			aCount, _ := accountRepo.BulkReassignByAssignedUser(ctx, orgID, targetUserID, *input.ReassignTo, currentUserID)
+			tCount, _ := taskRepo.BulkReassignByAssignedUser(ctx, orgID, targetUserID, *input.ReassignTo, currentUserID)
+			qCount, _ := quoteRepo.BulkReassignByAssignedUser(ctx, orgID, targetUserID, *input.ReassignTo, currentUserID)
+			log.Printf("[UserHandler] Reassigned records from %s to %s: contacts=%d accounts=%d tasks=%d quotes=%d",
+				targetUserID, *input.ReassignTo, cCount, aCount, tCount, qCount)
+		}
+	}
+
 	// Update the user's active status
 	if err := h.authRepo.UpdateUserActiveStatus(c.Context(), targetUserID, input.IsActive); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -363,6 +417,46 @@ func (h *UserHandler) Remove(c *fiber.Ctx) error {
 	})
 }
 
+// GetOwnedRecordsCount returns the count of records assigned to a user
+// GET /users/:id/owned-records-count
+func (h *UserHandler) GetOwnedRecordsCount(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	targetUserID := c.Params("id")
+
+	if h.contactRepo == nil || h.accountRepo == nil || h.taskRepo == nil || h.quoteRepo == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Entity repos not configured",
+		})
+	}
+
+	// Use tenant DB for entity operations
+	tenantDB := middleware.GetTenantDBConn(c)
+	contactRepo := h.contactRepo
+	accountRepo := h.accountRepo
+	taskRepo := h.taskRepo
+	quoteRepo := h.quoteRepo
+	if tenantDB != nil {
+		contactRepo = contactRepo.WithDB(tenantDB)
+		accountRepo = accountRepo.WithDB(tenantDB)
+		taskRepo = taskRepo.WithDB(tenantDB)
+		quoteRepo = quoteRepo.WithDB(tenantDB)
+	}
+
+	ctx := c.Context()
+	contacts, _ := contactRepo.CountByAssignedUser(ctx, orgID, targetUserID)
+	accounts, _ := accountRepo.CountByAssignedUser(ctx, orgID, targetUserID)
+	tasks, _ := taskRepo.CountByAssignedUser(ctx, orgID, targetUserID)
+	quotes, _ := quoteRepo.CountByAssignedUser(ctx, orgID, targetUserID)
+
+	return c.JSON(fiber.Map{
+		"contacts": contacts,
+		"accounts": accounts,
+		"tasks":    tasks,
+		"quotes":   quotes,
+		"total":    contacts + accounts + tasks + quotes,
+	})
+}
+
 // RegisterRoutes registers the user management routes
 func (h *UserHandler) RegisterRoutes(app fiber.Router) {
 	users := app.Group("/users")
@@ -373,6 +467,7 @@ func (h *UserHandler) RegisterRoutes(app fiber.Router) {
 // RegisterAdminRoutes registers the admin-only user management routes
 func (h *UserHandler) RegisterAdminRoutes(app fiber.Router) {
 	users := app.Group("/users")
+	users.Get("/:id/owned-records-count", h.GetOwnedRecordsCount)
 	users.Put("/:id/role", h.UpdateRole)
 	users.Put("/:id/status", h.UpdateStatus)
 	users.Delete("/:id", h.Remove)

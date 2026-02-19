@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
@@ -13,13 +14,15 @@ import (
 
 // QuoteHandler handles HTTP requests for quotes
 type QuoteHandler struct {
-	repo              *repo.QuoteRepo
-	authRepo          *repo.AuthRepo
-	tripwireService   TripwireServiceInterface
-	validationService ValidationServiceInterface
-	pdfTemplateRepo   *repo.PdfTemplateRepo
-	pdfTemplateService PdfTemplateServiceInterface
-	pdfRenderer       PdfRendererInterface
+	repo                *repo.QuoteRepo
+	authRepo            *repo.AuthRepo
+	tripwireService     TripwireServiceInterface
+	validationService   ValidationServiceInterface
+	notificationService NotificationServiceInterface
+	defaultDB           db.DBConn
+	pdfTemplateRepo     *repo.PdfTemplateRepo
+	pdfTemplateService  PdfTemplateServiceInterface
+	pdfRenderer         PdfRendererInterface
 }
 
 // PdfTemplateServiceInterface defines the interface for PDF template rendering
@@ -38,12 +41,16 @@ func NewQuoteHandler(
 	authRepo *repo.AuthRepo,
 	tripwireService TripwireServiceInterface,
 	validationService ValidationServiceInterface,
+	notificationService NotificationServiceInterface,
+	defaultDB db.DBConn,
 ) *QuoteHandler {
 	return &QuoteHandler{
-		repo:              repo,
-		authRepo:          authRepo,
-		tripwireService:   tripwireService,
-		validationService: validationService,
+		repo:                repo,
+		authRepo:            authRepo,
+		tripwireService:     tripwireService,
+		validationService:   validationService,
+		notificationService: notificationService,
+		defaultDB:           defaultDB,
 	}
 }
 
@@ -56,6 +63,14 @@ func (h *QuoteHandler) SetPdfServices(
 	h.pdfTemplateRepo = pdfTemplateRepo
 	h.pdfTemplateService = pdfTemplateService
 	h.pdfRenderer = pdfRenderer
+}
+
+// getDB returns the tenant database from context, falling back to default db
+func (h *QuoteHandler) getDB(c *fiber.Ctx) db.DBConn {
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return tenantDB
+	}
+	return h.defaultDB
 }
 
 // getRepo returns the Quote repo using the tenant database from context
@@ -89,6 +104,9 @@ func (h *QuoteHandler) resolveUserNames(ctx context.Context, records []map[strin
 	// Collect unique user IDs
 	userIDSet := make(map[string]bool)
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			userIDSet[id] = true
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			userIDSet[id] = true
 		}
@@ -116,6 +134,9 @@ func (h *QuoteHandler) resolveUserNames(ctx context.Context, records []map[strin
 
 	// Apply names to records
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			record["assignedUserName"] = userNames[id]
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			record["createdByName"] = userNames[id]
 		}
@@ -140,6 +161,11 @@ func (h *QuoteHandler) getPdfTemplateRepo(c *fiber.Ctx) *repo.PdfTemplateRepo {
 func (h *QuoteHandler) List(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 
+	owner := c.Query("owner")
+	if owner == "me" {
+		owner = c.Locals("userID").(string)
+	}
+
 	params := entity.QuoteListParams{
 		Search:     c.Query("search"),
 		SortBy:     c.Query("sortBy"),
@@ -148,6 +174,7 @@ func (h *QuoteHandler) List(c *fiber.Ctx) error {
 		PageSize:   c.QueryInt("pageSize", 20),
 		Filter:     c.Query("filter"),
 		KnownTotal: c.QueryInt("knownTotal", 0),
+		Owner:      owner,
 	}
 
 	result, err := h.getRepo(c).ListByOrg(c.Context(), orgID, params)
@@ -157,10 +184,13 @@ func (h *QuoteHandler) List(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve user names for created_by and modified_by
+	// Resolve user names for assigned_user, created_by and modified_by
 	if h.authRepo != nil && len(result.Data) > 0 {
 		userIDSet := make(map[string]bool)
 		for _, quote := range result.Data {
+			if quote.AssignedUserID != nil && *quote.AssignedUserID != "" {
+				userIDSet[*quote.AssignedUserID] = true
+			}
 			if quote.CreatedByID != nil && *quote.CreatedByID != "" {
 				userIDSet[*quote.CreatedByID] = true
 			}
@@ -175,6 +205,9 @@ func (h *QuoteHandler) List(c *fiber.Ctx) error {
 			}
 			if userNames, err := h.authRepo.GetUserNamesByIDs(c.Context(), userIDs); err == nil {
 				for i := range result.Data {
+					if result.Data[i].AssignedUserID != nil {
+						result.Data[i].AssignedUserName = userNames[*result.Data[i].AssignedUserID]
+					}
 					if result.Data[i].CreatedByID != nil {
 						result.Data[i].CreatedByName = userNames[*result.Data[i].CreatedByID]
 					}
@@ -207,9 +240,12 @@ func (h *QuoteHandler) Get(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve user names for created_by and modified_by
+	// Resolve user names for assigned_user, created_by and modified_by
 	if h.authRepo != nil {
-		userIDs := make([]string, 0, 2)
+		userIDs := make([]string, 0, 3)
+		if quote.AssignedUserID != nil && *quote.AssignedUserID != "" {
+			userIDs = append(userIDs, *quote.AssignedUserID)
+		}
 		if quote.CreatedByID != nil && *quote.CreatedByID != "" {
 			userIDs = append(userIDs, *quote.CreatedByID)
 		}
@@ -218,6 +254,9 @@ func (h *QuoteHandler) Get(c *fiber.Ctx) error {
 		}
 		if len(userIDs) > 0 {
 			if userNames, err := h.authRepo.GetUserNamesByIDs(c.Context(), userIDs); err == nil {
+				if quote.AssignedUserID != nil {
+					quote.AssignedUserName = userNames[*quote.AssignedUserID]
+				}
 				if quote.CreatedByID != nil {
 					quote.CreatedByName = userNames[*quote.CreatedByID]
 				}
@@ -276,6 +315,11 @@ func (h *QuoteHandler) Create(c *fiber.Ctx) error {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Quote", quote.ID, "CREATE", nil, StructToMap(quote))
 	}
 
+	// Notify assigned user (don't notify yourself)
+	if h.notificationService != nil && quote.AssignedUserID != nil && *quote.AssignedUserID != "" && *quote.AssignedUserID != userID {
+		go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDB(c), orgID, *quote.AssignedUserID, "Quote", quote.ID, quote.Name)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(quote)
 }
 
@@ -292,9 +336,9 @@ func (h *QuoteHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	// Fetch old record for tripwire and validation evaluation
+	// Fetch old record for tripwire, validation, and notification evaluation
 	var oldRecord map[string]interface{}
-	if h.tripwireService != nil || h.validationService != nil {
+	if h.tripwireService != nil || h.validationService != nil || h.notificationService != nil {
 		oldQuote, _ := h.getRepo(c).GetByID(c.Context(), orgID, id)
 		oldRecord = StructToMap(oldQuote)
 	}
@@ -330,6 +374,14 @@ func (h *QuoteHandler) Update(c *fiber.Ctx) error {
 	// Fire tripwires for UPDATE event
 	if h.tripwireService != nil {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Quote", id, "UPDATE", oldRecord, StructToMap(quote))
+	}
+
+	// Notify if assignment changed
+	if h.notificationService != nil && quote.AssignedUserID != nil && *quote.AssignedUserID != "" {
+		oldAssigned, _ := oldRecord["assignedUserId"].(string)
+		if *quote.AssignedUserID != oldAssigned {
+			go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDB(c), orgID, *quote.AssignedUserID, "Quote", id, quote.Name)
+		}
 	}
 
 	return c.JSON(quote)

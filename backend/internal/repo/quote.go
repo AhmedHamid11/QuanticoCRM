@@ -365,6 +365,14 @@ func (r *QuoteRepo) ListByOrg(ctx context.Context, orgID string, params entity.Q
 	baseQuery := `FROM quotes q WHERE q.org_id = ? AND q.deleted = 0`
 	args := []any{orgID}
 
+	// Apply owner filter
+	if params.Owner == "unassigned" {
+		baseQuery += ` AND (q.assigned_user_id IS NULL OR q.assigned_user_id = '')`
+	} else if params.Owner != "" {
+		baseQuery += ` AND q.assigned_user_id = ?`
+		args = append(args, params.Owner)
+	}
+
 	if params.Search != "" {
 		baseQuery += ` AND (q.name LIKE ? OR q.quote_number LIKE ? OR q.account_name LIKE ?)`
 		searchTerm := "%" + params.Search + "%"
@@ -766,4 +774,27 @@ func (r *QuoteRepo) Delete(ctx context.Context, orgID, id string) error {
 		return sql.ErrNoRows
 	}
 	return nil
+}
+
+// CountByAssignedUser returns the number of quotes assigned to a user
+func (r *QuoteRepo) CountByAssignedUser(ctx context.Context, orgID, userID string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM quotes WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		orgID, userID,
+	).Scan(&count)
+	return count, err
+}
+
+// BulkReassignByAssignedUser reassigns all quotes from one user to another
+func (r *QuoteRepo) BulkReassignByAssignedUser(ctx context.Context, orgID, fromUserID, toUserID, modifiedByID string) (int64, error) {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE quotes SET assigned_user_id = ?, modified_by_id = ?, modified_at = datetime('now')
+		 WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		toUserID, modifiedByID, orgID, fromUserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

@@ -656,8 +656,11 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Contact", "addressState", "State", "varchar", false, 22, now)
 	s.createField(ctx, orgID, "Contact", "addressCountry", "Country", "varchar", false, 23, now)
 	s.createField(ctx, orgID, "Contact", "addressPostalCode", "Postal Code", "varchar", false, 24, now)
+	s.createLinkField(ctx, orgID, "Contact", "assignedUserId", "Assigned To", "User", 9, now)
 	s.createField(ctx, orgID, "Contact", "createdAt", "Created At", "datetime", false, 100, now)
 	s.createField(ctx, orgID, "Contact", "modifiedAt", "Modified At", "datetime", false, 101, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Contact", "createdById", "Created By", "User", 102, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Contact", "modifiedById", "Modified By", "User", 103, now)
 
 	// --- Account fields (all standard columns) ---
 	// Field names must match JSON keys from API
@@ -680,8 +683,11 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Account", "shippingAddressState", "Shipping State", "varchar", false, 32, now)
 	s.createField(ctx, orgID, "Account", "shippingAddressCountry", "Shipping Country", "varchar", false, 33, now)
 	s.createField(ctx, orgID, "Account", "shippingAddressPostalCode", "Shipping Postal Code", "varchar", false, 34, now)
+	s.createLinkField(ctx, orgID, "Account", "assignedUserId", "Assigned To", "User", 9, now)
 	s.createField(ctx, orgID, "Account", "createdAt", "Created At", "datetime", false, 100, now)
 	s.createField(ctx, orgID, "Account", "modifiedAt", "Modified At", "datetime", false, 101, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Account", "createdById", "Created By", "User", 102, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Account", "modifiedById", "Modified By", "User", 103, now)
 
 	// --- Task fields (all standard columns) ---
 	s.createField(ctx, orgID, "Task", "subject", "Subject", "varchar", true, 1, now)
@@ -693,8 +699,11 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Task", "parentId", "Related To", "varchar", false, 10, now)
 	s.createField(ctx, orgID, "Task", "parentType", "Related Type", "varchar", false, 11, now)
 	s.createField(ctx, orgID, "Task", "parentName", "Related Name", "varchar", false, 12, now)
+	s.createLinkField(ctx, orgID, "Task", "assignedUserId", "Assigned To", "User", 7, now)
 	s.createField(ctx, orgID, "Task", "createdAt", "Created At", "datetime", false, 100, now)
 	s.createField(ctx, orgID, "Task", "modifiedAt", "Modified At", "datetime", false, 101, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Task", "createdById", "Created By", "User", 102, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Task", "modifiedById", "Modified By", "User", 103, now)
 
 	// --- Quote fields (all standard columns) ---
 	s.createField(ctx, orgID, "Quote", "name", "Name", "varchar", true, 1, now)
@@ -724,8 +733,11 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Quote", "shippingAddressState", "Shipping State", "varchar", false, 42, now)
 	s.createField(ctx, orgID, "Quote", "shippingAddressCountry", "Shipping Country", "varchar", false, 43, now)
 	s.createField(ctx, orgID, "Quote", "shippingAddressPostalCode", "Shipping Postal Code", "varchar", false, 44, now)
+	s.createLinkField(ctx, orgID, "Quote", "assignedUserId", "Assigned To", "User", 50, now)
 	s.createField(ctx, orgID, "Quote", "createdAt", "Created At", "datetime", false, 100, now)
 	s.createField(ctx, orgID, "Quote", "modifiedAt", "Modified At", "datetime", false, 101, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Quote", "createdById", "Created By", "User", 102, now)
+	s.createReadOnlyLinkField(ctx, orgID, "Quote", "modifiedById", "Modified By", "User", 103, now)
 
 	// --- QuoteLineItem fields (special entity - appears on Quote, not standalone) ---
 	s.createField(ctx, orgID, "QuoteLineItem", "name", "Name", "varchar", true, 1, now)
@@ -751,13 +763,13 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	// Create list layouts (all relevant fields)
 	// Field names must match JSON keys from API
 	s.createLayout(ctx, orgID, "Contact", "list",
-		`["salutationName","firstName","lastName","emailAddress","phoneNumber","accountId","addressCity","createdAt"]`, now)
+		`["salutationName","firstName","lastName","emailAddress","phoneNumber","accountId","assignedUserId","addressCity","createdAt"]`, now)
 	s.createLayout(ctx, orgID, "Account", "list",
-		`["name","type","industry","phoneNumber","emailAddress","website","billingAddressCity","createdAt"]`, now)
+		`["name","type","industry","phoneNumber","emailAddress","website","assignedUserId","billingAddressCity","createdAt"]`, now)
 	s.createLayout(ctx, orgID, "Task", "list",
-		`["subject","status","priority","type","dueDate","parentName","createdAt"]`, now)
+		`["subject","status","priority","type","dueDate","assignedUserId","parentName","createdAt"]`, now)
 	s.createLayout(ctx, orgID, "Quote", "list",
-		`["name","quoteNumber","status","accountId","contactId","grandTotal","validUntil","createdAt"]`, now)
+		`["name","quoteNumber","status","accountId","contactId","assignedUserId","grandTotal","validUntil","createdAt"]`, now)
 
 	// Create detail layouts (all fields organized into sections)
 	// Field names must match JSON keys from API
@@ -766,7 +778,8 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 			[{"field":"salutationName"},{"field":"accountId"}],
 			[{"field":"firstName"},{"field":"lastName"}],
 			[{"field":"emailAddress"},{"field":"phoneNumber"}],
-			[{"field":"phoneNumberType"},{"field":"doNotCall"}]
+			[{"field":"phoneNumberType"},{"field":"doNotCall"}],
+			[{"field":"assignedUserId"}]
 		]},
 		{"label":"Address","rows":[
 			[{"field":"addressStreet"}],
@@ -783,7 +796,8 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 			[{"field":"name"},{"field":"website"}],
 			[{"field":"emailAddress"},{"field":"phoneNumber"}],
 			[{"field":"type"},{"field":"industry"}],
-			[{"field":"sicCode"},{"field":"stage"}]
+			[{"field":"sicCode"},{"field":"stage"}],
+			[{"field":"assignedUserId"}]
 		]},
 		{"label":"Billing Address","rows":[
 			[{"field":"billingAddressStreet"}],
@@ -805,7 +819,8 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 			[{"field":"subject"}],
 			[{"field":"status"},{"field":"priority"}],
 			[{"field":"type"},{"field":"dueDate"}],
-			[{"field":"parentName"},{"field":"parentType"}]
+			[{"field":"parentName"},{"field":"parentType"}],
+			[{"field":"assignedUserId"}]
 		]},
 		{"label":"Description","rows":[
 			[{"field":"description"}]
@@ -817,7 +832,7 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 			[{"field":"name"},{"field":"quoteNumber"}],
 			[{"field":"status"},{"field":"validUntil"}],
 			[{"field":"accountId"},{"field":"contactId"}],
-			[{"field":"currency"}]
+			[{"field":"currency"},{"field":"assignedUserId"}]
 		]},
 		{"label":"Totals","rows":[
 			[{"field":"subtotal"},{"field":"discountPercent"}],
@@ -859,6 +874,9 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 
 	// Create default related list configurations
 	s.createDefaultRelatedListConfigs(ctx, orgID, now)
+
+	// Create system list views (My Records, Unassigned)
+	s.createDefaultSystemListViews(ctx, orgID, now)
 
 	log.Printf("[Provisioning] Completed metadata provisioning for org %s", orgID)
 	return nil
@@ -1244,6 +1262,17 @@ func (s *ProvisioningService) createLinkField(ctx context.Context, orgID, entity
 	}
 }
 
+func (s *ProvisioningService) createReadOnlyLinkField(ctx context.Context, orgID, entity, name, label, linkEntity string, order int, now string) {
+	id := sfid.New("0Fd")
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO field_defs (id, org_id, entity_name, name, label, type, is_required, is_read_only, is_audited, is_custom, sort_order, link_entity, created_at, modified_at)
+		VALUES (?, ?, ?, ?, ?, 'link', 0, 1, 0, 0, ?, ?, ?, ?)
+	`, id, orgID, entity, name, label, order, linkEntity, now, now)
+	if err != nil {
+		log.Printf("Warning: failed to create read-only link field %s.%s: %v", entity, name, err)
+	}
+}
+
 func (s *ProvisioningService) createNavTabWithError(ctx context.Context, orgID, label, href, entity string, order int, isSystem bool, now string) error {
 	id := sfid.New("0Nt")
 	isSystemVal := 0
@@ -1429,4 +1458,26 @@ func (s *ProvisioningService) createDefaultRelatedListConfigs(ctx context.Contex
 	}
 
 	log.Printf("[Provisioning] Completed default related list config creation for org %s", orgID)
+}
+
+// createSystemListView creates a system list view (INSERT OR IGNORE to preserve existing)
+func (s *ProvisioningService) createSystemListView(ctx context.Context, orgID, entityName, name, filterQuery, now string) {
+	id := sfid.New("0Lv")
+	_, err := s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO list_views (id, org_id, entity_name, name, filter_query, columns, sort_by, sort_dir, is_default, is_system, created_at, modified_at)
+		VALUES (?, ?, ?, ?, ?, '[]', 'created_at', 'desc', 0, 1, ?, ?)
+	`, id, orgID, entityName, name, filterQuery, now, now)
+	if err != nil {
+		log.Printf("[Provisioning] Warning: failed to create system list view %q for %s: %v", name, entityName, err)
+	}
+}
+
+// createDefaultSystemListViews creates "My Records" and "Unassigned" system list views for standard entities
+func (s *ProvisioningService) createDefaultSystemListViews(ctx context.Context, orgID, now string) {
+	entities := []string{"Contact", "Account", "Task", "Quote"}
+	for _, entity := range entities {
+		s.createSystemListView(ctx, orgID, entity, "My Records", "owner:me", now)
+		s.createSystemListView(ctx, orgID, entity, "Unassigned", "owner:unassigned", now)
+	}
+	log.Printf("[Provisioning] Created system list views for org %s", orgID)
 }

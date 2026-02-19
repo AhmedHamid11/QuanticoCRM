@@ -47,11 +47,12 @@ type Task struct {
 	ParentType     *string                `json:"parentType,omitempty" db:"parent_type"`
 	ParentName     string                 `json:"parentName" db:"parent_name"`
 	GmailMessageID *string                `json:"gmailMessageId,omitempty" db:"gmail_message_id"`
-	AssignedUserID *string                `json:"assignedUserId,omitempty" db:"assigned_user_id"`
-	CreatedByID    *string                `json:"createdById,omitempty" db:"created_by_id"`
-	CreatedByName  string                 `json:"createdByName" db:"-"`
-	ModifiedByID   *string                `json:"modifiedById,omitempty" db:"modified_by_id"`
-	ModifiedByName string                 `json:"modifiedByName" db:"-"`
+	AssignedUserID   *string                `json:"assignedUserId,omitempty" db:"assigned_user_id"`
+	AssignedUserName string                 `json:"assignedUserName" db:"-"`
+	CreatedByID      *string                `json:"createdById,omitempty" db:"created_by_id"`
+	CreatedByName    string                 `json:"createdByName" db:"-"`
+	ModifiedByID     *string                `json:"modifiedById,omitempty" db:"modified_by_id"`
+	ModifiedByName   string                 `json:"modifiedByName" db:"-"`
 	CreatedAt      time.Time              `json:"createdAt" db:"created_at"`
 	ModifiedAt     time.Time              `json:"modifiedAt" db:"modified_at"`
 	Deleted        bool                   `json:"deleted" db:"deleted"`
@@ -107,6 +108,7 @@ type TaskListParams struct {
 	GmailMessageID string `query:"gmailMessageId"`
 	Filter         string `query:"filter"`
 	KnownTotal     int    `query:"knownTotal"`
+	Owner          string `query:"owner"` // "me", "unassigned", or a user ID
 }
 
 // TaskListResponse represents the response for listing tasks

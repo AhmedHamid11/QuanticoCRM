@@ -13,18 +13,19 @@ import (
 
 // ContactHandler handles HTTP requests for contacts
 type ContactHandler struct {
-	repo              *repo.ContactRepo
-	taskRepo          *repo.TaskRepo
-	authRepo          *repo.AuthRepo
-	tripwireService   TripwireServiceInterface
-	validationService ValidationServiceInterface
-	realtimeChecker   RealtimeCheckerInterface
-	defaultDB         db.DBConn
+	repo                *repo.ContactRepo
+	taskRepo            *repo.TaskRepo
+	authRepo            *repo.AuthRepo
+	tripwireService     TripwireServiceInterface
+	validationService   ValidationServiceInterface
+	realtimeChecker     RealtimeCheckerInterface
+	notificationService NotificationServiceInterface
+	defaultDB           db.DBConn
 }
 
 // NewContactHandler creates a new ContactHandler
-func NewContactHandler(repo *repo.ContactRepo, taskRepo *repo.TaskRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, realtimeChecker RealtimeCheckerInterface, defaultDB db.DBConn) *ContactHandler {
-	return &ContactHandler{repo: repo, taskRepo: taskRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService, realtimeChecker: realtimeChecker, defaultDB: defaultDB}
+func NewContactHandler(repo *repo.ContactRepo, taskRepo *repo.TaskRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, realtimeChecker RealtimeCheckerInterface, notificationService NotificationServiceInterface, defaultDB db.DBConn) *ContactHandler {
+	return &ContactHandler{repo: repo, taskRepo: taskRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService, realtimeChecker: realtimeChecker, notificationService: notificationService, defaultDB: defaultDB}
 }
 
 // getDB returns the tenant database from context, falling back to default db
@@ -76,6 +77,9 @@ func (h *ContactHandler) resolveUserNames(ctx context.Context, records []map[str
 	// Collect unique user IDs
 	userIDSet := make(map[string]bool)
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			userIDSet[id] = true
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			userIDSet[id] = true
 		}
@@ -103,6 +107,9 @@ func (h *ContactHandler) resolveUserNames(ctx context.Context, records []map[str
 
 	// Apply names to records
 	for _, record := range records {
+		if id := extractUserID(record["assignedUserId"]); id != "" {
+			record["assignedUserName"] = userNames[id]
+		}
 		if id := extractUserID(record["createdById"]); id != "" {
 			record["createdByName"] = userNames[id]
 		}
@@ -116,6 +123,11 @@ func (h *ContactHandler) resolveUserNames(ctx context.Context, records []map[str
 func (h *ContactHandler) List(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 
+	owner := c.Query("owner")
+	if owner == "me" {
+		owner = c.Locals("userID").(string)
+	}
+
 	params := entity.ContactListParams{
 		Search:     c.Query("search"),
 		SortBy:     c.Query("sortBy"),
@@ -124,6 +136,7 @@ func (h *ContactHandler) List(c *fiber.Ctx) error {
 		PageSize:   c.QueryInt("pageSize", 20),
 		Filter:     c.Query("filter"),
 		KnownTotal: c.QueryInt("knownTotal", 0),
+		Owner:      owner,
 	}
 
 	result, err := h.getRepo(c).ListByOrg(c.Context(), orgID, params)
@@ -134,10 +147,13 @@ func (h *ContactHandler) List(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve user names for created_by and modified_by
+	// Resolve user names for assigned_user, created_by and modified_by
 	if h.authRepo != nil && len(result.Data) > 0 {
 		userIDSet := make(map[string]bool)
 		for _, contact := range result.Data {
+			if contact.AssignedUserID != nil && *contact.AssignedUserID != "" {
+				userIDSet[*contact.AssignedUserID] = true
+			}
 			if contact.CreatedByID != nil && *contact.CreatedByID != "" {
 				userIDSet[*contact.CreatedByID] = true
 			}
@@ -152,6 +168,9 @@ func (h *ContactHandler) List(c *fiber.Ctx) error {
 			}
 			if userNames, err := h.authRepo.GetUserNamesByIDs(c.Context(), userIDs); err == nil {
 				for i := range result.Data {
+					if result.Data[i].AssignedUserID != nil {
+						result.Data[i].AssignedUserName = userNames[*result.Data[i].AssignedUserID]
+					}
 					if result.Data[i].CreatedByID != nil {
 						result.Data[i].CreatedByName = userNames[*result.Data[i].CreatedByID]
 					}
@@ -185,9 +204,12 @@ func (h *ContactHandler) Get(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve user names for created_by and modified_by
+	// Resolve user names for assigned_user, created_by and modified_by
 	if h.authRepo != nil {
-		userIDs := make([]string, 0, 2)
+		userIDs := make([]string, 0, 3)
+		if contact.AssignedUserID != nil && *contact.AssignedUserID != "" {
+			userIDs = append(userIDs, *contact.AssignedUserID)
+		}
 		if contact.CreatedByID != nil && *contact.CreatedByID != "" {
 			userIDs = append(userIDs, *contact.CreatedByID)
 		}
@@ -196,6 +218,9 @@ func (h *ContactHandler) Get(c *fiber.Ctx) error {
 		}
 		if len(userIDs) > 0 {
 			if userNames, err := h.authRepo.GetUserNamesByIDs(c.Context(), userIDs); err == nil {
+				if contact.AssignedUserID != nil {
+					contact.AssignedUserName = userNames[*contact.AssignedUserID]
+				}
 				if contact.CreatedByID != nil {
 					contact.CreatedByName = userNames[*contact.CreatedByID]
 				}
@@ -256,6 +281,18 @@ func (h *ContactHandler) Create(c *fiber.Ctx) error {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Contact", contact.ID, "CREATE", nil, StructToMap(contact))
 	}
 
+	// Notify assigned user (don't notify yourself)
+	if h.notificationService != nil && contact.AssignedUserID != nil && *contact.AssignedUserID != "" && *contact.AssignedUserID != userID {
+		recordName := contact.FirstName
+		if contact.LastName != "" {
+			if recordName != "" {
+				recordName += " "
+			}
+			recordName += contact.LastName
+		}
+		go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDB(c), orgID, *contact.AssignedUserID, "Contact", contact.ID, recordName)
+	}
+
 	// Async duplicate detection (after record saved - optimistic save pattern)
 	if h.realtimeChecker != nil {
 		recordData := StructToMap(contact)
@@ -285,9 +322,9 @@ func (h *ContactHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	// Fetch old record for tripwire and validation evaluation
+	// Fetch old record for tripwire, validation, and notification evaluation
 	var oldRecord map[string]interface{}
-	if h.tripwireService != nil || h.validationService != nil {
+	if h.tripwireService != nil || h.validationService != nil || h.notificationService != nil {
 		oldContact, _ := h.getRepo(c).GetByID(c.Context(), orgID, id)
 		oldRecord = StructToMap(oldContact)
 	}
@@ -324,6 +361,21 @@ func (h *ContactHandler) Update(c *fiber.Ctx) error {
 	// Fire tripwires for UPDATE event
 	if h.tripwireService != nil {
 		go h.tripwireService.EvaluateAndFire(context.Background(), orgID, "Contact", id, "UPDATE", oldRecord, StructToMap(contact))
+	}
+
+	// Notify if assignment changed
+	if h.notificationService != nil && contact.AssignedUserID != nil && *contact.AssignedUserID != "" {
+		oldAssigned, _ := oldRecord["assignedUserId"].(string)
+		if *contact.AssignedUserID != oldAssigned {
+			recordName := contact.FirstName
+			if contact.LastName != "" {
+				if recordName != "" {
+					recordName += " "
+				}
+				recordName += contact.LastName
+			}
+			go h.notificationService.CreateAssignmentNotification(context.Background(), h.getDB(c), orgID, *contact.AssignedUserID, "Contact", id, recordName)
+		}
 	}
 
 	// Async duplicate detection (after record saved - optimistic save pattern)

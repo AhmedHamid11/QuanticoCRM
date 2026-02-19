@@ -189,6 +189,14 @@ func (r *AccountRepo) ListByOrg(ctx context.Context, orgID string, params entity
 	baseQuery := `FROM accounts a WHERE a.org_id = ? AND a.deleted = 0`
 	args := []any{orgID}
 
+	// Apply owner filter
+	if params.Owner == "unassigned" {
+		baseQuery += ` AND (a.assigned_user_id IS NULL OR a.assigned_user_id = '')`
+	} else if params.Owner != "" {
+		baseQuery += ` AND a.assigned_user_id = ?`
+		args = append(args, params.Owner)
+	}
+
 	if params.Search != "" {
 		baseQuery += ` AND (a.name LIKE ? OR a.email_address LIKE ? OR a.website LIKE ?)`
 		searchTerm := "%" + params.Search + "%"
@@ -436,4 +444,27 @@ func (r *AccountRepo) Delete(ctx context.Context, orgID, id string) error {
 	}
 
 	return nil
+}
+
+// CountByAssignedUser returns the number of accounts assigned to a user
+func (r *AccountRepo) CountByAssignedUser(ctx context.Context, orgID, userID string) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM accounts WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		orgID, userID,
+	).Scan(&count)
+	return count, err
+}
+
+// BulkReassignByAssignedUser reassigns all accounts from one user to another
+func (r *AccountRepo) BulkReassignByAssignedUser(ctx context.Context, orgID, fromUserID, toUserID, modifiedByID string) (int64, error) {
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE accounts SET assigned_user_id = ?, modified_by_id = ?, modified_at = datetime('now')
+		 WHERE org_id = ? AND assigned_user_id = ? AND deleted = 0`,
+		toUserID, modifiedByID, orgID, fromUserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

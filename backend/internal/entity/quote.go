@@ -36,6 +36,7 @@ type Quote struct {
 	Terms                     string                 `json:"terms" db:"terms"`
 	Notes                     string                 `json:"notes" db:"notes"`
 	AssignedUserID            *string                `json:"assignedUserId" db:"assigned_user_id"`
+	AssignedUserName          string                 `json:"assignedUserName" db:"-"`
 	CreatedByID               *string                `json:"createdById" db:"created_by_id"`
 	CreatedByName             string                 `json:"createdByName" db:"-"`
 	ModifiedByID              *string                `json:"modifiedById" db:"modified_by_id"`
@@ -154,6 +155,7 @@ type QuoteListParams struct {
 	PageSize   int    `query:"pageSize"`
 	Filter     string `query:"filter"`
 	KnownTotal int    `query:"knownTotal"`
+	Owner      string `query:"owner"` // "me", "unassigned", or a user ID
 }
 
 // QuoteListResponse represents the response for listing quotes

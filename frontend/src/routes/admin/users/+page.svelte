@@ -14,6 +14,14 @@
 	let editingUserId = $state<string | null>(null);
 	let editingRole = $state<string>('user');
 
+	// Deactivation modal state
+	let showDeactivateModal = $state(false);
+	let deactivateTarget = $state<UserWithMembership | null>(null);
+	let ownedCounts = $state<{ contacts: number; accounts: number; tasks: number; quotes: number; total: number } | null>(null);
+	let reassignToUserId = $state('');
+	let isDeactivating = $state(false);
+	let isLoadingCounts = $state(false);
+
 	// Invite modal state
 	let showInviteModal = $state(false);
 	let inviteEmail = $state('');
@@ -139,22 +147,69 @@
 	// Toggle user active status
 	async function toggleUserStatus(user: UserWithMembership) {
 		const newStatus = !user.isActive;
-		const action = newStatus ? 'activate' : 'deactivate';
 
-		if (!confirm(`Are you sure you want to ${action} ${user.firstName || ''} ${user.lastName || ''} (${user.email})? ${!newStatus ? 'They will be logged out immediately and unable to log in.' : ''}`)) {
+		if (newStatus) {
+			// Activating - simple confirm
+			if (!confirm(`Are you sure you want to activate ${user.firstName || ''} ${user.lastName || ''} (${user.email})?`)) return;
+			try {
+				await authFetch(`/users/${user.id}/status`, {
+					method: 'PUT',
+					body: { isActive: true }
+				});
+				addToast('User activated successfully', 'success');
+				await loadUsers();
+			} catch (err: any) {
+				addToast(err.message || 'Failed to activate user', 'error');
+			}
 			return;
 		}
 
+		// Deactivating - check for owned records first
+		deactivateTarget = user;
+		isLoadingCounts = true;
+		showDeactivateModal = true;
+		ownedCounts = null;
+		reassignToUserId = '';
+
 		try {
-			await authFetch(`/users/${user.id}/status`, {
+			ownedCounts = await authFetch<{ contacts: number; accounts: number; tasks: number; quotes: number; total: number }>(`/admin/users/${user.id}/owned-records-count`);
+		} catch (err) {
+			ownedCounts = { contacts: 0, accounts: 0, tasks: 0, quotes: 0, total: 0 };
+		} finally {
+			isLoadingCounts = false;
+		}
+	}
+
+	// Perform deactivation (with optional reassignment)
+	async function performDeactivation(reassign: boolean) {
+		if (!deactivateTarget) return;
+		isDeactivating = true;
+
+		try {
+			const body: { isActive: boolean; reassignTo?: string } = { isActive: false };
+			if (reassign && reassignToUserId) {
+				body.reassignTo = reassignToUserId;
+			}
+			await authFetch(`/users/${deactivateTarget.id}/status`, {
 				method: 'PUT',
-				body: { isActive: newStatus }
+				body
 			});
-			addToast(`User ${newStatus ? 'activated' : 'deactivated'} successfully`, 'success');
+			addToast(`User deactivated successfully${reassign ? ' and records reassigned' : ''}`, 'success');
+			showDeactivateModal = false;
+			deactivateTarget = null;
 			await loadUsers();
 		} catch (err: any) {
-			addToast(err.message || `Failed to ${action} user`, 'error');
+			addToast(err.message || 'Failed to deactivate user', 'error');
+		} finally {
+			isDeactivating = false;
 		}
+	}
+
+	function closeDeactivateModal() {
+		showDeactivateModal = false;
+		deactivateTarget = null;
+		ownedCounts = null;
+		reassignToUserId = '';
 	}
 
 	// Format date
@@ -599,6 +654,109 @@
 					<button
 						type="button"
 						onclick={closeInviteModal}
+						class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+					>
+						Cancel
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Deactivate User Modal -->
+{#if showDeactivateModal && deactivateTarget}
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+			<div
+				class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+				onclick={closeDeactivateModal}
+			></div>
+
+			<div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+				<div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+					<div class="sm:flex sm:items-start">
+						<div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 sm:mx-0 sm:h-10 sm:w-10">
+							<svg class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+							</svg>
+						</div>
+						<div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left flex-1">
+							<h3 class="text-lg font-semibold leading-6 text-gray-900">
+								Deactivate {deactivateTarget.firstName} {deactivateTarget.lastName}
+							</h3>
+							<p class="mt-2 text-sm text-gray-500">
+								This user will be logged out immediately and unable to log in.
+							</p>
+
+							{#if isLoadingCounts}
+								<div class="mt-4 flex items-center gap-2 text-sm text-gray-500">
+									<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+									Checking owned records...
+								</div>
+							{:else if ownedCounts && ownedCounts.total > 0}
+								<div class="mt-4 bg-amber-50 rounded-md p-3">
+									<p class="text-sm font-medium text-amber-800 mb-2">
+										This user owns {ownedCounts.total} record{ownedCounts.total !== 1 ? 's' : ''}:
+									</p>
+									<ul class="text-sm text-amber-700 space-y-1">
+										{#if ownedCounts.contacts > 0}
+											<li>{ownedCounts.contacts} Contact{ownedCounts.contacts !== 1 ? 's' : ''}</li>
+										{/if}
+										{#if ownedCounts.accounts > 0}
+											<li>{ownedCounts.accounts} Account{ownedCounts.accounts !== 1 ? 's' : ''}</li>
+										{/if}
+										{#if ownedCounts.tasks > 0}
+											<li>{ownedCounts.tasks} Task{ownedCounts.tasks !== 1 ? 's' : ''}</li>
+										{/if}
+										{#if ownedCounts.quotes > 0}
+											<li>{ownedCounts.quotes} Quote{ownedCounts.quotes !== 1 ? 's' : ''}</li>
+										{/if}
+									</ul>
+								</div>
+
+								<div class="mt-4">
+									<label for="reassign-to" class="block text-sm font-medium text-gray-700">
+										Reassign records to
+									</label>
+									<select
+										id="reassign-to"
+										bind:value={reassignToUserId}
+										class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+									>
+										<option value="">-- Select a user --</option>
+										{#each users.filter(u => u.id !== deactivateTarget?.id && u.isActive) as u (u.id)}
+											<option value={u.id}>{u.firstName} {u.lastName} ({u.email})</option>
+										{/each}
+									</select>
+								</div>
+							{/if}
+						</div>
+					</div>
+				</div>
+				<div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
+					{#if ownedCounts && ownedCounts.total > 0 && reassignToUserId}
+						<button
+							type="button"
+							onclick={() => performDeactivation(true)}
+							disabled={isDeactivating}
+							class="inline-flex w-full justify-center rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-500 sm:w-auto disabled:opacity-50"
+						>
+							{isDeactivating ? 'Processing...' : 'Reassign & Deactivate'}
+						</button>
+					{/if}
+					<button
+						type="button"
+						onclick={() => performDeactivation(false)}
+						disabled={isDeactivating || isLoadingCounts}
+						class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:w-auto disabled:opacity-50"
+					>
+						{isDeactivating ? 'Processing...' : 'Deactivate Without Reassigning'}
+					</button>
+					<button
+						type="button"
+						onclick={closeDeactivateModal}
+						disabled={isDeactivating}
 						class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
 					>
 						Cancel

@@ -166,6 +166,13 @@
 				return value ? 'Yes' : 'No';
 			case 'currency':
 				return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value));
+			case 'link':
+				if (field.linkEntity === 'User' && record) {
+					const nameField = fieldName.replace(/Id$/, 'Name');
+					const name = getRecordValue(nameField);
+					return name ? String(name) : '-';
+				}
+				return String(value);
 			case 'enum':
 			case 'multiEnum':
 				const strValue = String(value);
@@ -190,6 +197,8 @@
 		if (!field || !record) return null;
 
 		if (field.type === 'link') {
+			// User links render as plain text (no clickable link)
+			if (field.linkEntity === 'User') return null;
 			// Try camelCase versions of the field name for link/name values
 			const linkValue = getRecordValue(`${fieldName}Link`);
 			const nameValue = getRecordValue(`${fieldName}Name`);

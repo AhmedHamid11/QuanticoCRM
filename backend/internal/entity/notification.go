@@ -19,6 +19,7 @@ type Notification struct {
 
 // Notification type constants
 const (
-	NotificationTypeScanComplete = "scan_complete"
-	NotificationTypeScanFailed   = "scan_failed"
+	NotificationTypeScanComplete   = "scan_complete"
+	NotificationTypeScanFailed     = "scan_failed"
+	NotificationTypeRecordAssigned = "record_assigned"
 )
