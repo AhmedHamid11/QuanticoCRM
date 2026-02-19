@@ -879,7 +879,7 @@ func (s *ProvisioningService) createDefaultMatchingRules(ctx context.Context, or
 		INSERT OR IGNORE INTO matching_rules (id, org_id, name, description, entity_type, is_enabled, priority,
 			threshold, high_confidence_threshold, medium_confidence_threshold, blocking_strategy,
 			field_configs, merge_display_fields, created_at, modified_at)
-		VALUES (?, ?, ?, ?, ?, 1, 1, 0.70, 0.95, 0.85, 'multi', ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, 1, 1, 0.70, 0.95, 0.85, '', ?, ?, ?, ?)
 	`, contactRuleID, orgID, "Contact Email Match",
 		"Finds duplicate contacts by matching email address (60%) and name similarity (40%). High confidence when email matches exactly.",
 		"Contact", contactFieldConfigs, contactMergeFields, now, now)
@@ -902,9 +902,9 @@ func (s *ProvisioningService) createDefaultMatchingRules(ctx context.Context, or
 		INSERT OR IGNORE INTO matching_rules (id, org_id, name, description, entity_type, is_enabled, priority,
 			threshold, high_confidence_threshold, medium_confidence_threshold, blocking_strategy,
 			field_configs, merge_display_fields, created_at, modified_at)
-		VALUES (?, ?, ?, ?, ?, 1, 1, 0.75, 0.95, 0.85, 'prefix', ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, 1, 1, 0.75, 0.95, 0.85, '', ?, ?, ?, ?)
 	`, accountRuleID, orgID, "Account Name Match",
-		"Finds duplicate accounts by matching company name (50%), website (30%), and email domain (20%). Uses name prefix blocking for performance.",
+		"Finds duplicate accounts by matching company name (50%), website (30%), and email domain (20%).",
 		"Account", accountFieldConfigs, accountMergeFields, now, now)
 	if err != nil {
 		log.Printf("[Provisioning] Warning: failed to create Account matching rule: %v", err)

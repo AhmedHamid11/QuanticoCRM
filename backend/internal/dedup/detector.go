@@ -57,16 +57,17 @@ func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID
 
 	// Process rules in priority order (first match wins per CONTEXT.md)
 	for _, rule := range rules {
-		log.Printf("[DETECTOR] Processing rule %s (strategy=%s) for %s/%s, excludeID=%s",
-			rule.Name, rule.BlockingStrategy, entityType, getStringValue(record, "id"), excludeID)
-
 		// Find candidate records using blocking
 		candidates, err := d.blocker.FindCandidates(ctx, conn, orgID, entityType, record, excludeID, &rule)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find candidates: %w", err)
 		}
 
-		log.Printf("[DETECTOR] Rule %s found %d candidates", rule.Name, len(candidates))
+		if len(candidates) == 0 {
+			continue
+		}
+
+		log.Printf("[DETECTOR] Rule %s found %d candidates for %s/%s", rule.Name, len(candidates), entityType, excludeID)
 
 		// Score each candidate
 		for _, candidateID := range candidates {
@@ -83,8 +84,6 @@ func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID
 
 			// Calculate score
 			result, isMatch := d.scorer.CompareRecords(record, candidateRecord, &rule)
-			log.Printf("[DETECTOR] Scored %s vs %s: score=%.2f, isMatch=%v",
-				excludeID, candidateID, result.Score, isMatch)
 			if isMatch {
 				allMatches = append(allMatches, DuplicateMatch{
 					RecordID:    candidateID,

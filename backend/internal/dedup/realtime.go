@@ -58,7 +58,7 @@ func (r *RealtimeChecker) CheckAsync(conn db.DBConn, input CheckAsyncInput) {
 
 // runCheck performs the actual detection and stores alert if duplicates found
 func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input CheckAsyncInput) {
-	log.Printf("[DEDUP] Starting async check for %s/%s in org %s", input.EntityType, input.RecordID, input.OrgID)
+	// Removed per-record log to reduce noise in production
 
 	// Ensure dedup schema exists (core tables like matching_rules, pending_duplicate_alerts)
 	if err := EnsureDedupSchema(ctx, conn); err != nil {
@@ -83,8 +83,6 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	if err := r.detector.GetBlocker().UpdateBlockingKeys(ctx, conn, input.EntityType, input.RecordID, input.RecordData); err != nil {
 		log.Printf("ERROR: Failed to update blocking keys for %s/%s: %v", input.EntityType, input.RecordID, err)
 		// Continue anyway - blocking key update is best-effort
-	} else {
-		log.Printf("[DEDUP] Updated blocking keys for %s/%s", input.EntityType, input.RecordID)
 	}
 
 	// Check if any matching rules exist for this entity (quick bailout)
@@ -94,10 +92,8 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 		return
 	}
 	if len(rules) == 0 {
-		log.Printf("[DEDUP] No matching rules found for %s in org %s", input.EntityType, input.OrgID)
 		return // No rules configured, nothing to check
 	}
-	log.Printf("[DEDUP] Found %d matching rules for %s in org %s", len(rules), input.EntityType, input.OrgID)
 
 	// Determine if any rule has block mode enabled
 	// NOTE: Current matching_rules schema doesn't have block_mode column
@@ -120,8 +116,7 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	}
 
 	if len(matches) == 0 {
-		log.Printf("[DEDUP] No matches found for %s/%s", input.EntityType, input.RecordID)
-		return // Silent success - no duplicates found
+		return // No duplicates found
 	}
 	log.Printf("[DEDUP] Found %d matches for %s/%s", len(matches), input.EntityType, input.RecordID)
 

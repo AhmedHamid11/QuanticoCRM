@@ -70,7 +70,7 @@ type MatchingRuleCreateInput struct {
 	Threshold                 float64            `json:"threshold" validate:"required,min=0,max=1"`
 	HighConfidenceThreshold   float64            `json:"highConfidenceThreshold"`
 	MediumConfidenceThreshold float64            `json:"mediumConfidenceThreshold"`
-	BlockingStrategy          string             `json:"blockingStrategy" validate:"required"`
+	BlockingStrategy          string             `json:"blockingStrategy"`
 	FieldConfigs              []DedupFieldConfig `json:"fieldConfigs" validate:"required,min=1"`
 	MergeDisplayFields        []string           `json:"mergeDisplayFields,omitempty"` // Fields shown on merge screen
 }

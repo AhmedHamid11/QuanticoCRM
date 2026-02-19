@@ -30,14 +30,19 @@ type BlockingKeys struct {
 	PhoneE164       string
 }
 
-// GenerateBlockingKeys computes all blocking keys for a record
+// GenerateBlockingKeys computes all blocking keys for a record.
+// Handles both Contact-style fields (lastName) and Account-style fields (name).
 func (b *Blocker) GenerateBlockingKeys(record map[string]interface{}) BlockingKeys {
 	keys := BlockingKeys{}
 
-	// Last name Soundex and prefix
-	if lastName := getStringValue(record, "lastName"); lastName != "" {
-		keys.LastNameSoundex = b.GetSoundex(lastName)
-		keys.LastNamePrefix = b.normalizer.GetNamePrefix(lastName, 3)
+	// Name-based keys: try lastName (Contacts), fall back to name (Accounts, etc.)
+	nameForBlocking := getStringValue(record, "lastName")
+	if nameForBlocking == "" {
+		nameForBlocking = getStringValue(record, "name")
+	}
+	if nameForBlocking != "" {
+		keys.LastNameSoundex = b.GetSoundex(nameForBlocking)
+		keys.LastNamePrefix = b.normalizer.GetNamePrefix(nameForBlocking, 3)
 	}
 
 	// Email domain - check both "email" and "emailAddress" field names
@@ -70,73 +75,38 @@ func (b *Blocker) GetSoundex(name string) string {
 	return phonetics.EncodeSoundex(name)
 }
 
-// FindCandidates returns record IDs that share blocking keys with the input record
-// Uses OR logic across strategies: any shared key = candidate
+// FindCandidates returns record IDs that share blocking keys with the input record.
+// Always uses all available blocking keys with OR logic for maximum recall.
+// The blocking strategy field is ignored — candidate narrowing is automatic.
 func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, entityType string,
 	record map[string]interface{}, excludeID string, rule *entity.MatchingRule) ([]string, error) {
 
 	tableName := util.GetTableName(entityType)
 	keys := b.GenerateBlockingKeys(record)
 
-	// Build query based on blocking strategy
+	// Use all available blocking keys with OR logic
 	var conditions []string
 	var args []interface{}
 
-	switch rule.BlockingStrategy {
-	case entity.BlockingSoundex:
-		if keys.LastNameSoundex != "" {
-			conditions = append(conditions, "dedup_last_name_soundex = ?")
-			args = append(args, keys.LastNameSoundex)
-		}
-	case entity.BlockingPrefix:
-		if keys.LastNamePrefix != "" {
-			conditions = append(conditions, "dedup_last_name_prefix = ?")
-			args = append(args, keys.LastNamePrefix)
-		}
-	case entity.BlockingExact:
-		// Exact matching on specific fields - check email and phone
-		if keys.EmailDomain != "" {
-			conditions = append(conditions, "dedup_email_domain = ?")
-			args = append(args, keys.EmailDomain)
-		}
-		if keys.PhoneE164 != "" {
-			conditions = append(conditions, "dedup_phone_e164 = ?")
-			args = append(args, keys.PhoneE164)
-		}
-	case entity.BlockingMulti:
-		// Combine multiple strategies with OR
-		if keys.LastNameSoundex != "" {
-			conditions = append(conditions, "dedup_last_name_soundex = ?")
-			args = append(args, keys.LastNameSoundex)
-		}
-		if keys.LastNamePrefix != "" {
-			conditions = append(conditions, "dedup_last_name_prefix = ?")
-			args = append(args, keys.LastNamePrefix)
-		}
-		if keys.EmailDomain != "" {
-			conditions = append(conditions, "dedup_email_domain = ?")
-			args = append(args, keys.EmailDomain)
-		}
-	default:
-		// Default to multi (combine all strategies) for unknown/empty strategies
-		if keys.LastNameSoundex != "" {
-			conditions = append(conditions, "dedup_last_name_soundex = ?")
-			args = append(args, keys.LastNameSoundex)
-		}
-		if keys.LastNamePrefix != "" {
-			conditions = append(conditions, "dedup_last_name_prefix = ?")
-			args = append(args, keys.LastNamePrefix)
-		}
-		if keys.EmailDomain != "" {
-			conditions = append(conditions, "dedup_email_domain = ?")
-			args = append(args, keys.EmailDomain)
-		}
+	if keys.LastNameSoundex != "" {
+		conditions = append(conditions, "dedup_last_name_soundex = ?")
+		args = append(args, keys.LastNameSoundex)
+	}
+	if keys.LastNamePrefix != "" {
+		conditions = append(conditions, "dedup_last_name_prefix = ?")
+		args = append(args, keys.LastNamePrefix)
+	}
+	if keys.EmailDomain != "" {
+		conditions = append(conditions, "dedup_email_domain = ?")
+		args = append(args, keys.EmailDomain)
+	}
+	if keys.PhoneE164 != "" {
+		conditions = append(conditions, "dedup_phone_e164 = ?")
+		args = append(args, keys.PhoneE164)
 	}
 
 	// If no blocking conditions, return empty (avoid full table scan)
 	if len(conditions) == 0 {
-		log.Printf("[BLOCKER] No blocking conditions for %s strategy (keys: soundex=%q prefix=%q domain=%q phone=%q)",
-			rule.BlockingStrategy, keys.LastNameSoundex, keys.LastNamePrefix, keys.EmailDomain, keys.PhoneE164)
 		return []string{}, nil
 	}
 
@@ -157,9 +127,6 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 	// Limit to prevent huge result sets (soft limit per CONTEXT.md)
 	query += " LIMIT 1000"
 
-	log.Printf("[BLOCKER] Strategy=%s, query conditions: %s, args: %v, excludeID=%s",
-		rule.BlockingStrategy, strings.Join(conditions, " OR "), args, excludeID)
-
 	rows, err := conn.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find candidates: %w", err)
@@ -175,7 +142,6 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 		candidates = append(candidates, id)
 	}
 
-	log.Printf("[BLOCKER] Found %d candidates for %s/%s", len(candidates), entityType, excludeID)
 	return candidates, nil
 }
 
@@ -215,7 +181,7 @@ func (b *Blocker) BatchFindCandidates(ctx context.Context, conn db.DBConn, orgID
 		}
 	}
 
-	// Build conditions based on blocking strategy
+	// Use all available blocking keys (strategy is ignored)
 	var conditions []string
 	var args []interface{}
 
@@ -231,23 +197,10 @@ func (b *Blocker) BatchFindCandidates(ctx context.Context, conn db.DBConn, orgID
 		conditions = append(conditions, fmt.Sprintf("%s IN (%s)", col, strings.Join(placeholders, ",")))
 	}
 
-	switch rule.BlockingStrategy {
-	case entity.BlockingSoundex:
-		addInCondition("dedup_last_name_soundex", soundexVals)
-	case entity.BlockingPrefix:
-		addInCondition("dedup_last_name_prefix", prefixVals)
-	case entity.BlockingExact:
-		addInCondition("dedup_email_domain", domainVals)
-		addInCondition("dedup_phone_e164", phoneVals)
-	case entity.BlockingMulti:
-		addInCondition("dedup_last_name_soundex", soundexVals)
-		addInCondition("dedup_last_name_prefix", prefixVals)
-		addInCondition("dedup_email_domain", domainVals)
-	default:
-		addInCondition("dedup_last_name_soundex", soundexVals)
-		addInCondition("dedup_last_name_prefix", prefixVals)
-		addInCondition("dedup_email_domain", domainVals)
-	}
+	addInCondition("dedup_last_name_soundex", soundexVals)
+	addInCondition("dedup_last_name_prefix", prefixVals)
+	addInCondition("dedup_email_domain", domainVals)
+	addInCondition("dedup_phone_e164", phoneVals)
 
 	if len(conditions) == 0 {
 		return nil, nil

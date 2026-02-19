@@ -64,7 +64,7 @@ func ensureDedupSchema(ctx context.Context, conn db.DBConn) error {
 			threshold REAL NOT NULL DEFAULT 0.70,
 			high_confidence_threshold REAL DEFAULT 0.95,
 			medium_confidence_threshold REAL DEFAULT 0.85,
-			blocking_strategy TEXT NOT NULL DEFAULT 'multi',
+			blocking_strategy TEXT NOT NULL DEFAULT '',
 			field_configs TEXT NOT NULL,
 			merge_display_fields TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -191,9 +191,9 @@ func ensureDedupSchema(ctx context.Context, conn db.DBConn) error {
 		}
 	}
 
-	// Upgrade existing rules to multi blocking strategy if they have an invalid or narrow strategy
-	// soundex-only misses email/phone-based duplicates; empty/none are invalid
-	_, _ = conn.ExecContext(ctx, `UPDATE matching_rules SET blocking_strategy = 'multi' WHERE blocking_strategy NOT IN ('multi', 'prefix', 'exact')`)
+	// Blank out blocking_strategy — the engine now ignores this field
+	// and always uses all available blocking keys automatically
+	_, _ = conn.ExecContext(ctx, `UPDATE matching_rules SET blocking_strategy = '' WHERE blocking_strategy != ''`)
 
 	log.Printf("[DEDUP] Auto-provisioned dedup tables and blocking key columns on tenant DB")
 	return nil
@@ -268,10 +268,10 @@ func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityTy
 
 	tableName := util.GetTableName(entityType)
 
-	// Query all records that haven't been backfilled yet (dedup_email_domain IS NULL as marker)
-	// Use SELECT * to get all fields, then convert to camelCase for GenerateBlockingKeys
+	// Query records that need backfill: either never processed (NULL) or
+	// previously processed with all-empty keys (e.g., Accounts before name-field fix)
 	rows, err := conn.QueryContext(ctx, fmt.Sprintf(
-		`SELECT * FROM %s WHERE dedup_email_domain IS NULL LIMIT 5000`, tableName))
+		`SELECT * FROM %s WHERE dedup_email_domain IS NULL OR (dedup_last_name_soundex = '' AND dedup_last_name_prefix = '' AND dedup_email_domain = '' AND dedup_phone_e164 = '') LIMIT 5000`, tableName))
 	if err != nil {
 		if IsSchemaError(err) {
 			// Table or columns don't exist yet — nothing to backfill

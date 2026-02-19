@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS matching_rules (
     threshold REAL NOT NULL DEFAULT 0.70, -- Minimum score to be considered a match
     high_confidence_threshold REAL DEFAULT 0.95,   -- Auto-merge safe
     medium_confidence_threshold REAL DEFAULT 0.85, -- Needs review
-    blocking_strategy TEXT NOT NULL DEFAULT 'multi', -- "soundex", "prefix", "exact", "ngram", "multi"
+    blocking_strategy TEXT NOT NULL DEFAULT '',       -- Deprecated: engine auto-detects blocking keys
 
     -- field_configs: JSON array of FieldConfig
     -- Example: [
