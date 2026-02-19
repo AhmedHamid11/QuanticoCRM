@@ -5,7 +5,6 @@
 		listPendingAlerts,
 		mergePreview,
 		mergeExecute,
-		getBannerClass,
 		getConfidenceBadgeClass,
 		formatConfidence,
 		type PendingAlert,
@@ -26,6 +25,26 @@
 	let showBulkBar = $derived(selectedIds.size > 0);
 	let bulkProcessing = $state(false);
 	let bulkProgress = $state({ current: 0, total: 0 });
+	let expandedIds = $state<Set<string>>(new Set());
+
+	function toggleExpand(id: string) {
+		if (expandedIds.has(id)) {
+			expandedIds.delete(id);
+		} else {
+			expandedIds.add(id);
+		}
+		expandedIds = new Set(expandedIds);
+	}
+
+	function toggleExpandAll() {
+		if (expandedIds.size === alerts.length) {
+			expandedIds = new Set();
+		} else {
+			expandedIds = new Set(alerts.map((a) => a.id));
+		}
+	}
+
+	const allExpanded = $derived(expandedIds.size === alerts.length && alerts.length > 0);
 
 	// Load alerts on mount
 	onMount(() => {
@@ -307,115 +326,160 @@
 	{:else}
 		<!-- Alert Cards -->
 		<div class="space-y-4">
+			<!-- Toolbar: Select All + Expand All -->
 			{#if alerts.length > 0}
-				<!-- Select All Checkbox -->
-				<div class="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2">
-					<input
-						id="select-all"
-						name="select-all"
-						type="checkbox"
-						checked={selectedIds.size === alerts.length && alerts.length > 0}
-						onchange={toggleSelectAll}
-						class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-					/>
-					<label for="select-all" class="text-sm text-gray-700">
-						{selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
-					</label>
+				<div class="flex items-center gap-4 rounded-lg bg-gray-50 px-4 py-2">
+					<div class="flex items-center gap-2">
+						<input
+							id="select-all"
+							name="select-all"
+							type="checkbox"
+							checked={selectedIds.size === alerts.length && alerts.length > 0}
+							onchange={toggleSelectAll}
+							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+						/>
+						<label for="select-all" class="text-sm text-gray-700">
+							{selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+						</label>
+					</div>
+					<div class="h-4 w-px bg-gray-300"></div>
+					<button
+						onclick={toggleExpandAll}
+						class="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							{#if allExpanded}
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+							{:else}
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+							{/if}
+						</svg>
+						{allExpanded ? 'Collapse All' : 'Expand All'}
+					</button>
 				</div>
 			{/if}
 
-			{#each alerts as alert (alert.id)}
-				{@const borderClass = getBannerClass(alert.highestConfidence)}
-				{@const badgeClass = getConfidenceBadgeClass(alert.highestConfidence)}
-				{@const confidenceScore = alert.matches[0]?.matchResult?.score || 0}
+			<!-- Compact Alert Rows -->
+			<div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+				{#each alerts as alert, i (alert.id)}
+					{@const badgeClass = getConfidenceBadgeClass(alert.highestConfidence)}
+					{@const confidenceScore = alert.matches[0]?.matchResult?.score || 0}
+					{@const isExpanded = expandedIds.has(alert.id)}
 
-				<div class="rounded-lg border-l-4 {borderClass} border-r border-t border-b border-gray-200 bg-white p-6 shadow-sm">
-					<div class="flex items-start gap-4">
-						<!-- Checkbox -->
-						<input
-							type="checkbox"
-							id="alert-{alert.id}"
-							name="alert-{alert.id}"
-							checked={selectedIds.has(alert.id)}
-							onchange={() => toggleSelection(alert.id)}
-							aria-label="Select {alert.entityType} {alert.recordId}"
-							class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-						/>
+					<!-- Compact Row -->
+					<div class="{i > 0 ? 'border-t border-gray-200' : ''}">
+						<div
+							class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+							role="button"
+							tabindex="0"
+							onclick={(e) => {
+								if ((e.target as HTMLElement).closest('input, button')) return;
+								toggleExpand(alert.id);
+							}}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									toggleExpand(alert.id);
+								}
+							}}
+						>
+							<!-- Checkbox -->
+							<input
+								type="checkbox"
+								id="alert-{alert.id}"
+								name="alert-{alert.id}"
+								checked={selectedIds.has(alert.id)}
+								onchange={() => toggleSelection(alert.id)}
+								aria-label="Select {alert.entityType} {alert.recordId}"
+								class="h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+							/>
 
-						<!-- Card Content -->
-						<div class="flex-1">
-							<!-- Header -->
-							<div class="mb-4 flex items-start justify-between">
-								<div>
-									<div class="flex items-center gap-2">
-										<h3 class="text-lg font-medium text-gray-900">
-											{alert.recordName || alert.recordId}
-										</h3>
-										<span class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
-											{alert.entityType}
-										</span>
-										<span class="rounded-full {badgeClass} px-2 py-1 text-xs font-medium">
-											{formatConfidence(confidenceScore)} {alert.highestConfidence.toUpperCase()}
-										</span>
-									</div>
-								</div>
-							</div>
+							<!-- Expand Chevron -->
+							<svg
+								class="h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 {isExpanded ? 'rotate-90' : ''}"
+								fill="none" stroke="currentColor" viewBox="0 0 24 24"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+							</svg>
 
-							<!-- Matched Records -->
-							<div class="mb-4 space-y-3">
-								<h4 class="text-sm font-medium text-gray-700">Matched Records ({alert.totalMatchCount}):</h4>
-								{#each alert.matches as match, idx}
-									<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-										<div class="flex items-start justify-between">
-											<div class="flex-1">
-												<div class="flex items-center gap-2">
-													<span class="font-medium text-gray-900">
-														{match.recordName || match.recordId}
-													</span>
-													<span class="text-xs text-gray-500">
-														Match: {formatConfidence(match.matchResult?.score || 0)}
-													</span>
-												</div>
-												{#if match.matchResult?.matchingFields?.length > 0}
-													<div class="mt-1 flex flex-wrap gap-1">
-														{#each match.matchResult?.matchingFields || [] as field}
-															<span class="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
-																{field}
-															</span>
-														{/each}
-													</div>
-												{/if}
-											</div>
-										</div>
-									</div>
-								{/each}
-							</div>
+							<!-- Record Name -->
+							<span class="min-w-0 truncate font-medium text-gray-900">
+								{alert.recordName || alert.recordId}
+							</span>
 
-							<!-- Action Buttons -->
-							<div class="flex gap-2">
+							<!-- Entity Badge -->
+							<span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+								{alert.entityType}
+							</span>
+
+							<!-- Confidence Badge -->
+							<span class="shrink-0 rounded-full {badgeClass} px-2 py-0.5 text-xs font-medium">
+								{formatConfidence(confidenceScore)} {alert.highestConfidence.toUpperCase()}
+							</span>
+
+							<!-- Match Count -->
+							<span class="shrink-0 text-xs text-gray-500">
+								{alert.totalMatchCount} {alert.totalMatchCount === 1 ? 'match' : 'matches'}
+							</span>
+
+							<!-- Spacer -->
+							<div class="flex-1"></div>
+
+							<!-- Inline Action Buttons -->
+							<div class="flex shrink-0 items-center gap-1">
 								<button
-									onclick={() => dismissAlert(alert)}
-									class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+									onclick={(e) => { e.stopPropagation(); dismissAlert(alert); }}
+									class="rounded px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200"
 								>
 									Dismiss
 								</button>
 								<button
-									onclick={() => quickMerge(alert)}
-									class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+									onclick={(e) => { e.stopPropagation(); quickMerge(alert); }}
+									class="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700"
 								>
 									Quick Merge
 								</button>
 								<button
-									onclick={() => navigateToMergeWizard(alert)}
-									class="rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+									onclick={(e) => { e.stopPropagation(); navigateToMergeWizard(alert); }}
+									class="rounded border border-blue-600 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
 								>
 									Merge
 								</button>
 							</div>
 						</div>
+
+						<!-- Expanded Match Details -->
+						{#if isExpanded}
+							<div class="border-t border-gray-100 bg-gray-50 px-4 py-3 pl-14">
+								<h4 class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">Matched Records</h4>
+								<div class="space-y-2">
+									{#each alert.matches as match}
+										<div class="rounded-lg border border-gray-200 bg-white p-3">
+											<div class="flex items-center gap-2">
+												<span class="font-medium text-gray-900">
+													{match.recordName || match.recordId}
+												</span>
+												<span class="text-xs text-gray-500">
+													Match: {formatConfidence(match.matchResult?.score || 0)}
+												</span>
+											</div>
+											{#if match.matchResult?.matchingFields?.length > 0}
+												<div class="mt-1 flex flex-wrap gap-1">
+													{#each match.matchResult?.matchingFields || [] as field}
+														<span class="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+															{field}
+														</span>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
 					</div>
-				</div>
-			{/each}
+				{/each}
+			</div>
 		</div>
 	{/if}
 </div>
