@@ -4,19 +4,122 @@
 	import { goto } from '$app/navigation';
 	import { get, del } from '$lib/utils/api';
 	import { addToast } from '$lib/stores/toast.svelte';
+	import RelatedList from '$lib/components/RelatedList.svelte';
+	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
+	import Bearing from '$lib/components/Bearing.svelte';
+	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
+	import DetailPageAlertWrapper from '$lib/components/DetailPageAlertWrapper.svelte';
 	import type { Task } from '$lib/types/task';
+	import type { RelatedListConfig } from '$lib/types/related-list';
+	import type { BearingWithStages } from '$lib/types/bearing';
+	import type { EntityDef, FieldDef } from '$lib/types/admin';
+	import type { LayoutDataV2 } from '$lib/types/layout';
+	import { parseLayoutData, getVisibleSections } from '$lib/types/layout';
 
-	let task = $state<Task | null>(null);
+	type TabId = 'details' | 'activities';
+
+	// Read initial tab from URL query param
+	let initialTab = $derived($page.url.searchParams.get('tab') as TabId | null);
+	let activeTab = $state<TabId>('details');
+
+	// Set initial tab from URL on first load
+	$effect(() => {
+		if (initialTab && (initialTab === 'details' || initialTab === 'activities')) {
+			activeTab = initialTab;
+		}
+	});
+
+	// System fields that exist as columns in the tasks table
+	const SYSTEM_FIELDS = new Set([
+		'subject', 'description', 'status', 'priority', 'type', 'dueDate',
+		'parentId', 'parentType', 'parentName', 'assignedUserId',
+		'createdAt', 'modifiedAt', 'createdById', 'modifiedById', 'deleted'
+	]);
+
+	function isSystemField(fieldName: string): boolean {
+		return SYSTEM_FIELDS.has(fieldName);
+	}
+
+	let task = $state<(Task & { customFields?: Record<string, unknown> }) | null>(null);
+	let relatedListConfigs = $state<RelatedListConfig[]>([]);
+	let bearings = $state<BearingWithStages[]>([]);
+	let fields = $state<FieldDef[]>([]);
+	let layout = $state<LayoutDataV2 | null>(null);
+	let entityDef = $state<EntityDef | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
 	let taskId = $derived($page.params.id);
 
+	// Filter to only enabled configs, sorted by sortOrder
+	let enabledRelatedLists = $derived(
+		relatedListConfigs
+			.filter((c) => c.enabled)
+			.sort((a, b) => a.sortOrder - b.sortOrder)
+	);
+
+	// Get record data as a flat object for visibility evaluation
+	let recordData = $derived(() => {
+		if (!task) return {};
+		const data: Record<string, unknown> = {};
+
+		// Add system fields
+		for (const fieldName of SYSTEM_FIELDS) {
+			if (fieldName in task) {
+				data[fieldName] = (task as unknown as Record<string, unknown>)[fieldName];
+			}
+		}
+
+		// Add custom fields
+		if (task.customFields) {
+			for (const [key, value] of Object.entries(task.customFields)) {
+				data[key] = value;
+			}
+		}
+
+		// Add rollup and other dynamic fields from the task object
+		for (const field of fields) {
+			if (!SYSTEM_FIELDS.has(field.name) && field.name in task && !(field.name in data)) {
+				data[field.name] = (task as unknown as Record<string, unknown>)[field.name];
+			}
+		}
+
+		return data;
+	});
+
+	// Get visible sections based on record data
+	let visibleSections = $derived(() => {
+		if (!layout) return [];
+		return getVisibleSections(layout, recordData());
+	});
+
 	async function loadTask() {
 		try {
 			loading = true;
 			error = null;
-			task = await get<Task>(`/tasks/${taskId}`);
+			const [taskData, configsData, bearingsData, fieldsData, entityDefData] = await Promise.all([
+				get<Task>(`/tasks/${taskId}`),
+				get<RelatedListConfig[]>(`/entities/Task/related-list-configs`).catch(() => []),
+				get<BearingWithStages[]>(`/entities/Task/bearings`).catch(() => []),
+				get<FieldDef[]>(`/entities/Task/fields`).catch(() => []),
+				get<EntityDef>(`/entities/Task/def`).catch(() => null)
+			]);
+			task = taskData;
+			relatedListConfigs = configsData;
+			bearings = bearingsData;
+			fields = fieldsData;
+			entityDef = entityDefData;
+
+			// Load layout (may be v1, v2, or legacy section array format)
+			try {
+				const layoutResponse = await get<{ layoutData: string }>(
+					'/entities/Task/layouts/detail'
+				);
+				layout = parseLayoutData(layoutResponse.layoutData, fieldsData.map(f => f.name));
+			} catch {
+				// Default to field-based layout if no layout exists
+				layout = parseLayoutData('[]', fieldsData.map(f => f.name));
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load task';
 			addToast(error, 'error');
@@ -42,9 +145,89 @@
 		return new Date(dateStr).toLocaleString();
 	}
 
-	function formatDueDate(dateStr: string | null): string {
-		if (!dateStr) return '-';
-		return new Date(dateStr).toLocaleDateString();
+	function getFieldDef(fieldName: string): FieldDef | undefined {
+		return fields.find(f => f.name === fieldName);
+	}
+
+	function formatFieldValue(fieldName: string, value: unknown): string {
+		if (value === null || value === undefined || value === '') return '-';
+
+		const field = getFieldDef(fieldName);
+		if (!field) return String(value);
+
+		// Format rollup fields with decimal places
+		if (field.type === 'rollup' && field.rollupResultType === 'numeric' && typeof value === 'number') {
+			const decimalPlaces = field.rollupDecimalPlaces ?? 2;
+			return value.toFixed(decimalPlaces);
+		}
+
+		switch (field.type) {
+			case 'bool':
+				return value ? 'Yes' : 'No';
+			case 'date':
+				return new Date(String(value)).toLocaleDateString();
+			case 'datetime':
+				return new Date(String(value)).toLocaleString();
+			case 'link':
+				if (field.linkEntity === 'User' && task) {
+					const nameField = fieldName.replace(/Id$/, 'Name');
+					const name = (task as unknown as Record<string, unknown>)[nameField];
+					return name ? String(name) : '-';
+				}
+				return String(value);
+			case 'text':
+				return String(value);
+			default:
+				return String(value);
+		}
+	}
+
+	function getLinkInfo(fieldName: string, value: unknown): { href: string; text: string } | null {
+		if (!value) return null;
+
+		// Special handling for polymorphic parent relationship
+		if (fieldName === 'parentName' && task?.parentType && task?.parentId) {
+			const entityPath = task.parentType.toLowerCase() + 's';
+			return { href: `/${entityPath}/${task.parentId}`, text: String(value) };
+		}
+
+		const field = getFieldDef(fieldName);
+		if (!field) return null;
+
+		switch (field.type) {
+			case 'email':
+				return { href: `mailto:${value}`, text: String(value) };
+			case 'phone':
+				return { href: `tel:${value}`, text: String(value) };
+			case 'url':
+				return { href: String(value), text: String(value) };
+			case 'link':
+				if (field.linkEntity && task) {
+					if (field.linkEntity === 'User') return null;
+					const id = (task as unknown as Record<string, unknown>)[fieldName];
+					if (!id) return null;
+					const entityPath = field.linkEntity.toLowerCase() + 's';
+					return { href: `/${entityPath}/${id}`, text: String(value) };
+				}
+				return null;
+			default:
+				return null;
+		}
+	}
+
+	function handleBearingUpdate(fieldName: string, newValue: string) {
+		if (task) {
+			// Update local state optimistically
+			if (isSystemField(fieldName)) {
+				(task as unknown as Record<string, unknown>)[fieldName] = newValue;
+			} else {
+				if (!task.customFields) {
+					task.customFields = {};
+				}
+				task.customFields[fieldName] = newValue;
+			}
+			task = { ...task }; // Trigger reactivity
+		}
 	}
 
 	function getStatusColor(status: string): string {
@@ -86,7 +269,15 @@
 {#if loading}
 	<div class="text-center py-12 text-gray-500">Loading...</div>
 {:else if error}
-	<div class="text-center py-12 text-red-500">{error}</div>
+	<div class="text-center py-12">
+		<p class="text-red-500 mb-4">{error}</p>
+		<a href="/tasks" class="text-blue-600 hover:underline">Back to Tasks</a>
+	</div>
+{:else if !task}
+	<div class="text-center py-12">
+		<p class="text-gray-500 mb-4">Task not found</p>
+		<a href="/tasks" class="text-blue-600 hover:underline">Back to Tasks</a>
+	</div>
 {:else if task}
 	<div class="space-y-6">
 		<!-- Header -->
@@ -129,65 +320,63 @@
 			</div>
 		</div>
 
-		<!-- Task Details -->
-		<div class="bg-white shadow rounded-lg overflow-hidden">
-			<div class="px-6 py-4 border-b border-gray-200">
-				<h2 class="text-lg font-medium text-gray-900">Task Information</h2>
+		<!-- Duplicate alert banner -->
+		<DetailPageAlertWrapper
+			entityType="Task"
+			recordId={task.id}
+		/>
+
+		<!-- Tabs (only show if entity has activities enabled) -->
+		{#if entityDef?.hasActivities}
+			<div class="border-b border-gray-200">
+				<nav class="-mb-px flex space-x-8">
+					<button
+						onclick={() => activeTab = 'details'}
+						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+					>
+						Details
+					</button>
+					<button
+						onclick={() => activeTab = 'activities'}
+						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+					>
+						Activities
+					</button>
+				</nav>
 			</div>
-			<div class="px-6 py-4">
-				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Subject</dt>
-						<dd class="mt-1 text-sm text-gray-900">{task.subject}</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Type</dt>
-						<dd class="mt-1 text-sm text-gray-900">{task.type}</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Status</dt>
-						<dd class="mt-1">
-							<span class="px-2 py-1 text-xs font-medium rounded-full {getStatusColor(task.status)}">
-								{task.status}
-							</span>
-						</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Priority</dt>
-						<dd class="mt-1">
-							<span class="px-2 py-1 text-xs font-medium rounded-full {getPriorityColor(task.priority)}">
-								{task.priority}
-							</span>
-						</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Due Date</dt>
-						<dd class="mt-1 text-sm text-gray-900">{formatDueDate(task.dueDate)}</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Related To</dt>
-						<dd class="mt-1 text-sm text-gray-900">
-							{#if task.parentType && task.parentId}
-								<a
-									href="/{task.parentType.toLowerCase()}s/{task.parentId}"
-									class="text-blue-600 hover:underline"
-								>
-									{task.parentName || `${task.parentType} ${task.parentId}`}
-								</a>
-							{:else}
-								-
-							{/if}
-						</dd>
-					</div>
-					{#if task.description}
-						<div class="md:col-span-2">
-							<dt class="text-sm font-medium text-gray-500">Description</dt>
-							<dd class="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{task.description}</dd>
-						</div>
-					{/if}
-				</dl>
+		{/if}
+
+		{#if activeTab === 'details'}
+		<!-- Bearings (Stage Progress Indicators) -->
+		{#if bearings.length > 0}
+			<div class="space-y-4">
+				{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
+					{@const fieldName = bearing.sourcePicklist}
+					{@const currentVal = isSystemField(fieldName)
+						? (task as unknown as Record<string, unknown>)[fieldName]
+						: task.customFields?.[fieldName]}
+					<Bearing
+						{bearing}
+						currentValue={currentVal as string | null}
+						recordId={task.id}
+						entityType="Task"
+						fieldName={fieldName}
+						onUpdate={(newValue) => handleBearingUpdate(fieldName, newValue)}
+					/>
+				{/each}
 			</div>
-		</div>
+		{/if}
+
+		<!-- Dynamic Sections from Layout -->
+		{#each visibleSections() as section (section.id)}
+			<SectionRenderer
+				{section}
+				{fields}
+				record={recordData()}
+				formatValue={formatFieldValue}
+				renderLink={getLinkInfo}
+			/>
+		{/each}
 
 		<!-- System Info -->
 		<div class="bg-white shadow rounded-lg overflow-hidden">
@@ -221,5 +410,24 @@
 				</dl>
 			</div>
 		</div>
+
+		<!-- Related Lists -->
+		{#if enabledRelatedLists.length > 0}
+			{#each enabledRelatedLists as config (config.id)}
+				<RelatedList
+					{config}
+					parentEntity="Task"
+					parentId={task.id}
+				/>
+			{/each}
+		{/if}
+		{:else if activeTab === 'activities'}
+		<!-- Activities Tab -->
+		<ActivitiesStream
+			parentEntity="Task"
+			parentId={task.id}
+			parentName={task.subject}
+		/>
+		{/if}
 	</div>
 {/if}

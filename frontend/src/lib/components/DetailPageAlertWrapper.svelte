@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
     import { getPendingAlert, resolveAlert, type PendingAlert, type AlertResolution } from '$lib/api/dedup';
     import DuplicateAlertBanner from './DuplicateAlertBanner.svelte';
     import DuplicateWarningModal from './DuplicateWarningModal.svelte';
@@ -70,11 +69,7 @@
         showModal = false;
     }
 
-    onMount(() => {
-        loadAlert();
-    });
-
-    // Reload alert when recordId changes (navigating between records)
+    // Load alert on mount and reload when recordId changes (navigating between records)
     $effect(() => {
         if (recordId) {
             loadAlert();
