@@ -332,27 +332,60 @@ func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityTy
 
 		batchNum++
 		updated := 0
-		for _, record := range records {
-			recordID, _ := record["id"].(string)
-			if recordID == "" {
-				continue
-			}
 
-			keys := blocker.GenerateBlockingKeys(record)
-
-			_, err := conn.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET
-				dedup_last_name_soundex = ?,
-				dedup_last_name_prefix = ?,
-				dedup_email_domain = ?,
-				dedup_phone_e164 = ?
-				WHERE id = ?`, tableName),
-				keys.LastNameSoundex, keys.LastNamePrefix,
-				keys.EmailDomain, keys.PhoneE164, recordID)
-			if err != nil {
-				log.Printf("[DEDUP] Failed to backfill blocking keys for %s/%s: %v", entityType, recordID, err)
-				continue
+		// Use a transaction to batch all UPDATEs into a single Turso HTTP request.
+		// Without this, each UPDATE is a separate HTTP round-trip (~200ms),
+		// making 33k records take ~110 minutes. With a transaction, 5000 UPDATEs
+		// become a single batched request (~2-5 seconds).
+		tx, txErr := conn.BeginTx(ctx, nil)
+		if txErr != nil {
+			log.Printf("[DEDUP] Failed to begin transaction for backfill batch %d: %v (falling back to individual updates)", batchNum, txErr)
+			// Fallback: individual updates if transaction fails
+			for _, record := range records {
+				recordID, _ := record["id"].(string)
+				if recordID == "" {
+					continue
+				}
+				keys := blocker.GenerateBlockingKeys(record)
+				_, err := conn.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET
+					dedup_last_name_soundex = ?,
+					dedup_last_name_prefix = ?,
+					dedup_email_domain = ?,
+					dedup_phone_e164 = ?
+					WHERE id = ?`, tableName),
+					keys.LastNameSoundex, keys.LastNamePrefix,
+					keys.EmailDomain, keys.PhoneE164, recordID)
+				if err != nil {
+					log.Printf("[DEDUP] Failed to backfill blocking keys for %s/%s: %v", entityType, recordID, err)
+					continue
+				}
+				updated++
 			}
-			updated++
+		} else {
+			for _, record := range records {
+				recordID, _ := record["id"].(string)
+				if recordID == "" {
+					continue
+				}
+				keys := blocker.GenerateBlockingKeys(record)
+				_, err := tx.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET
+					dedup_last_name_soundex = ?,
+					dedup_last_name_prefix = ?,
+					dedup_email_domain = ?,
+					dedup_phone_e164 = ?
+					WHERE id = ?`, tableName),
+					keys.LastNameSoundex, keys.LastNamePrefix,
+					keys.EmailDomain, keys.PhoneE164, recordID)
+				if err != nil {
+					log.Printf("[DEDUP] Failed to backfill blocking keys for %s/%s: %v", entityType, recordID, err)
+					continue
+				}
+				updated++
+			}
+			if err := tx.Commit(); err != nil {
+				log.Printf("[DEDUP] Failed to commit backfill batch %d: %v", batchNum, err)
+				_ = tx.Rollback()
+			}
 		}
 
 		totalProcessed += updated
