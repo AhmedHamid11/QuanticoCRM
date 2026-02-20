@@ -46,6 +46,7 @@ type ProgressEvent struct {
 	TotalRecords     int    `json:"totalRecords"`
 	DuplicatesFound  int    `json:"duplicatesFound"`
 	Status           string `json:"status"`
+	StatusText       string `json:"statusText,omitempty"`
 }
 
 // NewScanJobService creates a new scan job service
@@ -193,10 +194,11 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 			JobID:            jobID,
 			OrgID:            orgID,
 			EntityType:       entityType,
-			ProcessedRecords: 0,          // No scan records processed yet
+			ProcessedRecords: 0, // No scan records processed yet
 			TotalRecords:     totalRecords,
 			DuplicatesFound:  0,
-			Status:           "backfilling",
+			Status:           "running",
+			StatusText:       fmt.Sprintf("Preparing data: %d/%d records", processed, total),
 		})
 		log.Printf("[SCAN] Backfill progress for %s: %d/%d", entityType, processed, total)
 	}

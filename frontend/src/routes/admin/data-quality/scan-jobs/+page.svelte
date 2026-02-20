@@ -47,6 +47,7 @@
 		totalRecords: number;
 		duplicatesFound?: number;
 		errorMessage?: string;
+		statusText?: string;
 	}
 
 	interface ScheduleEditForm {
@@ -664,7 +665,7 @@
 									{#if isRunning && progress}
 										<div class="space-y-1">
 											<div class="flex items-center justify-between text-xs text-gray-600 mb-1">
-												<span>Running</span>
+												<span>{progress.statusText || 'Running'}</span>
 												<div class="flex items-center gap-2">
 													<span>{progress.percentage}% ({progress.processedRecords.toLocaleString()} / {progress.totalRecords.toLocaleString()} records)</span>
 													<button
@@ -805,9 +806,15 @@
 										Failed
 									</span>
 								{:else if job.status === 'running'}
-									<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
-										Running
-									</span>
+									{#if runningJobs.get(job.id)?.statusText}
+										<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
+											{runningJobs.get(job.id)?.statusText}
+										</span>
+									{:else}
+										<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
+											Running
+										</span>
+									{/if}
 								{:else if job.status === 'cancelled'}
 									<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
 										Cancelled
