@@ -564,15 +564,17 @@ func (s *ScanJobService) getRecordName(record map[string]interface{}) string {
 // so the status is correct even if the goroutine hasn't detected ctx.Done() yet.
 func (s *ScanJobService) CancelJob(ctx context.Context, tenantDB *sql.DB, jobID string) error {
 	cancelFn, ok := s.cancelFuncs.Load(jobID)
-	if !ok {
-		return fmt.Errorf("job %s is not currently running or already finished", jobID)
+	if ok {
+		// Active goroutine — cancel it via context
+		cancelFn.(context.CancelFunc)()
+		s.cancelFuncs.Delete(jobID)
+	} else {
+		// Zombie job (started before deploy/restart) — no goroutine to cancel,
+		// just update DB status directly
+		log.Printf("[SCAN] CancelJob: no in-memory cancel func for %s (zombie job), updating DB directly", jobID)
 	}
-	// Cancel the context — the scan loop checks ctx.Done() between chunks
-	cancelFn.(context.CancelFunc)()
-	// Update status immediately in case the goroutine is between chunks
-	_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatus(ctx, jobID, entity.ScanStatusCancelled)
-	s.cancelFuncs.Delete(jobID)
-	return nil
+	// Update status to cancelled in DB
+	return s.scanJobRepo.WithDB(tenantDB).UpdateJobStatus(ctx, jobID, entity.ScanStatusCancelled)
 }
 
 // ResumeInterruptedJobs marks orphaned "running" jobs as failed (called at startup)

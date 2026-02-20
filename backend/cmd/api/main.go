@@ -457,10 +457,11 @@ func main() {
 	// State parameter provides CSRF protection (verified by service)
 	salesforceHandler.RegisterCallbackRoute(api)
 
-	// CRITICAL: Register stop-impersonate BEFORE the /auth group to ensure Fiber matches it first.
-	// This route must use Required() middleware (not PlatformAdminRequired) because during
-	// impersonation, isPlatformAdmin is false. The handler validates impersonatedBy claim.
+	// CRITICAL: Register impersonate routes BEFORE the /auth group to bypass rate limiting.
+	// These are admin-only routes protected by strong auth — rate limiting is unnecessary
+	// and causes 429 errors when deploy triggers refresh storms.
 	api.Post("/auth/stop-impersonate", authMiddleware.Required(), authHandler.StopImpersonate)
+	api.Post("/auth/impersonate", authMiddleware.PlatformAdminRequired(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger), authHandler.Impersonate)
 
 	// ==========================================
 	// Public auth routes (no authentication required)
@@ -468,7 +469,7 @@ func main() {
 	// SECURITY: Apply strict rate limiting to ALL auth endpoints to prevent brute force attacks
 	// 5 attempts per minute per IP for: register, login, forgot-password, reset-password, etc.
 	authRateLimiter := middleware.NewAuthRateLimiter(middleware.AuthRateLimiterConfig{
-		Max:    5,
+		Max:    20,
 		Window: 1 * time.Minute,
 	})
 	auth := api.Group("/auth", authRateLimiter)
@@ -498,10 +499,6 @@ func main() {
 	authAdmin.Post("/invite", authHandler.InviteUser)
 	authAdmin.Get("/invitations", authHandler.ListInvitations)
 	authAdmin.Delete("/invitations/:id", authHandler.DeleteInvitation)
-
-	// Platform admin routes (requires platform admin)
-	authPlatformAdmin := auth.Group("", authMiddleware.PlatformAdminRequired(), sessionTimeoutMiddleware, middleware.AuditAuthorizationFailures(auditLogger))
-	authPlatformAdmin.Post("/impersonate", authHandler.Impersonate)
 
 	// ==========================================
 	// Protected API routes (authentication required - all users)
