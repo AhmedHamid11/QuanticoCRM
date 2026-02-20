@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/repo"
@@ -166,14 +165,16 @@ func (s *ScanJobService) ExecuteScan(ctx context.Context, tenantDB *sql.DB, orgI
 func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.DB, orgID, jobID, entityType string, totalRecords int) error {
 	tableName := util.GetTableName(entityType)
 	chunkSize := 500 // Recommended for Turso 5-second timeout
-	offset := 0
+	processedCount := 0
 	totalDuplicates := 0
+	lastID := "" // Cursor for keyset pagination (WHERE id > lastID)
 
 	// Check for existing checkpoint (resume from failure)
 	checkpoint, _ := s.scanJobRepo.WithDB(tenantDB).GetCheckpoint(ctx, jobID)
-	if checkpoint != nil {
-		offset = checkpoint.LastOffset
-		log.Printf("Resuming scan job %s from offset %d", jobID, offset)
+	if checkpoint != nil && checkpoint.LastProcessedID != nil && *checkpoint.LastProcessedID != "" {
+		lastID = *checkpoint.LastProcessedID
+		processedCount = checkpoint.LastOffset // LastOffset stores processed count for progress
+		log.Printf("Resuming scan job %s from cursor id=%s (processed=%d)", jobID, lastID, processedCount)
 	}
 
 	// --- Phase 1: Ensure blocking keys are populated for ALL existing records ---
@@ -249,7 +250,7 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 				JobID:            jobID,
 				OrgID:            orgID,
 				EntityType:       entityType,
-				ProcessedRecords: offset,
+				ProcessedRecords: processedCount,
 				TotalRecords:     totalRecords,
 				DuplicatesFound:  totalDuplicates,
 				Status:           entity.ScanStatusCancelled,
@@ -258,39 +259,46 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 		default:
 		}
 
-		// Fetch chunk with timeout
+		// Fetch chunk with timeout using cursor-based pagination (WHERE id > lastID).
+		// This avoids OFFSET which requires Turso to scan N rows before returning results,
+		// causing progressively slower queries (stuck at 22k with OFFSET-based approach).
 		chunkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		records, err := s.fetchChunk(chunkCtx, tenantDB, tableName, orgID, chunkSize, offset)
+		records, err := s.fetchChunk(chunkCtx, tenantDB, tableName, orgID, chunkSize, lastID)
 		cancel()
 
 		if err != nil {
-			return s.handleChunkFailure(ctx, tenantDB, jobID, orgID, entityType, offset, totalRecords, totalDuplicates, err)
+			return s.handleChunkFailure(ctx, tenantDB, jobID, orgID, entityType, processedCount, totalRecords, totalDuplicates, err)
 		}
 
 		if len(records) == 0 {
 			break // No more records
 		}
 
+		// Update cursor to last record's ID for next iteration
+		if id, ok := records[len(records)-1]["id"].(string); ok && id != "" {
+			lastID = id
+		}
+
 		// Process chunk
 		duplicatesInChunk, err := s.processChunk(ctx, tenantDB, orgID, entityType, records, rules)
 		if err != nil {
-			return s.handleChunkFailure(ctx, tenantDB, jobID, orgID, entityType, offset, totalRecords, totalDuplicates, err)
+			return s.handleChunkFailure(ctx, tenantDB, jobID, orgID, entityType, processedCount, totalRecords, totalDuplicates, err)
 		}
 
 		// Update progress
-		offset += len(records)
+		processedCount += len(records)
 		totalDuplicates += duplicatesInChunk
-		_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobProgress(ctx, jobID, offset, totalDuplicates)
+		_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobProgress(ctx, jobID, processedCount, totalDuplicates)
 
-		// Save checkpoint after EVERY chunk
-		_ = s.saveCheckpoint(ctx, tenantDB, jobID, offset, chunkSize)
+		// Save checkpoint after EVERY chunk (stores cursor ID for resume)
+		_ = s.saveCheckpoint(ctx, tenantDB, jobID, processedCount, chunkSize, lastID)
 
 		// Emit progress event for SSE listeners
 		s.emitProgress(ProgressEvent{
 			JobID:            jobID,
 			OrgID:            orgID,
 			EntityType:       entityType,
-			ProcessedRecords: offset,
+			ProcessedRecords: processedCount,
 			TotalRecords:     totalRecords,
 			DuplicatesFound:  totalDuplicates,
 			Status:           entity.ScanStatusRunning,
@@ -306,14 +314,14 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	}
 
 	// Mark complete
-	_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobCompletion(ctx, jobID, entity.ScanStatusCompleted, totalRecords, offset, totalDuplicates)
+	_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobCompletion(ctx, jobID, entity.ScanStatusCompleted, totalRecords, processedCount, totalDuplicates)
 
 	// Emit final progress event
 	s.emitProgress(ProgressEvent{
 		JobID:            jobID,
 		OrgID:            orgID,
 		EntityType:       entityType,
-		ProcessedRecords: offset,
+		ProcessedRecords: processedCount,
 		TotalRecords:     totalRecords,
 		DuplicatesFound:  totalDuplicates,
 		Status:           entity.ScanStatusCompleted,
@@ -329,17 +337,32 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 		}
 	}
 
-	log.Printf("Scan job %s completed: %d records scanned, %d duplicates found", jobID, offset, totalDuplicates)
+	log.Printf("Scan job %s completed: %d records scanned, %d duplicates found", jobID, processedCount, totalDuplicates)
 
 	return nil
 }
 
-// fetchChunk retrieves records in chunks using LIMIT/OFFSET.
+// fetchChunk retrieves records using cursor-based (keyset) pagination.
+// Uses WHERE id > afterID instead of OFFSET, so each query is O(1) regardless
+// of position in the dataset. OFFSET requires scanning N rows first, which
+// caused Turso HTTP requests to stall at ~22k records.
 // Returns records with camelCase keys (via ScanRowsToMaps) so they match
 // the field names used in matching rules and GenerateBlockingKeys.
-func (s *ScanJobService) fetchChunk(ctx context.Context, tenantDB *sql.DB, tableName, orgID string, limit, offset int) ([]map[string]interface{}, error) {
-	query := fmt.Sprintf("SELECT * FROM %s WHERE org_id = ? ORDER BY id LIMIT ? OFFSET ?", tableName)
-	rows, err := tenantDB.QueryContext(ctx, query, orgID, limit, offset)
+func (s *ScanJobService) fetchChunk(ctx context.Context, tenantDB *sql.DB, tableName, orgID string, limit int, afterID string) ([]map[string]interface{}, error) {
+	var query string
+	var args []interface{}
+
+	if afterID == "" {
+		// First chunk: no cursor yet
+		query = fmt.Sprintf("SELECT * FROM %s WHERE org_id = ? ORDER BY id LIMIT ?", tableName)
+		args = []interface{}{orgID, limit}
+	} else {
+		// Subsequent chunks: cursor-based
+		query = fmt.Sprintf("SELECT * FROM %s WHERE org_id = ? AND id > ? ORDER BY id LIMIT ?", tableName)
+		args = []interface{}{orgID, afterID, limit}
+	}
+
+	rows, err := tenantDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -400,13 +423,8 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 			}
 
 			// Build alert matches (top 3)
-			// Look up the matched record's display name
-			matchRecordName := ""
-			tableName := util.GetTableName(entityType)
-			matchedRecord, fetchErr := util.FetchRecordAsMap(ctx, db.GetRawDB(tenantDB), tableName, match.RecordID, orgID)
-			if fetchErr == nil && matchedRecord != nil {
-				matchRecordName = util.GetRecordDisplayName(entityType, matchedRecord)
-			}
+			// Use display name already populated by detector's batch-fetch
+			matchRecordName := match.RecordName
 
 			alertMatches := []entity.DuplicateAlertMatch{
 				{
@@ -497,14 +515,15 @@ func (s *ScanJobService) handleChunkFailure(ctx context.Context, tenantDB *sql.D
 	return chunkErr
 }
 
-// saveCheckpoint persists progress state for resume
-func (s *ScanJobService) saveCheckpoint(ctx context.Context, tenantDB *sql.DB, jobID string, offset, chunkSize int) error {
+// saveCheckpoint persists progress state for resume (cursor-based)
+func (s *ScanJobService) saveCheckpoint(ctx context.Context, tenantDB *sql.DB, jobID string, processedCount, chunkSize int, lastID string) error {
 	checkpoint := &entity.ScanCheckpoint{
-		ID:         sfid.New("ckpt"),
-		JobID:      jobID,
-		LastOffset: offset,
-		RetryCount: 0,
-		ChunkSize:  chunkSize,
+		ID:              sfid.New("ckpt"),
+		JobID:           jobID,
+		LastOffset:      processedCount, // Reused for progress tracking
+		LastProcessedID: &lastID,
+		RetryCount:      0,
+		ChunkSize:       chunkSize,
 	}
 	return s.scanJobRepo.WithDB(tenantDB).SaveCheckpoint(ctx, checkpoint)
 }

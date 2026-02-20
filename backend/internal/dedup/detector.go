@@ -106,6 +106,7 @@ func (d *Detector) CheckForDuplicatesWithRules(ctx context.Context, conn db.DBCo
 			if isMatch {
 				allMatches = append(allMatches, DuplicateMatch{
 					RecordID:    candidateID,
+					RecordName:  util.GetRecordDisplayName(entityType, candidateRecord),
 					MatchResult: result,
 				})
 				seenRecords[candidateID] = true
