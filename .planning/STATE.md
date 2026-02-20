@@ -51,6 +51,7 @@ None.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 024 | Fix migration 069 wrong column names + BulkResolve UNIQUE constraint violation | 2026-02-20 | 56511b2 | [024-fix-migration-069-wrong-column-names-bul](./quick/24-fix-migration-069-wrong-column-names-bul/) |
 | 019 | Add mirror table safety net to provisioning (self-healing handler) | 2026-02-11 | b87d33d | [019-add-mirror-table-safety-net-to-provision](./quick/19-add-mirror-table-safety-net-to-provision/) |
 | 018 | Fix metadata corruption on deployment (PRAGMA table_info + INSERT OR IGNORE) | 2026-02-11 | 62515b1 | [018-fix-metadata-corruption-on-deployment-re](./quick/18-fix-metadata-corruption-on-deployment-re/) |
 | 017 | Fix Review Queue record name display (show names not UUIDs) | 2026-02-09 | b17c317 | [017-fix-review-queue-record-name-display](./quick/17-fix-review-queue-record-name-display/) |
@@ -63,10 +64,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-11
-Stopped at: Completed quick-019 (add mirror table safety net to provisioning)
+Last session: 2026-02-20
+Stopped at: Completed quick-024 (fix migration 069 wrong column names + BulkResolve UNIQUE constraint)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-11 — Quick task 019 completed*
+*Updated: 2026-02-20 — Quick task 024 completed*
