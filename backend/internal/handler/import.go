@@ -2489,11 +2489,192 @@ func (h *ImportHandler) resolveLookups(
 		}
 	}
 
-	// --- Phase C: Apply results to records, create missing if needed ---
+	// --- Phase C: Collect missing values that need creation ---
+	// Scan all records to find unique values not in cache, then batch create them.
+	type pendingCreate struct {
+		cacheKey string
+		lk       *lookupKey
+		value    string // original casing
+		data     map[string]interface{}
+	}
+	// Deduplicate: cacheKey+loweredValue -> pendingCreate
+	pendingMap := make(map[string]*pendingCreate)
+
+	for _, record := range records {
+		for fieldName, resolution := range lookupResolution {
+			if !resolution.CreateIfNotFound {
+				continue
+			}
+			lookupValue, ok := record[fieldName]
+			if !ok {
+				continue
+			}
+			valueStr, ok := lookupValue.(string)
+			if !ok || valueStr == "" || strings.HasPrefix(valueStr, "Rec") {
+				continue
+			}
+			lk := fieldKeys[fieldName]
+			if lk == nil {
+				continue
+			}
+			cacheKey := lk.relatedEntity + ":" + lk.matchField
+			lowered := strings.ToLower(valueStr)
+
+			// Already resolved from Phase B
+			if _, ok := lookupCache[cacheKey][lowered]; ok {
+				continue
+			}
+			// Already queued for creation
+			dedupKey := cacheKey + "|" + lowered
+			if _, ok := pendingMap[dedupKey]; ok {
+				continue
+			}
+
+			newData := make(map[string]interface{})
+			if resolution.NewRecordData != nil {
+				if data, ok := resolution.NewRecordData[valueStr]; ok {
+					for k, v := range data {
+						newData[k] = v
+					}
+				}
+			}
+			newData[resolution.MatchField] = valueStr
+
+			pendingMap[dedupKey] = &pendingCreate{
+				cacheKey: cacheKey,
+				lk:       lk,
+				value:    valueStr,
+				data:     newData,
+			}
+		}
+	}
+
+	// --- Phase C2: Batch create missing records ---
+	if len(pendingMap) > 0 {
+		// Group by related entity for efficient batch inserts
+		type entityBatch struct {
+			lk      *lookupKey
+			items   []*pendingCreate
+		}
+		entityBatches := make(map[string]*entityBatch)
+		for _, pc := range pendingMap {
+			key := pc.lk.relatedEntity
+			if entityBatches[key] == nil {
+				entityBatches[key] = &entityBatch{lk: pc.lk}
+			}
+			entityBatches[key].items = append(entityBatches[key].items, pc)
+		}
+
+		// Fetch field defs once per related entity, then batch insert
+		for entityKey, batch := range entityBatches {
+			metaRepo := h.metadataRepo.WithRawDB(db)
+			relatedFields, err := metaRepo.ListFields(ctx, orgID, entityKey)
+			if err != nil {
+				log.Printf("[IMPORT-LOOKUP] Failed to get fields for %s: %v", entityKey, err)
+				continue
+			}
+
+			tableName := util.GetTableName(entityKey)
+			now := time.Now().UTC().Format(time.RFC3339)
+
+			// Insert in batches of 200 (each row has multiple columns, keep query size reasonable)
+			const createBatchSize = 200
+			for i := 0; i < len(batch.items); i += createBatchSize {
+				end := i + createBatchSize
+				if end > len(batch.items) {
+					end = len(batch.items)
+				}
+				batchItems := batch.items[i:end]
+
+				// Build multi-row INSERT
+				// First, determine column set from fields + standard columns
+				var colNames []string
+				var colSnake []string
+				colNames = append(colNames, "id", "org_id")
+				colSnake = append(colSnake, "id", "org_id")
+				for _, f := range relatedFields {
+					if f.Name == "id" {
+						continue
+					}
+					colNames = append(colNames, f.Name)
+					colSnake = append(colSnake, quoteIdentifier(util.CamelToSnake(f.Name)))
+				}
+				colNames = append(colNames, "created_at", "modified_at", "created_by_id", "modified_by_id")
+				colSnake = append(colSnake, "created_at", "modified_at", "created_by_id", "modified_by_id")
+
+				// For each item, build a row of values
+				var allValues []interface{}
+				var rowPlaceholders []string
+				for _, item := range batchItems {
+					newID := sfid.New("Rec")
+					item.data["__newID"] = newID // stash for cache update
+
+					var vals []interface{}
+					vals = append(vals, newID, orgID)
+					for _, f := range relatedFields {
+						if f.Name == "id" {
+							continue
+						}
+						if v, ok := item.data[f.Name]; ok {
+							vals = append(vals, v)
+						} else {
+							vals = append(vals, nil)
+						}
+					}
+					vals = append(vals, now, now, userID, userID)
+
+					ph := make([]string, len(vals))
+					for j := range ph {
+						ph[j] = "?"
+					}
+					rowPlaceholders = append(rowPlaceholders, "("+strings.Join(ph, ", ")+")")
+					allValues = append(allValues, vals...)
+				}
+
+				query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
+					tableName, strings.Join(colSnake, ", "), strings.Join(rowPlaceholders, ", "))
+
+				_, execErr := db.ExecContext(ctx, query, allValues...)
+				if execErr != nil {
+					log.Printf("[IMPORT-LOOKUP] Batch insert of %d %s records failed: %v", len(batchItems), entityKey, execErr)
+					// Fall back to individual inserts for this batch
+					for _, item := range batchItems {
+						delete(item.data, "__newID")
+						newID, createErr := h.createRelatedRecord(ctx, db, orgID, userID, entityKey, item.data)
+						if createErr != nil {
+							log.Printf("[IMPORT-LOOKUP] Individual create also failed for %s '%s': %v", entityKey, item.value, createErr)
+							continue
+						}
+						item.data["__newID"] = newID
+					}
+				}
+
+				// Update cache with newly created IDs
+				for _, item := range batchItems {
+					newID, ok := item.data["__newID"].(string)
+					if !ok || newID == "" {
+						continue
+					}
+					if lookupCache[item.cacheKey] == nil {
+						lookupCache[item.cacheKey] = make(map[string]resolvedLookup)
+					}
+					lookupCache[item.cacheKey][strings.ToLower(item.value)] = resolvedLookup{id: newID, displayName: item.value}
+				}
+
+				// Report progress for batch creation
+				if progressFn != nil {
+					progressFn(i+len(batchItems), len(pendingMap))
+				}
+			}
+		}
+
+		log.Printf("[IMPORT-LOOKUP] Batch created %d related records", len(pendingMap))
+	}
+
+	// --- Phase D: Apply all results (cached + newly created) to records ---
 	var errors []BulkError
 
 	for rowIdx, record := range records {
-		// Emit progress every 500 records
 		if progressFn != nil && (rowIdx%500 == 0 || rowIdx == len(records)-1) {
 			progressFn(rowIdx, len(records))
 		}
@@ -2530,7 +2711,7 @@ func (h *ImportHandler) resolveLookups(
 			idKey := baseName + "Id"
 			nameKey := baseName + "Name"
 
-			// Check batch cache
+			// All values should now be in cache (from Phase B or Phase C2)
 			if resolved, ok := lookupCache[cacheKey][strings.ToLower(valueStr)]; ok {
 				record[idKey] = resolved.id
 				record[nameKey] = valueStr
@@ -2540,50 +2721,13 @@ func (h *ImportHandler) resolveLookups(
 				continue
 			}
 
-			// Not found — create if allowed
-			if resolution.CreateIfNotFound {
-				// Check if we already created this value (from a previous row in this loop)
-				if resolved, ok := lookupCache[cacheKey][strings.ToLower(valueStr)]; ok {
-					record[idKey] = resolved.id
-					record[nameKey] = valueStr
-					if fieldName != idKey {
-						delete(record, fieldName)
-					}
-					continue
-				}
-
-				newData := make(map[string]interface{})
-				if resolution.NewRecordData != nil {
-					if data, ok := resolution.NewRecordData[valueStr]; ok {
-						newData = data
-					}
-				}
-				newData[resolution.MatchField] = valueStr
-
-				newID, createErr := h.createRelatedRecord(ctx, db, orgID, userID, lk.relatedEntity, newData)
-				if createErr != nil {
-					errors = append(errors, BulkError{
-						Index: rowIdx,
-						Error: fmt.Sprintf("Failed to create %s '%s': %v", lk.relatedEntity, valueStr, createErr),
-					})
-					delete(record, fieldName)
-					continue
-				}
-
-				// Cache the newly created record so subsequent rows reuse it
-				lookupCache[cacheKey][strings.ToLower(valueStr)] = resolvedLookup{id: newID, displayName: valueStr}
-				record[idKey] = newID
-				record[nameKey] = valueStr
-				if fieldName != idKey {
-					delete(record, fieldName)
-				}
-				continue
+			// Still not found — either CreateIfNotFound was false or creation failed
+			if !resolution.CreateIfNotFound {
+				errors = append(errors, BulkError{
+					Index: rowIdx,
+					Error: fmt.Sprintf("No %s found with %s='%s'", lk.relatedEntity, resolution.MatchField, valueStr),
+				})
 			}
-
-			errors = append(errors, BulkError{
-				Index: rowIdx,
-				Error: fmt.Sprintf("No %s found with %s='%s'", lk.relatedEntity, resolution.MatchField, valueStr),
-			})
 			delete(record, fieldName)
 		}
 	}
