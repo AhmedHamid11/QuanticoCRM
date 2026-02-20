@@ -192,9 +192,9 @@ func (r *ContactRepo) ListByOrg(ctx context.Context, orgID string, params entity
 	}
 
 	if params.Search != "" {
-		baseQuery += ` AND (c.first_name LIKE ? OR c.last_name LIKE ? OR c.email_address LIKE ?)`
+		baseQuery += ` AND (c.first_name LIKE ? OR c.last_name LIKE ? OR c.email_address LIKE ? OR (c.first_name || ' ' || c.last_name) LIKE ?)`
 		searchTerm := "%" + params.Search + "%"
-		args = append(args, searchTerm, searchTerm, searchTerm)
+		args = append(args, searchTerm, searchTerm, searchTerm, searchTerm)
 	}
 
 	// Apply filter if provided
