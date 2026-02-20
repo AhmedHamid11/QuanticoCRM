@@ -27,7 +27,7 @@
 		id: string;
 		orgId: string;
 		entityType: string;
-		status: 'pending' | 'running' | 'completed' | 'failed';
+		status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 		totalRecords: number;
 		processedRecords: number;
 		duplicatesFound: number;
@@ -41,7 +41,7 @@
 	interface ProgressEvent {
 		jobId: string;
 		entityType: string;
-		status: 'running' | 'completed' | 'failed';
+		status: 'running' | 'completed' | 'failed' | 'cancelled';
 		percentage: number;
 		processedRecords: number;
 		totalRecords: number;
@@ -221,8 +221,8 @@
 			return j;
 		});
 
-		// Reload if completed or failed
-		if (event.status === 'completed' || event.status === 'failed') {
+		// Reload if completed, failed, or cancelled
+		if (event.status === 'completed' || event.status === 'failed' || event.status === 'cancelled') {
 			runningJobs.delete(event.jobId);
 			loadData();
 		}
@@ -389,6 +389,18 @@
 			await loadData();
 		} catch (e) {
 			addToast(e instanceof Error ? e.message : 'Failed to retry scan', 'error');
+		}
+	}
+
+	async function cancelJob(jobId: string) {
+		if (!confirm('Are you sure you want to cancel this running scan?')) return;
+
+		try {
+			await post(`/scan-jobs/${jobId}/cancel`, {});
+			addToast('Scan cancelled', 'success');
+			await loadData();
+		} catch (e) {
+			addToast(e instanceof Error ? e.message : 'Failed to cancel scan', 'error');
 		}
 	}
 
@@ -653,7 +665,21 @@
 										<div class="space-y-1">
 											<div class="flex items-center justify-between text-xs text-gray-600 mb-1">
 												<span>Running</span>
-												<span>{progress.percentage}% ({progress.processedRecords.toLocaleString()} / {progress.totalRecords.toLocaleString()} records)</span>
+												<div class="flex items-center gap-2">
+													<span>{progress.percentage}% ({progress.processedRecords.toLocaleString()} / {progress.totalRecords.toLocaleString()} records)</span>
+													<button
+														onclick={() => {
+															const runningJob = jobs.find(j => j.entityType === schedule.entityType && j.status === 'running');
+															if (runningJob) cancelJob(runningJob.id);
+														}}
+														class="text-red-500 hover:text-red-700"
+														title="Cancel scan"
+													>
+														<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+														</svg>
+													</button>
+												</div>
 											</div>
 											<div class="w-full bg-gray-200 rounded-full h-2">
 												<div
@@ -782,6 +808,10 @@
 									<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
 										Running
 									</span>
+								{:else if job.status === 'cancelled'}
+									<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
+										Cancelled
+									</span>
 								{:else}
 									<span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
 										{job.status}
@@ -798,7 +828,14 @@
 								{formatDuration(job.startedAt, job.completedAt)}
 							</td>
 							<td class="px-6 py-4 text-right">
-								{#if job.status === 'failed'}
+								{#if job.status === 'running'}
+									<button
+										onclick={() => cancelJob(job.id)}
+										class="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+									>
+										Cancel
+									</button>
+								{:else if job.status === 'failed'}
 									<button
 										onclick={() => retryJob(job.id)}
 										class="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
