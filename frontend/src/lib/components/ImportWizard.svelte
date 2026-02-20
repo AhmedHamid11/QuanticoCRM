@@ -162,6 +162,7 @@
 		total: number;
 		created: number;
 		updated: number;
+		deleted: number;
 		failed: number;
 		skipped: number;
 		merged: number;
@@ -450,18 +451,19 @@
 		const totalRows = analyzeResult?.totalRows || previewData?.totalRows || 0;
 		const modeLabel = importMode === 'delete' ? 'Deleting' : importMode === 'update' ? 'Updating' : importMode === 'upsert' ? 'Upserting' : 'Importing';
 		loadingMessage = `${modeLabel} ${totalRows.toLocaleString()} records...`;
-		const useStreaming = importMode === 'create' && totalRows > 0;
+		const useStreaming = (importMode === 'create' || importMode === 'delete') && totalRows > 0;
 		if (useStreaming) {
 			importProgress = {
 				processed: 0,
 				total: totalRows,
 				created: 0,
 				updated: 0,
+				deleted: 0,
 				failed: 0,
 				skipped: 0,
 				merged: 0,
 				startTime: Date.now(),
-				phase: 'importing'
+				phase: importMode === 'delete' ? 'deleting' : 'importing'
 			};
 		}
 
@@ -652,6 +654,7 @@
 						total: job.progress.total || 0,
 						created: job.progress.created || 0,
 						updated: job.progress.updated || 0,
+						deleted: job.progress.deleted || 0,
 						failed: job.progress.failed || 0,
 						skipped: job.progress.skipped || 0,
 						merged: job.progress.merged || 0,
@@ -1936,7 +1939,7 @@
 					{@const eta = rate > 0 ? Math.round((importProgress.total - importProgress.processed) / rate * 1000) : 0}
 					<div class="text-center">
 						<p class="text-lg font-semibold text-gray-800">
-							{importProgress.phase === 'resolving_lookups' ? 'Resolving lookups...' : 'Importing records...'}
+							{importProgress.phase === 'resolving_lookups' ? 'Resolving lookups...' : importProgress.phase === 'deleting' ? 'Deleting records...' : 'Importing records...'}
 						</p>
 
 						<!-- Progress bar -->
@@ -1952,9 +1955,12 @@
 						<p class="text-sm text-gray-500">{pct}% complete</p>
 
 						<!-- Stats breakdown -->
-						<div class="flex justify-center gap-4 mt-3 text-xs">
+						<div class="flex justify-center gap-4 mt-3 text-xs flex-wrap">
 							{#if importProgress.created > 0}
 								<span class="px-2 py-1 rounded bg-green-50 text-green-700 font-medium">{importProgress.created.toLocaleString()} created</span>
+							{/if}
+							{#if importProgress.deleted > 0}
+								<span class="px-2 py-1 rounded bg-orange-50 text-orange-700 font-medium">{importProgress.deleted.toLocaleString()} deleted</span>
 							{/if}
 							{#if importProgress.updated > 0}
 								<span class="px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">{importProgress.updated.toLocaleString()} updated</span>
