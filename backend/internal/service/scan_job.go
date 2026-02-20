@@ -189,7 +189,7 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	}
 
 	backfillProgressFn := func(processed, total int) {
-		statusText := fmt.Sprintf("Preparing data: %d/%d records", processed, total)
+		statusText := fmt.Sprintf("Preparing data: %d/%d records indexed", processed, total)
 		// Persist status text to DB so polling can show it (SSE is unreliable due to EventSource auth)
 		_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatusText(ctx, jobID, &statusText)
 		// Also emit SSE for clients that can receive it

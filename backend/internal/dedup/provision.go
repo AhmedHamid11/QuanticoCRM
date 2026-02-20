@@ -251,8 +251,8 @@ func EnsureBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType
 }
 
 // backfillBatchSize is the number of records processed per iteration in BackfillBlockingKeysForEntity.
-// Large enough to be efficient, small enough to respect Turso's 5-second query timeout.
-const backfillBatchSize = 5000
+// 500 balances efficient transaction batching (~0.5-1s per batch) with frequent progress updates.
+const backfillBatchSize = 500
 
 // BackfillBlockingKeys populates blocking key columns for all contacts that have NULL keys.
 // This ensures existing records (created before the dedup feature) are findable as candidates.
@@ -280,8 +280,9 @@ func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityTy
 	tableName := util.GetTableName(entityType)
 
 	// Count how many records still need backfill so we can report progress.
+	// Only match NULL (unprocessed). Empty strings mean "processed but record had no useful data".
 	needsBackfillSQL := fmt.Sprintf(
-		`SELECT COUNT(*) FROM %s WHERE dedup_email_domain IS NULL OR (dedup_last_name_soundex = '' AND dedup_last_name_prefix = '' AND dedup_email_domain = '' AND dedup_phone_e164 = '')`,
+		`SELECT COUNT(*) FROM %s WHERE dedup_email_domain IS NULL`,
 		tableName,
 	)
 	var totalNeeding int
@@ -309,7 +310,7 @@ func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityTy
 		// We re-query instead of using OFFSET so that successfully-updated records
 		// are no longer matched, preventing infinite loops on update failures.
 		rows, err := conn.QueryContext(ctx, fmt.Sprintf(
-			`SELECT * FROM %s WHERE dedup_email_domain IS NULL OR (dedup_last_name_soundex = '' AND dedup_last_name_prefix = '' AND dedup_email_domain = '' AND dedup_phone_e164 = '') LIMIT %d`,
+			`SELECT * FROM %s WHERE dedup_email_domain IS NULL LIMIT %d`,
 			tableName, backfillBatchSize))
 		if err != nil {
 			if IsSchemaError(err) {
