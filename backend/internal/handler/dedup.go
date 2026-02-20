@@ -443,6 +443,30 @@ func (h *DedupHandler) ListPendingAlerts(c *fiber.Ctx) error {
 	})
 }
 
+// BulkDismissAlerts dismisses all pending alerts matching an optional entity type filter
+func (h *DedupHandler) BulkDismissAlerts(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	userID := c.Locals("userID").(string)
+
+	var input struct {
+		EntityType string `json:"entityType"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		// Body is optional (empty = dismiss all)
+		input.EntityType = ""
+	}
+
+	count, err := h.getAlertRepo(c).BulkResolve(c.Context(), orgID, input.EntityType, entity.AlertStatusDismissed, userID)
+	if err != nil {
+		if isNoSuchTableError(err) {
+			return c.JSON(fiber.Map{"dismissed": 0})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"dismissed": count})
+}
+
 // BackfillBlockingKeys populates blocking key columns for all existing records
 // This is needed for records created before blocking keys were being populated
 func (h *DedupHandler) BackfillBlockingKeys(c *fiber.Ctx) error {
@@ -531,6 +555,7 @@ func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 	app.Post("/dedup/:entity/check", h.CheckDuplicates)
 
 	// Pending alert endpoints
+	app.Post("/dedup/bulk-dismiss", h.BulkDismissAlerts)
 	app.Get("/dedup/pending-alerts", h.ListPendingAlerts)
 	app.Get("/dedup/:entity/:id/pending-alert", h.GetPendingAlert)
 	app.Post("/dedup/:entity/:id/resolve-alert", h.ResolveAlert)

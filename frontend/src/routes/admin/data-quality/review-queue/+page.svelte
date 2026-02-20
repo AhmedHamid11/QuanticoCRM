@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import {
 		listPendingAlerts,
+		bulkDismissAlerts,
 		mergePreview,
 		mergeExecute,
 		getConfidenceBadgeClass,
@@ -22,7 +23,10 @@
 	let total = $state(0);
 	let pageSize = $state(20);
 	let selectedIds = $state<Set<string>>(new Set());
-	let showBulkBar = $derived(selectedIds.size > 0);
+	let allPagesSelected = $state(false);
+	let showBulkBar = $derived(selectedIds.size > 0 || allPagesSelected);
+	const allOnPageSelected = $derived(selectedIds.size === alerts.length && alerts.length > 0);
+	const bulkDisplayCount = $derived(allPagesSelected ? total : selectedIds.size);
 	let bulkProcessing = $state(false);
 	let bulkProgress = $state({ current: 0, total: 0 });
 	let expandedIds = $state<Set<string>>(new Set());
@@ -73,12 +77,15 @@
 		entityFilter = target.value;
 		currentPage = 1;
 		selectedIds = new Set();
+		allPagesSelected = false;
 		loadAlerts();
 	}
 
 	function handlePageChange(newPage: number) {
 		currentPage = newPage;
-		selectedIds = new Set();
+		if (!allPagesSelected) {
+			selectedIds = new Set();
+		}
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 		loadAlerts();
 	}
@@ -86,6 +93,7 @@
 	function toggleSelection(alertId: string) {
 		if (selectedIds.has(alertId)) {
 			selectedIds.delete(alertId);
+			allPagesSelected = false;
 		} else {
 			selectedIds.add(alertId);
 		}
@@ -95,9 +103,20 @@
 	function toggleSelectAll() {
 		if (selectedIds.size === alerts.length) {
 			selectedIds = new Set();
+			allPagesSelected = false;
 		} else {
 			selectedIds = new Set(alerts.map((a) => a.id));
 		}
+	}
+
+	function selectAllPages() {
+		allPagesSelected = true;
+		selectedIds = new Set(alerts.map((a) => a.id));
+	}
+
+	function clearAllSelection() {
+		allPagesSelected = false;
+		selectedIds = new Set();
 	}
 
 	async function dismissAlert(alert: PendingAlert) {
@@ -161,9 +180,28 @@
 	}
 
 	async function bulkDismiss() {
-		if (selectedIds.size === 0) return;
+		if (selectedIds.size === 0 && !allPagesSelected) return;
 
 		bulkProcessing = true;
+
+		if (allPagesSelected) {
+			// Single backend call to dismiss all matching alerts
+			try {
+				const result = await bulkDismissAlerts(entityFilter || undefined);
+				const count = result.dismissed;
+				allPagesSelected = false;
+				selectedIds = new Set();
+				total = 0;
+				alerts = [];
+				toast.success(`Dismissed ${count} alerts`);
+			} catch (error: any) {
+				toast.error(`Bulk dismiss failed: ${error.message || 'Unknown error'}`);
+			} finally {
+				bulkProcessing = false;
+			}
+			return;
+		}
+
 		bulkProgress = { current: 0, total: selectedIds.size };
 
 		const selectedAlerts = alerts.filter((a) => selectedIds.has(a.id));
@@ -194,26 +232,70 @@
 	}
 
 	async function bulkMerge() {
-		if (selectedIds.size === 0) return;
+		if (selectedIds.size === 0 && !allPagesSelected) return;
 
 		bulkProcessing = true;
-		bulkProgress = { current: 0, total: selectedIds.size };
-
-		const selectedAlerts = alerts.filter((a) => selectedIds.has(a.id));
 		let successCount = 0;
 		let failCount = 0;
 
-		for (const alert of selectedAlerts) {
-			try {
-				await quickMerge(alert);
-				successCount++;
-			} catch (error) {
-				failCount++;
+		if (allPagesSelected) {
+			// Fetch all pages and process each alert
+			bulkProgress = { current: 0, total };
+			let page = 1;
+			const batchSize = 100;
+
+			while (true) {
+				let batch: PendingAlert[];
+				try {
+					const response = await listPendingAlerts({
+						entityType: entityFilter || undefined,
+						page,
+						pageSize: batchSize
+					});
+					batch = response.data || [];
+				} catch {
+					break;
+				}
+
+				if (batch.length === 0) break;
+
+				for (const alert of batch) {
+					try {
+						await quickMerge(alert);
+						successCount++;
+					} catch {
+						failCount++;
+					}
+					bulkProgress.current++;
+				}
+
+				// Always re-fetch page 1 since items are being removed
+				// No need to increment page
+				if (batch.length < batchSize) break;
 			}
-			bulkProgress.current++;
+
+			allPagesSelected = false;
+			selectedIds = new Set();
+			// Reload to show current state
+			await loadAlerts();
+		} else {
+			bulkProgress = { current: 0, total: selectedIds.size };
+
+			const selectedAlerts = alerts.filter((a) => selectedIds.has(a.id));
+
+			for (const alert of selectedAlerts) {
+				try {
+					await quickMerge(alert);
+					successCount++;
+				} catch (error) {
+					failCount++;
+				}
+				bulkProgress.current++;
+			}
+
+			selectedIds = new Set();
 		}
 
-		selectedIds = new Set();
 		bulkProcessing = false;
 
 		if (failCount > 0) {
@@ -357,6 +439,29 @@
 						{allExpanded ? 'Collapse All' : 'Expand All'}
 					</button>
 				</div>
+
+				<!-- Select All Across Pages Banner -->
+				{#if allOnPageSelected && total > alerts.length && !allPagesSelected}
+					<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm text-blue-800">
+						All {alerts.length} items on this page are selected.
+						<button
+							onclick={selectAllPages}
+							class="ml-1 font-semibold text-blue-600 underline hover:text-blue-800"
+						>
+							Select all {total} items
+						</button>
+					</div>
+				{:else if allPagesSelected}
+					<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-center text-sm text-blue-800">
+						All {total} items selected.
+						<button
+							onclick={clearAllSelection}
+							class="ml-1 font-semibold text-blue-600 underline hover:text-blue-800"
+						>
+							Clear selection
+						</button>
+					</div>
+				{/if}
 			{/if}
 
 			<!-- Compact Alert Rows -->
@@ -490,7 +595,7 @@
 		<div class="mx-auto flex max-w-7xl items-center justify-between">
 			<div class="flex items-center gap-4">
 				<span class="text-sm font-medium text-gray-900">
-					{selectedIds.size} selected
+					{bulkDisplayCount} selected{allPagesSelected ? ' (all pages)' : ''}
 				</span>
 				{#if bulkProcessing}
 					<span class="text-sm text-gray-600">

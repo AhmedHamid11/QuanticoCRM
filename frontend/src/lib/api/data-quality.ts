@@ -243,6 +243,14 @@ export async function listPendingAlerts(params?: {
 	return get<PaginatedResponse<PendingAlert>>(`/dedup/pending-alerts${query}`);
 }
 
+// --- Bulk Operations ---
+
+export async function bulkDismissAlerts(entityType?: string): Promise<{ dismissed: number }> {
+	const body: Record<string, string> = {};
+	if (entityType) body.entityType = entityType;
+	return post<{ dismissed: number }>('/dedup/bulk-dismiss', body);
+}
+
 // --- Merge ---
 
 export async function mergePreview(req: MergePreviewRequest): Promise<MergePreview> {

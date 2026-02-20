@@ -177,6 +177,34 @@ func (r *PendingAlertRepo) DeleteOldResolved(ctx context.Context, orgID string, 
 	return result.RowsAffected()
 }
 
+// BulkResolve resolves all pending alerts matching the filter in a single UPDATE.
+// Returns the count of affected rows.
+func (r *PendingAlertRepo) BulkResolve(ctx context.Context, orgID, entityType, status, userID string) (int64, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	whereClause := "org_id = ? AND status = 'pending'"
+	args := []interface{}{status, now, userID}
+	args = append(args, orgID)
+
+	if entityType != "" {
+		whereClause += " AND entity_type = ?"
+		args = append(args, entityType)
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE pending_duplicate_alerts
+		SET status = ?, resolved_at = ?, resolved_by_id = ?
+		WHERE %s
+	`, whereClause)
+
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected()
+}
+
 // ListAllPending returns all pending alerts for an org with optional entity type filter and pagination
 func (r *PendingAlertRepo) ListAllPending(ctx context.Context, orgID string, entityType string, limit, offset int) ([]entity.PendingDuplicateAlert, int, error) {
 	// Build WHERE clause with optional entity type filter
