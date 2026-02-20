@@ -189,16 +189,19 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	}
 
 	backfillProgressFn := func(processed, total int) {
-		// Emit progress events during backfill so UI shows activity instead of stalling at 0%
+		statusText := fmt.Sprintf("Preparing data: %d/%d records", processed, total)
+		// Persist status text to DB so polling can show it (SSE is unreliable due to EventSource auth)
+		_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatusText(ctx, jobID, &statusText)
+		// Also emit SSE for clients that can receive it
 		s.emitProgress(ProgressEvent{
 			JobID:            jobID,
 			OrgID:            orgID,
 			EntityType:       entityType,
-			ProcessedRecords: 0, // No scan records processed yet
+			ProcessedRecords: 0,
 			TotalRecords:     totalRecords,
 			DuplicatesFound:  0,
 			Status:           "running",
-			StatusText:       fmt.Sprintf("Preparing data: %d/%d records", processed, total),
+			StatusText:       statusText,
 		})
 		log.Printf("[SCAN] Backfill progress for %s: %d/%d", entityType, processed, total)
 	}
@@ -222,6 +225,9 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	default:
 	}
 
+	// Clear status text as we transition from backfill to scanning
+	scanningText := fmt.Sprintf("Scanning %d records for duplicates...", totalRecords)
+	_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatusText(ctx, jobID, &scanningText)
 	log.Printf("[SCAN] Phase 2: Starting chunked duplicate scan for %s (%d records)...", entityType, totalRecords)
 
 	for {

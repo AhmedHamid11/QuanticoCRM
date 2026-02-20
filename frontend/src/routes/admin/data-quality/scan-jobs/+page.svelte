@@ -2,9 +2,6 @@
 	import { onMount } from 'svelte';
 	import { get, post, put, del } from '$lib/utils/api';
 	import { addToast } from '$lib/stores/toast.svelte';
-	import { PUBLIC_API_URL } from '$env/static/public';
-
-	const API_BASE = PUBLIC_API_URL || '/api/v1';
 
 	// Type definitions (inline since data-quality.ts may not exist yet)
 	interface ScanSchedule {
@@ -32,22 +29,11 @@
 		processedRecords: number;
 		duplicatesFound: number;
 		errorMessage?: string;
+		statusText?: string;
 		startedAt: string;
 		completedAt?: string;
 		createdAt: string;
 		updatedAt: string;
-	}
-
-	interface ProgressEvent {
-		jobId: string;
-		entityType: string;
-		status: 'running' | 'completed' | 'failed' | 'cancelled';
-		percentage: number;
-		processedRecords: number;
-		totalRecords: number;
-		duplicatesFound?: number;
-		errorMessage?: string;
-		statusText?: string;
 	}
 
 	interface ScheduleEditForm {
@@ -92,9 +78,6 @@
 	let runEntityType = $state('');
 	let isRunning = $state(false);
 
-	// Progress tracking
-	let runningJobs = $state<Map<string, ProgressEvent>>(new Map());
-
 	// Job history pagination
 	let jobPage = $state(1);
 	let jobPageSize = $state(10);
@@ -117,15 +100,14 @@
 				.filter(j => j.entityType === schedule.entityType)
 				.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
 
-			// Check if job is currently running
-			const progress = Array.from(runningJobs.values()).find(p => p.entityType === schedule.entityType);
-			const isRunning = progress?.status === 'running';
+			// Check if job is currently running (from DB data)
+			const runningJob = latestJob?.status === 'running' ? latestJob : null;
 
 			return {
 				schedule,
 				latestJob,
-				isRunning,
-				progress
+				isRunning: !!runningJob,
+				runningJob
 			};
 		}).sort((a, b) => {
 			// Sort by next run time
@@ -202,31 +184,6 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
-	}
-
-	// Update job progress from SSE
-	function updateJobProgress(event: ProgressEvent) {
-		runningJobs.set(event.jobId, event);
-
-		// Update job in jobs array
-		jobs = jobs.map(j => {
-			if (j.id === event.jobId) {
-				return {
-					...j,
-					status: event.status,
-					processedRecords: event.processedRecords,
-					totalRecords: event.totalRecords,
-					duplicatesFound: event.duplicatesFound || j.duplicatesFound
-				};
-			}
-			return j;
-		});
-
-		// Reload if completed, failed, or cancelled
-		if (event.status === 'completed' || event.status === 'failed' || event.status === 'cancelled') {
-			runningJobs.delete(event.jobId);
-			loadData();
-		}
 	}
 
 	// API calls
@@ -429,28 +386,60 @@
 		}
 	}
 
-	// SSE connection
+	// Poll for progress while any job is running
+	let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+	function startPolling() {
+		if (pollInterval) return;
+		pollInterval = setInterval(async () => {
+			const hasRunning = jobs.some(j => j.status === 'running');
+			if (!hasRunning) {
+				stopPolling();
+				return;
+			}
+			// Silently refresh job data without resetting loading state
+			try {
+				const jobsData = await get<{ data: ScanJob[], total: number }>(`/scan-jobs?page=${jobPage}&pageSize=${jobPageSize}`);
+				const prevRunning = jobs.filter(j => j.status === 'running').map(j => j.id);
+				jobs = jobsData.data || [];
+				jobTotal = jobsData.total || 0;
+
+				// Check if any previously running job just completed
+				const nowRunning = jobs.filter(j => j.status === 'running').map(j => j.id);
+				const justFinished = prevRunning.filter(id => !nowRunning.includes(id));
+				if (justFinished.length > 0) {
+					// Reload full data including schedules
+					await loadData();
+				}
+			} catch {
+				// Silent fail for poll - will retry on next interval
+			}
+		}, 3000);
+	}
+
+	function stopPolling() {
+		if (pollInterval) {
+			clearInterval(pollInterval);
+			pollInterval = null;
+		}
+	}
+
+	// Watch for running jobs to start/stop polling
+	$effect(() => {
+		const hasRunning = jobs.some(j => j.status === 'running');
+		if (hasRunning) {
+			startPolling();
+		} else {
+			stopPolling();
+		}
+	});
+
 	onMount(() => {
 		loadData();
 
-		// Connect to SSE for real-time progress
-		const eventSource = new EventSource(`${API_BASE}/scan-jobs/progress/stream`, {
-			withCredentials: true
-		});
-
-		eventSource.addEventListener('progress', (event) => {
-			const data: ProgressEvent = JSON.parse(event.data);
-			updateJobProgress(data);
-		});
-
-		eventSource.onerror = (error) => {
-			console.error('SSE error:', error);
-			// EventSource auto-reconnects, no manual retry needed
-		};
-
 		// Cleanup on unmount
 		return () => {
-			eventSource.close();
+			stopPolling();
 		};
 	});
 </script>
@@ -603,7 +592,7 @@
 						</tr>
 					{/if}
 
-					{#each scheduleWithStatus as { schedule, latestJob, isRunning, progress } (schedule.entityType)}
+					{#each scheduleWithStatus as { schedule, latestJob, isRunning, runningJob } (schedule.entityType)}
 						{#if editingScheduleEntity === schedule.entityType}
 							<tr class="bg-blue-50">
 								<td class="px-6 py-4 font-medium text-gray-900">
@@ -686,15 +675,15 @@
 									{formatRelativeTime(latestJob?.startedAt)}
 								</td>
 								<td class="px-6 py-4">
-									{#if isRunning && progress}
+									{#if isRunning && runningJob}
+									{@const pct = runningJob.totalRecords > 0 ? Math.round((runningJob.processedRecords / runningJob.totalRecords) * 100) : 0}
 										<div class="space-y-1">
 											<div class="flex items-center justify-between text-xs text-gray-600 mb-1">
-												<span>{progress.statusText || 'Running'}</span>
+												<span>{runningJob.statusText || 'Running'}</span>
 												<div class="flex items-center gap-2">
-													<span>{progress.percentage}% ({progress.processedRecords.toLocaleString()} / {progress.totalRecords.toLocaleString()} records)</span>
+													<span>{pct}% ({runningJob.processedRecords.toLocaleString()} / {runningJob.totalRecords.toLocaleString()} records)</span>
 													<button
 														onclick={() => {
-															const runningJob = jobs.find(j => j.entityType === schedule.entityType && j.status === 'running');
 															if (runningJob) cancelJob(runningJob.id);
 														}}
 														class="text-red-500 hover:text-red-700"
@@ -709,7 +698,7 @@
 											<div class="w-full bg-gray-200 rounded-full h-2">
 												<div
 													class="bg-blue-500 h-2 rounded-full transition-all duration-300"
-													style="width: {progress.percentage}%"
+													style="width: {pct}%"
 												></div>
 											</div>
 										</div>
@@ -838,15 +827,9 @@
 										Failed
 									</span>
 								{:else if job.status === 'running'}
-									{#if runningJobs.get(job.id)?.statusText}
-										<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
-											{runningJobs.get(job.id)?.statusText}
-										</span>
-									{:else}
-										<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
-											Running
-										</span>
-									{/if}
+									<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 animate-pulse">
+										{job.statusText || 'Running'}
+									</span>
 								{:else if job.status === 'cancelled'}
 									<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
 										Cancelled

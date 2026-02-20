@@ -253,15 +253,15 @@ func (r *ScanJobRepo) CreateJob(ctx context.Context, job *entity.ScanJob) error 
 	query := `
 		INSERT INTO scan_jobs
 		(id, org_id, entity_type, schedule_id, status, trigger_type, total_records,
-		 processed_records, duplicates_found, error_message, started_at, completed_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 processed_records, duplicates_found, error_message, status_text, started_at, completed_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := r.db.ExecContext(ctx, query,
 		job.ID, job.OrgID, job.EntityType, job.ScheduleID, job.Status, job.TriggerType,
-		job.TotalRecords, job.ProcessedRecords, job.DuplicatesFound, job.ErrorMessage,
+		job.TotalRecords, job.ProcessedRecords, job.DuplicatesFound, job.ErrorMessage, job.StatusText,
 		startedAt, completedAt, now, now)
 
 	return err
@@ -271,7 +271,7 @@ func (r *ScanJobRepo) CreateJob(ctx context.Context, job *entity.ScanJob) error 
 func (r *ScanJobRepo) GetJob(ctx context.Context, jobID string) (*entity.ScanJob, error) {
 	query := `
 		SELECT id, org_id, entity_type, schedule_id, status, trigger_type, total_records,
-		       processed_records, duplicates_found, error_message, started_at, completed_at,
+		       processed_records, duplicates_found, error_message, status_text, started_at, completed_at,
 		       created_at, updated_at
 		FROM scan_jobs
 		WHERE id = ?
@@ -292,7 +292,7 @@ func (r *ScanJobRepo) GetJob(ctx context.Context, jobID string) (*entity.ScanJob
 
 	err = rows.Scan(
 		&job.ID, &job.OrgID, &job.EntityType, &job.ScheduleID, &job.Status, &job.TriggerType,
-		&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage,
+		&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage, &job.StatusText,
 		&startedAt, &completedAt, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -331,7 +331,7 @@ func (r *ScanJobRepo) ListJobs(ctx context.Context, orgID string, limit, offset 
 	// Get paginated jobs
 	query := `
 		SELECT id, org_id, entity_type, schedule_id, status, trigger_type, total_records,
-		       processed_records, duplicates_found, error_message, started_at, completed_at,
+		       processed_records, duplicates_found, error_message, status_text, started_at, completed_at,
 		       created_at, updated_at
 		FROM scan_jobs
 		WHERE org_id = ?
@@ -352,7 +352,7 @@ func (r *ScanJobRepo) ListJobs(ctx context.Context, orgID string, limit, offset 
 
 		err = rows.Scan(
 			&job.ID, &job.OrgID, &job.EntityType, &job.ScheduleID, &job.Status, &job.TriggerType,
-			&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage,
+			&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage, &job.StatusText,
 			&startedAt, &completedAt, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -394,7 +394,7 @@ func (r *ScanJobRepo) ListJobsByEntity(ctx context.Context, orgID, entityType st
 	// Get paginated jobs
 	query := `
 		SELECT id, org_id, entity_type, schedule_id, status, trigger_type, total_records,
-		       processed_records, duplicates_found, error_message, started_at, completed_at,
+		       processed_records, duplicates_found, error_message, status_text, started_at, completed_at,
 		       created_at, updated_at
 		FROM scan_jobs
 		WHERE org_id = ? AND entity_type = ?
@@ -415,7 +415,7 @@ func (r *ScanJobRepo) ListJobsByEntity(ctx context.Context, orgID, entityType st
 
 		err = rows.Scan(
 			&job.ID, &job.OrgID, &job.EntityType, &job.ScheduleID, &job.Status, &job.TriggerType,
-			&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage,
+			&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage, &job.StatusText,
 			&startedAt, &completedAt, &createdAt, &updatedAt,
 		)
 		if err != nil {
@@ -448,7 +448,7 @@ func (r *ScanJobRepo) ListJobsByEntity(ctx context.Context, orgID, entityType st
 func (r *ScanJobRepo) GetRunningJobForEntity(ctx context.Context, orgID, entityType string) (*entity.ScanJob, error) {
 	query := `
 		SELECT id, org_id, entity_type, schedule_id, status, trigger_type, total_records,
-		       processed_records, duplicates_found, error_message, started_at, completed_at,
+		       processed_records, duplicates_found, error_message, status_text, started_at, completed_at,
 		       created_at, updated_at
 		FROM scan_jobs
 		WHERE org_id = ? AND entity_type = ? AND status = ?
@@ -470,7 +470,7 @@ func (r *ScanJobRepo) GetRunningJobForEntity(ctx context.Context, orgID, entityT
 
 	err = rows.Scan(
 		&job.ID, &job.OrgID, &job.EntityType, &job.ScheduleID, &job.Status, &job.TriggerType,
-		&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage,
+		&job.TotalRecords, &job.ProcessedRecords, &job.DuplicatesFound, &job.ErrorMessage, &job.StatusText,
 		&startedAt, &completedAt, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -504,6 +504,14 @@ func (r *ScanJobRepo) UpdateJobStatus(ctx context.Context, jobID, status string)
 	return err
 }
 
+// UpdateJobStatusText updates the status_text field (for backfill progress messages)
+func (r *ScanJobRepo) UpdateJobStatusText(ctx context.Context, jobID string, statusText *string) error {
+	query := `UPDATE scan_jobs SET status_text = ?, updated_at = ? WHERE id = ?`
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := r.db.ExecContext(ctx, query, statusText, now, jobID)
+	return err
+}
+
 // UpdateJobProgress updates processed records and duplicates found
 func (r *ScanJobRepo) UpdateJobProgress(ctx context.Context, jobID string, processed, duplicates int) error {
 	query := `
@@ -521,7 +529,7 @@ func (r *ScanJobRepo) UpdateJobCompletion(ctx context.Context, jobID, status str
 	query := `
 		UPDATE scan_jobs
 		SET status = ?, total_records = ?, processed_records = ?,
-		    duplicates_found = ?, completed_at = ?, updated_at = ?
+		    duplicates_found = ?, status_text = NULL, completed_at = ?, updated_at = ?
 		WHERE id = ?
 	`
 	now := time.Now().UTC().Format(time.RFC3339)

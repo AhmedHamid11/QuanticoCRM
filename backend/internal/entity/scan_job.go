@@ -31,6 +31,7 @@ type ScanJob struct {
 	ProcessedRecords int        `json:"processedRecords" db:"processed_records"`
 	DuplicatesFound  int        `json:"duplicatesFound" db:"duplicates_found"`
 	ErrorMessage     *string    `json:"errorMessage,omitempty" db:"error_message"`
+	StatusText       *string    `json:"statusText,omitempty" db:"status_text"`
 	StartedAt        *time.Time `json:"startedAt,omitempty" db:"started_at"`
 	CompletedAt      *time.Time `json:"completedAt,omitempty" db:"completed_at"`
 	CreatedAt        time.Time  `json:"createdAt" db:"created_at"`
