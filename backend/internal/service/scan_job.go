@@ -496,12 +496,17 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 				seenPairs[pairKey] = true
 
 				// Create alert for the record (smaller ID gets the alert)
+				// The match must always reference the OTHER record
 				alertRecordID := recordID
+				matchID := candidateID
+				matchRecord := candidateRecord
 				if candidateID < recordID {
 					alertRecordID = candidateID
+					matchID = recordID
+					matchRecord = record
 				}
 
-				matchRecordName := util.GetRecordDisplayName(entityType, candidateRecord)
+				matchRecordName := util.GetRecordDisplayName(entityType, matchRecord)
 
 				confidence := result.ConfidenceTier
 				if confidence == "" {
@@ -512,7 +517,7 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 					OrgID:             orgID,
 					EntityType:        entityType,
 					RecordID:          alertRecordID,
-					Matches:           []entity.DuplicateAlertMatch{{RecordID: candidateID, RecordName: matchRecordName, MatchResult: result}},
+					Matches:           []entity.DuplicateAlertMatch{{RecordID: matchID, RecordName: matchRecordName, MatchResult: result}},
 					TotalMatchCount:   1,
 					HighestConfidence: confidence,
 					IsBlockMode:       false,
