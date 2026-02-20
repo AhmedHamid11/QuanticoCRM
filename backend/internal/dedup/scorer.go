@@ -36,9 +36,14 @@ func (s *Scorer) CalculateScore(recordA, recordB map[string]interface{}, rule *e
 			continue
 		}
 
+		// Both values present: this field counts toward the denominator
+		totalWeight += fc.Weight
+
 		// Get comparator for this field's algorithm
 		comparator := GetComparatorForAlgorithm(fc.Algorithm, s.normalizer)
 		score := comparator.Compare(valA, valB)
+
+		fieldScores[fc.FieldName] = score
 
 		// Apply per-field threshold
 		threshold := fc.Threshold
@@ -47,13 +52,8 @@ func (s *Scorer) CalculateScore(recordA, recordB map[string]interface{}, rule *e
 		}
 
 		if score >= threshold {
-			fieldScores[fc.FieldName] = score
 			totalScore += score * fc.Weight
-			totalWeight += fc.Weight
 			matchingFields = append(matchingFields, fc.FieldName)
-		} else if score > 0 {
-			// Below threshold but non-zero: still record but don't count toward match
-			fieldScores[fc.FieldName] = score
 		}
 	}
 

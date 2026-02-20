@@ -503,11 +503,9 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 
 				matchRecordName := util.GetRecordDisplayName(entityType, candidateRecord)
 
-				confidence := "low"
-				if result.Score >= 0.95 {
-					confidence = "high"
-				} else if result.Score >= 0.85 {
-					confidence = "medium"
+				confidence := result.ConfidenceTier
+				if confidence == "" {
+					confidence = "low"
 				}
 
 				alert := &entity.PendingDuplicateAlert{
