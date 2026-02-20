@@ -30,10 +30,11 @@ type ImportProgressEvent struct {
 	Total     int                `json:"total"`
 	Created   int                `json:"created"`
 	Updated   int                `json:"updated"`
+	Deleted   int                `json:"deleted,omitempty"`
 	Failed    int                `json:"failed"`
 	Skipped   int                `json:"skipped"`
 	Merged    int                `json:"merged,omitempty"`
-	Phase     string             `json:"phase,omitempty"`     // "validating", "importing"
+	Phase     string             `json:"phase,omitempty"`     // "validating", "importing", "deleting"
 	Response  *ImportCSVResponse `json:"response,omitempty"`  // Only for "complete" type
 }
 
@@ -397,13 +398,18 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 	response.MappedHeaders = parseResult.MappedHeaders
 	response.TotalRows = parseResult.RowCount
 
-	// Check for async progress support BEFORE lookups and validation (create mode only).
-	// Lookups and validation already ran during the analyze step — skip them here to
-	// return the 202 response immediately instead of blocking for minutes on large imports.
-	asyncProgress := c.Get("X-Stream-Progress") == "true" && mode == ImportModeCreate
-	if asyncProgress {
+	// Check for async progress support BEFORE lookups and validation.
+	// For create mode: lookups and validation already ran during the analyze step.
+	// For delete mode: no lookups or validation needed, jump straight to async delete.
+	// Returns 202 immediately so large imports don't block the HTTP request.
+	asyncProgress := c.Get("X-Stream-Progress") == "true"
+	if asyncProgress && mode == ImportModeCreate {
 		failedIndices := make(map[int]bool)
 		return h.handleAsyncImport(c, orgID, userID, entityName, tableName, fields, parseResult, failedIndices, now, options, nil)
+	}
+	if asyncProgress && mode == ImportModeDelete {
+		db := h.getDB(c)
+		return h.handleAsyncDelete(c, orgID, entityName, tableName, fields, parseResult.Records, options, db)
 	}
 
 	// Create read budget to protect Turso quota (defense in depth)
@@ -565,6 +571,256 @@ func (h *ImportHandler) handleAsyncImport(
 		"jobID": jobID,
 		"total": len(parseResult.Records),
 	})
+}
+
+// handleAsyncDelete starts a delete operation in a background goroutine and returns a job ID.
+// The frontend polls GetImportProgress to track progress. This fixes the timeout issue
+// for large deletes (50k+ records) where c.Context() would be cancelled after the response.
+func (h *ImportHandler) handleAsyncDelete(
+	c *fiber.Ctx,
+	orgID, entityName, tableName string,
+	fields []entity.FieldDef,
+	records []map[string]interface{},
+	options ImportCSVRequest,
+	db *sql.DB,
+) error {
+	jobID := sfid.New("Imp")
+
+	// Create progress tracking job (scoped to orgID for tenant isolation)
+	importProgressStore.Create(jobID, orgID, len(records))
+
+	// Start processing in background goroutine
+	go func() {
+		// Recover from panics so progress doesn't stay stuck at 0% forever
+		defer func() {
+			if r := recover(); r != nil {
+				errMsg := fmt.Sprintf("Delete crashed: %v", r)
+				log.Printf("[IMPORT-DELETE] PANIC in job %s: %v", jobID, r)
+				importProgressStore.SetError(jobID, errMsg)
+			}
+		}()
+
+		var response ImportCSVResponse
+		response.Mode = options.Mode
+
+		progressFn := func(event ImportProgressEvent) {
+			importProgressStore.Update(jobID, event)
+			if h.dbManager != nil {
+				h.dbManager.TouchConnection(orgID)
+			}
+		}
+
+		// Emit initial progress so frontend knows processing has started
+		progressFn(ImportProgressEvent{
+			Type:  "progress",
+			Phase: "deleting",
+			Total: len(records),
+		})
+
+		// Use context.Background() — NOT c.Context() which gets cancelled after 202 response
+		if options.MatchField == "id" {
+			h.processDeleteByIDInternal(context.Background(), db, orgID, entityName, tableName, records, options, &response, progressFn)
+		} else {
+			h.processDeleteModeInternal(context.Background(), db, orgID, entityName, tableName, fields, records, options, &response, progressFn)
+		}
+
+		importProgressStore.Complete(jobID, &response)
+		log.Printf("[IMPORT-DELETE] Job %s completed: %d deleted, %d failed", jobID, response.Deleted, response.Failed)
+	}()
+
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"jobID": jobID,
+		"total": len(records),
+	})
+}
+
+// processDeleteByIDInternal is the context-aware version of processDeleteByID.
+// It accepts context.Context and *sql.DB directly (instead of *fiber.Ctx) so it
+// works correctly from a background goroutine after the HTTP response has been sent.
+func (h *ImportHandler) processDeleteByIDInternal(
+	ctx context.Context,
+	db *sql.DB,
+	orgID, entityName, tableName string,
+	records []map[string]interface{},
+	options ImportCSVRequest,
+	response *ImportCSVResponse,
+	progressFn func(ImportProgressEvent),
+) {
+	const batchSize = 500
+
+	// Collect all IDs from the CSV
+	var allIDs []string
+	for _, record := range records {
+		id, ok := record["id"]
+		if !ok || id == nil {
+			continue
+		}
+		idStr := fmt.Sprintf("%v", id)
+		if idStr != "" {
+			allIDs = append(allIDs, idStr)
+		}
+	}
+
+	log.Printf("[IMPORT-DELETE] Starting async batch delete: %d IDs from %d records, table=%s, org=%s",
+		len(allIDs), len(records), tableName, orgID)
+
+	if len(allIDs) > 0 {
+		log.Printf("[IMPORT-DELETE] Sample IDs: [%s, %s, ...]", allIDs[0], allIDs[min(1, len(allIDs)-1)])
+	}
+
+	// Count records before delete for verification
+	var countBefore int64
+	countRow := db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE org_id = ?", tableName), orgID)
+	if err := countRow.Scan(&countBefore); err != nil {
+		log.Printf("[IMPORT-DELETE] Pre-delete count failed: %v", err)
+	} else {
+		log.Printf("[IMPORT-DELETE] Records before delete: %d", countBefore)
+	}
+
+	var totalRowsAffected int64
+
+	// Delete in batches
+	for i := 0; i < len(allIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(allIDs) {
+			end = len(allIDs)
+		}
+		batch := allIDs[i:end]
+		batchNum := i/batchSize + 1
+
+		placeholders := make([]string, len(batch))
+		args := make([]interface{}, 0, len(batch)+1)
+		args = append(args, orgID)
+		for j, id := range batch {
+			placeholders[j] = "?"
+			args = append(args, id)
+		}
+
+		query := fmt.Sprintf("DELETE FROM %s WHERE org_id = ? AND id IN (%s)",
+			tableName, strings.Join(placeholders, ","))
+
+		result, err := db.ExecContext(ctx, query, args...)
+		if err != nil {
+			log.Printf("[IMPORT-DELETE] Batch %d failed at offset %d: %v", batchNum, i, err)
+			response.Failed = len(allIDs) - int(totalRowsAffected)
+			response.Errors = append(response.Errors, BulkError{Index: i, Error: err.Error()})
+			break
+		}
+
+		rowsAffected, _ := result.RowsAffected()
+		totalRowsAffected += rowsAffected
+		log.Printf("[IMPORT-DELETE] Batch %d: %d IDs submitted, %d rows affected", batchNum, len(batch), rowsAffected)
+
+		// Emit progress after each batch
+		if progressFn != nil {
+			progressFn(ImportProgressEvent{
+				Type:      "progress",
+				Phase:     "deleting",
+				Processed: end,
+				Total:     len(allIDs),
+				Deleted:   int(totalRowsAffected),
+				Skipped:   end - int(totalRowsAffected),
+				Failed:    len(response.Errors),
+			})
+		}
+	}
+
+	// Count records after delete for verified results
+	var countAfter int64
+	countRow = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE org_id = ?", tableName), orgID)
+	if err := countRow.Scan(&countAfter); err != nil {
+		log.Printf("[IMPORT-DELETE] Post-delete count failed: %v", err)
+		// Fall back to RowsAffected
+		response.Deleted = int(totalRowsAffected)
+		response.Skipped = len(allIDs) - int(totalRowsAffected)
+	} else {
+		verifiedDeleted := int(countBefore - countAfter)
+		log.Printf("[IMPORT-DELETE] Records after delete: %d (verified deleted: %d, RowsAffected total: %d)",
+			countAfter, verifiedDeleted, totalRowsAffected)
+		// Use verified count - more reliable than RowsAffected with Turso
+		response.Deleted = verifiedDeleted
+		response.Skipped = len(allIDs) - verifiedDeleted
+		if response.Skipped < 0 {
+			response.Skipped = 0
+		}
+	}
+
+	response.IDs = allIDs
+}
+
+// processDeleteModeInternal is the context-aware version of processDeleteMode (non-ID match field path).
+// It accepts context.Context and *sql.DB directly so it works from a background goroutine.
+func (h *ImportHandler) processDeleteModeInternal(
+	ctx context.Context,
+	db *sql.DB,
+	orgID, entityName, tableName string,
+	fields []entity.FieldDef,
+	records []map[string]interface{},
+	options ImportCSVRequest,
+	response *ImportCSVResponse,
+	progressFn func(ImportProgressEvent),
+) {
+	var deletedIDs []string
+	var errors []BulkError
+	var skipped int
+
+	for i, record := range records {
+		existingID, _, err := h.findExistingRecord(ctx, db, orgID, tableName, options.MatchField, record, fields)
+		if err != nil {
+			errors = append(errors, BulkError{Index: i, Error: err.Error()})
+			if !options.SkipErrors {
+				response.Failed = len(errors)
+				response.Errors = errors
+				return
+			}
+			continue
+		}
+
+		if existingID == "" {
+			skipped++
+		} else {
+			query := fmt.Sprintf("DELETE FROM %s WHERE id = ? AND org_id = ?", tableName)
+			_, err = db.ExecContext(ctx, query, existingID, orgID)
+			if err != nil {
+				errors = append(errors, BulkError{Index: i, Error: err.Error()})
+				if !options.SkipErrors {
+					response.Failed = len(errors)
+					response.Errors = errors
+					return
+				}
+				continue
+			}
+
+			deletedIDs = append(deletedIDs, existingID)
+
+			if options.FireTripwires && h.tripwireService != nil {
+				go h.tripwireService.EvaluateAndFire(context.Background(), orgID, entityName, existingID, "DELETE", record, nil)
+			}
+		}
+
+		// Emit progress every 100 records or at the last record
+		if progressFn != nil && ((i+1)%100 == 0 || i == len(records)-1) {
+			progressFn(ImportProgressEvent{
+				Type:      "progress",
+				Phase:     "deleting",
+				Processed: i + 1,
+				Total:     len(records),
+				Deleted:   len(deletedIDs),
+				Skipped:   skipped,
+				Failed:    len(errors),
+			})
+		}
+	}
+
+	response.Deleted = len(deletedIDs)
+	response.Skipped = skipped
+	response.Failed = len(errors)
+	response.IDs = deletedIDs
+	if len(errors) > 0 {
+		response.Errors = errors
+	}
 }
 
 // GetImportProgress returns the current progress of an async import job.
