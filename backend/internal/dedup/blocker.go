@@ -124,8 +124,9 @@ func (b *Blocker) FindCandidates(ctx context.Context, conn db.DBConn, orgID, ent
 		queryArgs = append(queryArgs, excludeID)
 	}
 
-	// Limit to prevent huge result sets (soft limit per CONTEXT.md)
-	query += " LIMIT 1000"
+	// Limit candidates per record to prevent query explosion during scans.
+	// 100 is sufficient — if a record doesn't match in 100 candidates, it's likely unique.
+	query += " LIMIT 100"
 
 	rows, err := conn.QueryContext(ctx, query, queryArgs...)
 	if err != nil {

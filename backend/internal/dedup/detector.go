@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
@@ -67,31 +68,40 @@ func (d *Detector) CheckForDuplicatesWithRules(ctx context.Context, conn db.DBCo
 	// Process rules in priority order (first match wins per CONTEXT.md)
 	for _, rule := range rules {
 		// Find candidate records using blocking
-		candidates, err := d.blocker.FindCandidates(ctx, conn, orgID, entityType, record, excludeID, &rule)
+		candidateIDs, err := d.blocker.FindCandidates(ctx, conn, orgID, entityType, record, excludeID, &rule)
 		if err != nil {
 			return nil, fmt.Errorf("failed to find candidates: %w", err)
 		}
 
-		if len(candidates) == 0 {
+		if len(candidateIDs) == 0 {
 			continue
 		}
 
-		log.Printf("[DETECTOR] Rule %s found %d candidates for %s/%s", rule.Name, len(candidates), entityType, excludeID)
+		// Filter out already-seen candidates before fetching
+		var toFetch []string
+		for _, id := range candidateIDs {
+			if !seenRecords[id] {
+				toFetch = append(toFetch, id)
+			}
+		}
+		if len(toFetch) == 0 {
+			continue
+		}
+
+		// Batch-fetch all candidate records in one query instead of N individual queries
+		candidateRecords, err := d.fetchRecordsBatch(ctx, conn, entityType, orgID, toFetch)
+		if err != nil {
+			log.Printf("[DETECTOR] Failed to batch-fetch %d candidates: %v", len(toFetch), err)
+			continue
+		}
 
 		// Score each candidate
-		for _, candidateID := range candidates {
-			if seenRecords[candidateID] {
-				continue // Already matched by higher priority rule
+		for _, candidateID := range toFetch {
+			candidateRecord, ok := candidateRecords[candidateID]
+			if !ok {
+				continue
 			}
 
-			// Fetch candidate record
-			candidateRecord, err := d.fetchRecord(ctx, conn, entityType, candidateID, orgID)
-			if err != nil {
-				log.Printf("[DETECTOR] Failed to fetch candidate %s: %v", candidateID, err)
-				continue // Skip on error
-			}
-
-			// Calculate score
 			result, isMatch := d.scorer.CompareRecords(record, candidateRecord, &rule)
 			if isMatch {
 				allMatches = append(allMatches, DuplicateMatch{
@@ -176,6 +186,46 @@ func (d *Detector) DetectDuplicatesInBatch(ctx context.Context, conn db.DBConn, 
 // fetchRecord retrieves a single record as a map
 func (d *Detector) fetchRecord(ctx context.Context, conn db.DBConn, entityType, recordID, orgID string) (map[string]interface{}, error) {
 	return util.FetchRecordAsMap(ctx, db.GetRawDB(conn), util.GetTableName(entityType), recordID, orgID)
+}
+
+// fetchRecordsBatch retrieves multiple records by ID in a single query.
+// Returns a map of id -> record. Uses camelCase keys (via ScanRowsToMaps).
+func (d *Detector) fetchRecordsBatch(ctx context.Context, conn db.DBConn, entityType, orgID string, ids []string) (map[string]map[string]interface{}, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	tableName := util.GetTableName(entityType)
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, 0, len(ids)+1)
+	args = append(args, orgID)
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+
+	query := fmt.Sprintf("SELECT * FROM %s WHERE org_id = ? AND id IN (%s)",
+		tableName, strings.Join(placeholders, ","))
+
+	rows, err := conn.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch-fetch records: %w", err)
+	}
+	defer rows.Close()
+
+	records, err := util.ScanRowsToMaps(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan batch records: %w", err)
+	}
+
+	result := make(map[string]map[string]interface{}, len(records))
+	for _, rec := range records {
+		id, _ := rec["id"].(string)
+		if id != "" {
+			result[id] = rec
+		}
+	}
+	return result, nil
 }
 
 // GetNormalizer returns the normalizer for external use
