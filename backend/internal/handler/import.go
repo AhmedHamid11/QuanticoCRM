@@ -417,7 +417,7 @@ func (h *ImportHandler) ImportCSV(c *fiber.Ctx) error {
 
 	// Resolve lookup field values to IDs (e.g., company name -> account ID)
 	if len(options.LookupResolution) > 0 {
-		lookupErrors, err := h.resolveLookups(c.Context(), h.getDB(c), orgID, userID, parseResult.Records, fields, options.LookupResolution, budget)
+		lookupErrors, err := h.resolveLookups(c.Context(), h.getDB(c), orgID, userID, parseResult.Records, fields, options.LookupResolution, budget, nil)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -534,7 +534,18 @@ func (h *ImportHandler) handleAsyncImport(
 				Phase: "resolving_lookups",
 				Total: len(parseResult.Records),
 			})
-			lookupErrors, err := h.resolveLookups(context.Background(), db, orgID, userID, parseResult.Records, fields, options.LookupResolution, asyncBudget)
+			lookupProgressFn := func(processed, total int) {
+				importProgressStore.Update(jobID, ImportProgressEvent{
+					Type:      "progress",
+					Phase:     "resolving_lookups",
+					Processed: processed,
+					Total:     total,
+				})
+				if h.dbManager != nil {
+					h.dbManager.TouchConnection(orgID)
+				}
+			}
+			lookupErrors, err := h.resolveLookups(context.Background(), db, orgID, userID, parseResult.Records, fields, options.LookupResolution, asyncBudget, lookupProgressFn)
 			if err != nil {
 				importProgressStore.SetError(jobID, fmt.Sprintf("Lookup resolution failed: %v", err))
 				return
@@ -2325,7 +2336,8 @@ func (h *ImportHandler) resolveLookups(
 	records []map[string]interface{},
 	fields []entity.FieldDef,
 	lookupResolution map[string]LookupResolution,
-	budget ...*importReadBudget,
+	budget *importReadBudget,
+	progressFn func(processed, total int),
 ) ([]BulkError, error) {
 	if len(lookupResolution) == 0 {
 		return nil, nil
@@ -2452,11 +2464,6 @@ func (h *ImportHandler) resolveLookups(
 				strings.Join(placeholders, ","),
 			)
 
-			var bgt *importReadBudget
-			if len(budget) > 0 {
-				bgt = budget[0]
-			}
-
 			rows, err := db.QueryContext(ctx, query, args...)
 			if err != nil {
 				return nil, fmt.Errorf("batch lookup query failed for %s: %w", lk.relatedEntity, err)
@@ -2474,8 +2481,10 @@ func (h *ImportHandler) resolveLookups(
 			rows.Close()
 
 			// Charge budget for actual rows read (not estimated batch size)
-			if err := bgt.charge(rowCount); err != nil {
-				return nil, err
+			if budget != nil {
+				if err := budget.charge(rowCount); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -2484,6 +2493,11 @@ func (h *ImportHandler) resolveLookups(
 	var errors []BulkError
 
 	for rowIdx, record := range records {
+		// Emit progress every 500 records
+		if progressFn != nil && (rowIdx%500 == 0 || rowIdx == len(records)-1) {
+			progressFn(rowIdx, len(records))
+		}
+
 		for fieldName, resolution := range lookupResolution {
 			field, ok := linkFields[fieldName]
 			if !ok {
