@@ -447,6 +447,54 @@ func (h *ScanJobHandler) CancelJob(c *fiber.Ctx) error {
 	})
 }
 
+// DeleteJob deletes a completed/failed/cancelled scan job
+func (h *ScanJobHandler) DeleteJob(c *fiber.Ctx) error {
+	jobID := c.Params("id")
+	repo := h.getScanJobRepo(c)
+
+	// Verify job exists
+	job, err := repo.GetJob(c.Context(), jobID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Job not found",
+		})
+	}
+
+	// Cannot delete running jobs
+	if job.Status == entity.ScanStatusRunning {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot delete a running job. Cancel it first.",
+		})
+	}
+
+	if err := repo.DeleteJob(c.Context(), jobID); err != nil {
+		log.Printf("Error deleting job %s: %v", jobID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete job",
+		})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// ClearJobHistory deletes all non-running jobs for the org
+func (h *ScanJobHandler) ClearJobHistory(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	repo := h.getScanJobRepo(c)
+
+	deleted, err := repo.DeleteNonRunningJobs(c.Context(), orgID)
+	if err != nil {
+		log.Printf("Error clearing job history for org %s: %v", orgID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to clear job history",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"deleted": deleted,
+	})
+}
+
 // ========== SSE Progress Stream ==========
 
 // StreamProgress streams real-time progress events via SSE
@@ -656,10 +704,12 @@ func (h *ScanJobHandler) RegisterAdminRoutes(app fiber.Router) {
 
 	// Job management
 	scanJobs.Get("", h.ListJobs)
-	scanJobs.Get("/:id", h.GetJob)
 	scanJobs.Post("/run", h.TriggerManualScan)
+	scanJobs.Delete("/history/clear", h.ClearJobHistory) // Static path before parameterized
+	scanJobs.Get("/:id", h.GetJob)
 	scanJobs.Post("/:id/retry", h.RetryJob)
 	scanJobs.Post("/:id/cancel", h.CancelJob)
+	scanJobs.Delete("/:id", h.DeleteJob)
 
 	// SSE progress stream
 	scanJobs.Get("/progress/stream", h.StreamProgress)

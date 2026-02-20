@@ -537,6 +537,33 @@ func (r *ScanJobRepo) CountRunningJobsForOrg(ctx context.Context, orgID string) 
 	return count, err
 }
 
+// DeleteJob deletes a scan job and its associated checkpoint
+func (r *ScanJobRepo) DeleteJob(ctx context.Context, jobID string) error {
+	// Delete checkpoint first (FK-like cleanup)
+	_, _ = r.db.ExecContext(ctx, "DELETE FROM scan_checkpoints WHERE job_id = ?", jobID)
+	// Delete the job itself
+	_, err := r.db.ExecContext(ctx, "DELETE FROM scan_jobs WHERE id = ?", jobID)
+	return err
+}
+
+// DeleteNonRunningJobs deletes all completed, failed, and cancelled jobs for an org
+func (r *ScanJobRepo) DeleteNonRunningJobs(ctx context.Context, orgID string) (int64, error) {
+	// Delete associated checkpoints first
+	_, _ = r.db.ExecContext(ctx, `
+		DELETE FROM scan_checkpoints WHERE job_id IN (
+			SELECT id FROM scan_jobs WHERE org_id = ? AND status IN ('completed', 'failed', 'cancelled')
+		)
+	`, orgID)
+	// Delete the jobs
+	result, err := r.db.ExecContext(ctx, `
+		DELETE FROM scan_jobs WHERE org_id = ? AND status IN ('completed', 'failed', 'cancelled')
+	`, orgID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 // ========== Checkpoint Operations (Tenant DB) ==========
 
 // SaveCheckpoint saves or updates a checkpoint

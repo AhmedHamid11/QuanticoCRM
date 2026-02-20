@@ -405,6 +405,30 @@
 		}
 	}
 
+	async function deleteJob(jobId: string) {
+		if (!confirm('Are you sure you want to delete this job record?')) return;
+
+		try {
+			await del(`/scan-jobs/${jobId}`);
+			addToast('Job deleted', 'success');
+			await loadData();
+		} catch (e) {
+			addToast(e instanceof Error ? e.message : 'Failed to delete job', 'error');
+		}
+	}
+
+	async function clearHistory() {
+		if (!confirm('Delete all completed, failed, and cancelled job records?')) return;
+
+		try {
+			const result = await del<{ deleted: number }>('/scan-jobs/history/clear');
+			addToast(`Cleared ${result?.deleted ?? 0} job record(s)`, 'success');
+			await loadData();
+		} catch (e) {
+			addToast(e instanceof Error ? e.message : 'Failed to clear history', 'error');
+		}
+	}
+
 	// SSE connection
 	onMount(() => {
 		loadData();
@@ -754,8 +778,16 @@
 
 		<!-- Recent Jobs -->
 		<div class="bg-white shadow rounded-lg overflow-hidden">
-			<div class="px-6 py-4 border-b border-gray-200">
+			<div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
 				<h2 class="text-lg font-medium text-gray-900">Recent Jobs</h2>
+				{#if jobs.some(j => j.status !== 'running')}
+					<button
+						onclick={clearHistory}
+						class="px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+					>
+						Clear History
+					</button>
+				{/if}
 			</div>
 
 			<table class="min-w-full divide-y divide-gray-200">
@@ -835,21 +867,34 @@
 								{formatDuration(job.startedAt, job.completedAt)}
 							</td>
 							<td class="px-6 py-4 text-right">
-								{#if job.status === 'running'}
-									<button
-										onclick={() => cancelJob(job.id)}
-										class="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-									>
-										Cancel
-									</button>
-								{:else if job.status === 'failed'}
-									<button
-										onclick={() => retryJob(job.id)}
-										class="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-									>
-										Retry
-									</button>
-								{/if}
+								<div class="flex items-center justify-end gap-2">
+									{#if job.status === 'running'}
+										<button
+											onclick={() => cancelJob(job.id)}
+											class="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+										>
+											Cancel
+										</button>
+									{:else if job.status === 'failed'}
+										<button
+											onclick={() => retryJob(job.id)}
+											class="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+										>
+											Retry
+										</button>
+									{/if}
+									{#if job.status !== 'running'}
+										<button
+											onclick={() => deleteJob(job.id)}
+											class="p-1 text-gray-400 hover:text-red-600 transition-colors"
+											title="Delete job record"
+										>
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+											</svg>
+										</button>
+									{/if}
+								</div>
 							</td>
 						</tr>
 					{:else}
