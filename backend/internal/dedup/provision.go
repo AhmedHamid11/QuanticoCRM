@@ -205,6 +205,13 @@ var entityBlockingKeys sync.Map
 // entityBackfilled tracks which (connection, entity) pairs have been backfilled
 var entityBackfilled sync.Map
 
+// ClearBackfillCache removes the backfill cache entry for a (connection, entity) pair.
+// Call this before a scan to ensure new records added since the last scan get backfilled.
+func ClearBackfillCache(conn db.DBConn, entityType string) {
+	cacheKey := fmt.Sprintf("%p:%s", conn, entityType)
+	entityBackfilled.Delete(cacheKey)
+}
+
 // EnsureBlockingKeysForEntity adds blocking key columns and indexes to the specified entity's table.
 // Safe to call multiple times — uses addColumnIfNotExists and caches by (connection, entity).
 func EnsureBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType string) error {

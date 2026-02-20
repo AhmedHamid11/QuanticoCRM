@@ -185,6 +185,9 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	// processes all records without hitting query timeouts.
 	log.Printf("[SCAN] Phase 1: Backfilling blocking keys for %s...", entityType)
 
+	// Clear the in-process backfill cache so new records added since the last scan get indexed.
+	dedup.ClearBackfillCache(tenantDB, entityType)
+
 	if err := dedup.EnsureBlockingKeysForEntity(ctx, tenantDB, entityType); err != nil {
 		log.Printf("[SCAN] Warning: Failed to ensure blocking key columns for %s: %v", entityType, err)
 	}
@@ -371,94 +374,160 @@ func (s *ScanJobService) fetchChunk(ctx context.Context, tenantDB *sql.DB, table
 	return util.ScanRowsToMaps(rows)
 }
 
-// processChunk detects duplicates for all records in a chunk.
-// Rules are pre-fetched once in executeChunkedScan to avoid per-record DB queries.
+// processChunk detects duplicates for all records in a chunk using batch candidate lookup.
+// Instead of N per-record DB queries (FindCandidates + fetchRecordsBatch per record = ~1000
+// Turso HTTP requests per 500-record chunk), this uses BatchFindCandidates to load ALL
+// candidates in ONE query, then scores all pairs in memory. Same pattern as import_duplicates.go.
 func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, orgID, entityType string, records []map[string]interface{}, rules []entity.MatchingRule) (int, error) {
 	duplicateCount := 0
-	seenPairs := make(map[string]bool) // Track canonical pairs to avoid duplicates
+	seenPairs := make(map[string]bool)
+	blocker := s.detector.GetBlocker()
 
-	// NOTE: Blocking key provisioning and backfill are handled once in executeChunkedScan
-	// before the scan loop begins. Doing it per-chunk caused two problems:
-	//   1. The backfill cache prevented subsequent backfill calls after the first chunk
-	//   2. Records added mid-scan could slip through without blocking keys
-	// The single upfront backfill ensures all records are indexed before any candidate
-	// lookups happen.
+	// Step 1: Generate blocking keys for ALL records in this chunk (in-memory, no DB)
+	chunkKeys := make([]dedup.BlockingKeys, len(records))
+	for i, record := range records {
+		chunkKeys[i] = blocker.GenerateBlockingKeys(record)
+	}
 
-	for _, record := range records {
+	// Step 2: Batch-fetch ALL candidates matching any blocking key in the chunk (1 query per rule)
+	candidateRecords := make(map[string]map[string]interface{})
+	candidateKeys := make(map[string]dedup.BlockingKeys)
+
+	for ri := range rules {
+		candidates, err := blocker.BatchFindCandidates(ctx, tenantDB, orgID, entityType, chunkKeys, &rules[ri])
+		if err != nil {
+			log.Printf("[SCAN] BatchFindCandidates failed for rule %s: %v", rules[ri].Name, err)
+			continue
+		}
+		for _, c := range candidates {
+			candidateRecords[c.ID] = c.Record
+			candidateKeys[c.ID] = c.Keys
+		}
+	}
+
+	if len(candidateRecords) == 0 {
+		return 0, nil
+	}
+
+	// Step 3: Build blocking key index for O(1) candidate lookup per record
+	type keyIndex struct {
+		soundex map[string][]string
+		prefix  map[string][]string
+		domain  map[string][]string
+		phone   map[string][]string
+	}
+	idx := keyIndex{
+		soundex: make(map[string][]string),
+		prefix:  make(map[string][]string),
+		domain:  make(map[string][]string),
+		phone:   make(map[string][]string),
+	}
+	for id, keys := range candidateKeys {
+		if keys.LastNameSoundex != "" {
+			idx.soundex[keys.LastNameSoundex] = append(idx.soundex[keys.LastNameSoundex], id)
+		}
+		if keys.LastNamePrefix != "" {
+			idx.prefix[keys.LastNamePrefix] = append(idx.prefix[keys.LastNamePrefix], id)
+		}
+		if keys.EmailDomain != "" {
+			idx.domain[keys.EmailDomain] = append(idx.domain[keys.EmailDomain], id)
+		}
+		if keys.PhoneE164 != "" {
+			idx.phone[keys.PhoneE164] = append(idx.phone[keys.PhoneE164], id)
+		}
+	}
+
+	// findCandidateIDs returns candidate IDs matching a record's blocking keys (all keys, OR logic)
+	findCandidateIDs := func(keys dedup.BlockingKeys, excludeID string) []string {
+		seen := make(map[string]bool)
+		seen[excludeID] = true // exclude self
+		var result []string
+		addFrom := func(m map[string][]string, key string) {
+			if key == "" {
+				return
+			}
+			for _, id := range m[key] {
+				if !seen[id] {
+					seen[id] = true
+					result = append(result, id)
+				}
+			}
+		}
+		addFrom(idx.soundex, keys.LastNameSoundex)
+		addFrom(idx.prefix, keys.LastNamePrefix)
+		addFrom(idx.domain, keys.EmailDomain)
+		addFrom(idx.phone, keys.PhoneE164)
+		return result
+	}
+
+	// Step 4: Score each record against its matching candidates (in-memory, no DB queries)
+	for i, record := range records {
 		recordID, ok := record["id"].(string)
 		if !ok {
 			continue
 		}
 
-		// Detect duplicates for this record using pre-fetched rules
-		matches, err := s.detector.CheckForDuplicatesWithRules(ctx, tenantDB, orgID, entityType, record, recordID, rules)
-		if err != nil {
-			log.Printf("Failed to check duplicates for record %s: %v", recordID, err)
+		candidateIDs := findCandidateIDs(chunkKeys[i], recordID)
+		if len(candidateIDs) == 0 {
 			continue
 		}
 
-		if len(matches) == 0 {
-			continue
-		}
-
-		// Store each match as a PendingDuplicateAlert (using canonical pair key)
-		for _, match := range matches {
+		for _, candidateID := range candidateIDs {
 			// Canonical pair key (smaller ID first)
 			var pairKey string
-			if recordID < match.RecordID {
-				pairKey = recordID + ":" + match.RecordID
+			if recordID < candidateID {
+				pairKey = recordID + ":" + candidateID
 			} else {
-				pairKey = match.RecordID + ":" + recordID
+				pairKey = candidateID + ":" + recordID
 			}
-
 			if seenPairs[pairKey] {
-				continue // Already stored this pair
-			}
-			seenPairs[pairKey] = true
-
-			// Create alert for the record (smaller ID gets the alert)
-			alertRecordID := recordID
-			if match.RecordID < recordID {
-				alertRecordID = match.RecordID
+				continue
 			}
 
-			// Build alert matches (top 3)
-			// Use display name already populated by detector's batch-fetch
-			matchRecordName := match.RecordName
+			candidateRecord := candidateRecords[candidateID]
 
-			alertMatches := []entity.DuplicateAlertMatch{
-				{
-					RecordID:    match.RecordID,
-					RecordName:  matchRecordName,
-					MatchResult: match.MatchResult,
-				},
-			}
+			// Score against ALL rules (first match wins)
+			for ri := range rules {
+				result, isMatch := s.detector.ScoreRecord(record, candidateRecord, &rules[ri])
+				if !isMatch {
+					continue
+				}
 
-			// Determine highest confidence
-			confidence := "low"
-			if match.MatchResult.Score >= 0.95 {
-				confidence = "high"
-			} else if match.MatchResult.Score >= 0.85 {
-				confidence = "medium"
-			}
+				seenPairs[pairKey] = true
 
-			// Upsert pending alert
-			alert := &entity.PendingDuplicateAlert{
-				OrgID:             orgID,
-				EntityType:        entityType,
-				RecordID:          alertRecordID,
-				Matches:           alertMatches,
-				TotalMatchCount:   1,
-				HighestConfidence: confidence,
-				IsBlockMode:       false, // Default for background scans
-				Status:            entity.AlertStatusPending,
-				DetectedAt:        time.Now().UTC(),
-			}
+				// Create alert for the record (smaller ID gets the alert)
+				alertRecordID := recordID
+				if candidateID < recordID {
+					alertRecordID = candidateID
+				}
 
-			if err := s.pendingAlertRepo.WithDB(tenantDB).Upsert(ctx, alert); err != nil {
-				log.Printf("Failed to store alert for record %s: %v", alertRecordID, err)
-			} else {
-				duplicateCount++
+				matchRecordName := util.GetRecordDisplayName(entityType, candidateRecord)
+
+				confidence := "low"
+				if result.Score >= 0.95 {
+					confidence = "high"
+				} else if result.Score >= 0.85 {
+					confidence = "medium"
+				}
+
+				alert := &entity.PendingDuplicateAlert{
+					OrgID:             orgID,
+					EntityType:        entityType,
+					RecordID:          alertRecordID,
+					Matches:           []entity.DuplicateAlertMatch{{RecordID: candidateID, RecordName: matchRecordName, MatchResult: result}},
+					TotalMatchCount:   1,
+					HighestConfidence: confidence,
+					IsBlockMode:       false,
+					Status:            entity.AlertStatusPending,
+					DetectedAt:        time.Now().UTC(),
+				}
+
+				if err := s.pendingAlertRepo.WithDB(tenantDB).Upsert(ctx, alert); err != nil {
+					log.Printf("Failed to store alert for record %s: %v", alertRecordID, err)
+				} else {
+					duplicateCount++
+				}
+				break // first matching rule wins
 			}
 		}
 	}
