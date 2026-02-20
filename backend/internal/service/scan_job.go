@@ -166,6 +166,38 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 		log.Printf("Resuming scan job %s from offset %d", jobID, offset)
 	}
 
+	// --- Phase 1: Ensure blocking keys are populated for ALL existing records ---
+	// This MUST happen before the scan loop, not per-chunk, because:
+	// 1. The backfill cache would skip subsequent calls after the first chunk
+	// 2. Records without blocking keys produce 0 candidates in FindCandidates()
+	// For large datasets (33k+, 100k+) the batched loop in BackfillBlockingKeysForEntity
+	// processes all records without hitting query timeouts.
+	log.Printf("[SCAN] Phase 1: Backfilling blocking keys for %s...", entityType)
+
+	if err := dedup.EnsureBlockingKeysForEntity(ctx, tenantDB, entityType); err != nil {
+		log.Printf("[SCAN] Warning: Failed to ensure blocking key columns for %s: %v", entityType, err)
+	}
+
+	backfillProgressFn := func(processed, total int) {
+		// Emit progress events during backfill so UI shows activity instead of stalling at 0%
+		s.emitProgress(ProgressEvent{
+			JobID:            jobID,
+			OrgID:            orgID,
+			EntityType:       entityType,
+			ProcessedRecords: 0,          // No scan records processed yet
+			TotalRecords:     totalRecords,
+			DuplicatesFound:  0,
+			Status:           "backfilling",
+		})
+		log.Printf("[SCAN] Backfill progress for %s: %d/%d", entityType, processed, total)
+	}
+
+	if err := dedup.BackfillBlockingKeysForEntity(ctx, tenantDB, entityType, s.detector.GetBlocker(), backfillProgressFn); err != nil {
+		log.Printf("[SCAN] Warning: Backfill failed for %s: %v (scan will continue but may miss some candidates)", entityType, err)
+	}
+
+	log.Printf("[SCAN] Phase 2: Starting chunked duplicate scan for %s (%d records)...", entityType, totalRecords)
+
 	for {
 		// Check context cancellation (graceful shutdown)
 		select {
@@ -308,15 +340,12 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 	duplicateCount := 0
 	seenPairs := make(map[string]bool) // Track canonical pairs to avoid duplicates
 
-	// Ensure blocking key columns exist and are populated for existing records.
-	// Without this, the blocker's prefix/soundex/domain queries return 0 candidates
-	// because existing records have NULL blocking key values.
-	if err := dedup.EnsureBlockingKeysForEntity(ctx, tenantDB, entityType); err != nil {
-		log.Printf("[SCAN-DEDUP] Failed to ensure blocking keys for %s: %v", entityType, err)
-	}
-	if err := dedup.BackfillBlockingKeysForEntity(ctx, tenantDB, entityType, s.detector.GetBlocker()); err != nil {
-		log.Printf("[SCAN-DEDUP] Failed to backfill blocking keys for %s: %v", entityType, err)
-	}
+	// NOTE: Blocking key provisioning and backfill are handled once in executeChunkedScan
+	// before the scan loop begins. Doing it per-chunk caused two problems:
+	//   1. The backfill cache prevented subsequent backfill calls after the first chunk
+	//   2. Records added mid-scan could slip through without blocking keys
+	// The single upfront backfill ensures all records are indexed before any candidate
+	// lookups happen.
 
 	for _, record := range records {
 		recordID, ok := record["id"].(string)

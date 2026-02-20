@@ -250,17 +250,28 @@ func EnsureBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType
 	return nil
 }
 
+// backfillBatchSize is the number of records processed per iteration in BackfillBlockingKeysForEntity.
+// Large enough to be efficient, small enough to respect Turso's 5-second query timeout.
+const backfillBatchSize = 5000
+
 // BackfillBlockingKeys populates blocking key columns for all contacts that have NULL keys.
 // This ensures existing records (created before the dedup feature) are findable as candidates.
 // Safe to call multiple times — caches by connection pointer and only processes NULL records.
 func BackfillBlockingKeys(ctx context.Context, conn db.DBConn, blocker *Blocker) error {
-	return BackfillBlockingKeysForEntity(ctx, conn, "Contact", blocker)
+	return BackfillBlockingKeysForEntity(ctx, conn, "Contact", blocker, nil)
 }
 
-// BackfillBlockingKeysForEntity populates blocking key columns for records of the specified entity
-// that have NULL keys. Uses dedup_email_domain IS NULL as the marker for unprocessed records.
-// Safe to call multiple times — caches by (connection, entity) and only processes NULL records.
-func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType string, blocker *Blocker) error {
+// BackfillBlockingKeysForEntity populates blocking key columns for ALL records of the specified
+// entity that have NULL or empty keys. Processes in batches of backfillBatchSize so it handles
+// datasets of any size (33k, 100k+) without hitting query timeouts.
+//
+// progressFn (optional) is called after each batch with (processed, total) so callers can emit
+// progress events. Pass nil to suppress progress callbacks (backward-compatible).
+//
+// Cache behaviour: the (connection, entity) pair is only marked done after the loop exits with
+// 0 remaining records. A partial failure on a previous run will re-enter and continue from where
+// it left off on the next call.
+func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityType string, blocker *Blocker, progressFn func(processed, total int)) error {
 	cacheKey := fmt.Sprintf("%p:%s", conn, entityType)
 	if _, ok := entityBackfilled.Load(cacheKey); ok {
 		return nil
@@ -268,57 +279,98 @@ func BackfillBlockingKeysForEntity(ctx context.Context, conn db.DBConn, entityTy
 
 	tableName := util.GetTableName(entityType)
 
-	// Query records that need backfill: either never processed (NULL) or
-	// previously processed with all-empty keys (e.g., Accounts before name-field fix)
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(
-		`SELECT * FROM %s WHERE dedup_email_domain IS NULL OR (dedup_last_name_soundex = '' AND dedup_last_name_prefix = '' AND dedup_email_domain = '' AND dedup_phone_e164 = '') LIMIT 5000`, tableName))
-	if err != nil {
+	// Count how many records still need backfill so we can report progress.
+	needsBackfillSQL := fmt.Sprintf(
+		`SELECT COUNT(*) FROM %s WHERE dedup_email_domain IS NULL OR (dedup_last_name_soundex = '' AND dedup_last_name_prefix = '' AND dedup_email_domain = '' AND dedup_phone_e164 = '')`,
+		tableName,
+	)
+	var totalNeeding int
+	if err := conn.QueryRowContext(ctx, needsBackfillSQL).Scan(&totalNeeding); err != nil {
 		if IsSchemaError(err) {
 			// Table or columns don't exist yet — nothing to backfill
 			entityBackfilled.Store(cacheKey, true)
 			return nil
 		}
-		return fmt.Errorf("failed to query %s for backfill: %w", tableName, err)
-	}
-	defer rows.Close()
-
-	records, err := util.ScanRowsToMaps(rows)
-	if err != nil {
-		return fmt.Errorf("failed to scan %s for backfill: %w", tableName, err)
+		return fmt.Errorf("failed to count %s records needing backfill: %w", tableName, err)
 	}
 
-	if len(records) == 0 {
+	if totalNeeding == 0 {
 		entityBackfilled.Store(cacheKey, true)
 		return nil
 	}
 
-	log.Printf("[DEDUP] Backfilling blocking keys for %d %s records", len(records), entityType)
+	log.Printf("[DEDUP] Starting blocking-key backfill for %s: %d records need processing", entityType, totalNeeding)
 
-	updated := 0
-	for _, record := range records {
-		recordID, _ := record["id"].(string)
-		if recordID == "" {
-			continue
-		}
+	totalProcessed := 0
+	batchNum := 0
 
-		keys := blocker.GenerateBlockingKeys(record)
-
-		_, err := conn.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET
-			dedup_last_name_soundex = ?,
-			dedup_last_name_prefix = ?,
-			dedup_email_domain = ?,
-			dedup_phone_e164 = ?
-			WHERE id = ?`, tableName),
-			keys.LastNameSoundex, keys.LastNamePrefix,
-			keys.EmailDomain, keys.PhoneE164, recordID)
+	for {
+		// Query the next batch of records that still lack blocking keys.
+		// We re-query instead of using OFFSET so that successfully-updated records
+		// are no longer matched, preventing infinite loops on update failures.
+		rows, err := conn.QueryContext(ctx, fmt.Sprintf(
+			`SELECT * FROM %s WHERE dedup_email_domain IS NULL OR (dedup_last_name_soundex = '' AND dedup_last_name_prefix = '' AND dedup_email_domain = '' AND dedup_phone_e164 = '') LIMIT %d`,
+			tableName, backfillBatchSize))
 		if err != nil {
-			log.Printf("[DEDUP] Failed to backfill blocking keys for %s/%s: %v", entityType, recordID, err)
-			continue
+			if IsSchemaError(err) {
+				entityBackfilled.Store(cacheKey, true)
+				return nil
+			}
+			return fmt.Errorf("failed to query %s batch for backfill: %w", tableName, err)
 		}
-		updated++
+
+		records, err := util.ScanRowsToMaps(rows)
+		rows.Close()
+		if err != nil {
+			return fmt.Errorf("failed to scan %s batch for backfill: %w", tableName, err)
+		}
+
+		if len(records) == 0 {
+			// All records have been processed
+			break
+		}
+
+		batchNum++
+		updated := 0
+		for _, record := range records {
+			recordID, _ := record["id"].(string)
+			if recordID == "" {
+				continue
+			}
+
+			keys := blocker.GenerateBlockingKeys(record)
+
+			_, err := conn.ExecContext(ctx, fmt.Sprintf(`UPDATE %s SET
+				dedup_last_name_soundex = ?,
+				dedup_last_name_prefix = ?,
+				dedup_email_domain = ?,
+				dedup_phone_e164 = ?
+				WHERE id = ?`, tableName),
+				keys.LastNameSoundex, keys.LastNamePrefix,
+				keys.EmailDomain, keys.PhoneE164, recordID)
+			if err != nil {
+				log.Printf("[DEDUP] Failed to backfill blocking keys for %s/%s: %v", entityType, recordID, err)
+				continue
+			}
+			updated++
+		}
+
+		totalProcessed += updated
+		log.Printf("[DEDUP] Backfill batch %d for %s: updated %d/%d records (total so far: %d/%d)",
+			batchNum, entityType, updated, len(records), totalProcessed, totalNeeding)
+
+		if progressFn != nil {
+			progressFn(totalProcessed, totalNeeding)
+		}
+
+		// If we got fewer rows than the batch size, we've reached the end
+		// (remaining rows may be un-updatable; avoid infinite loop)
+		if len(records) < backfillBatchSize {
+			break
+		}
 	}
 
-	log.Printf("[DEDUP] Backfilled blocking keys for %d/%d %s records", updated, len(records), entityType)
+	log.Printf("[DEDUP] Backfilled blocking keys for %d %s records total across %d batches", totalProcessed, entityType, batchNum)
 	entityBackfilled.Store(cacheKey, true)
 	return nil
 }

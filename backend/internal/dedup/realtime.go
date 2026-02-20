@@ -73,7 +73,7 @@ func (r *RealtimeChecker) runCheck(ctx context.Context, conn db.DBConn, input Ch
 	}
 
 	// Backfill blocking keys for existing records of this entity that predate the dedup feature
-	if err := BackfillBlockingKeysForEntity(ctx, conn, input.EntityType, r.detector.GetBlocker()); err != nil {
+	if err := BackfillBlockingKeysForEntity(ctx, conn, input.EntityType, r.detector.GetBlocker(), nil); err != nil {
 		log.Printf("ERROR: Failed to backfill blocking keys for %s: %v", input.EntityType, err)
 		// Continue anyway — backfill is best-effort
 	}
