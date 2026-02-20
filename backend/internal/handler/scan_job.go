@@ -460,11 +460,12 @@ func (h *ScanJobHandler) DeleteJob(c *fiber.Ctx) error {
 		})
 	}
 
-	// Cannot delete running jobs
+	// If job is still "running", cancel it first (handles zombie jobs from deploys)
 	if job.Status == entity.ScanStatusRunning {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Cannot delete a running job. Cancel it first.",
-		})
+		tenantDB := h.getDB(c)
+		if err := h.scanJobService.CancelJob(c.Context(), tenantDB, jobID); err != nil {
+			log.Printf("Error cancelling job %s before delete: %v", jobID, err)
+		}
 	}
 
 	if err := repo.DeleteJob(c.Context(), jobID); err != nil {
