@@ -51,6 +51,7 @@ None.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 025 | Fix full-name contact search with spaces (first_name \|\| last_name concatenation) | 2026-02-20 | 45744c2 | [025-fix-full-name-search-with-spaces-returni](./quick/25-fix-full-name-search-with-spaces-returni/) |
 | 024 | Fix migration 069 wrong column names + BulkResolve UNIQUE constraint violation | 2026-02-20 | 56511b2 | [024-fix-migration-069-wrong-column-names-bul](./quick/24-fix-migration-069-wrong-column-names-bul/) |
 | 019 | Add mirror table safety net to provisioning (self-healing handler) | 2026-02-11 | b87d33d | [019-add-mirror-table-safety-net-to-provision](./quick/19-add-mirror-table-safety-net-to-provision/) |
 | 018 | Fix metadata corruption on deployment (PRAGMA table_info + INSERT OR IGNORE) | 2026-02-11 | 62515b1 | [018-fix-metadata-corruption-on-deployment-re](./quick/18-fix-metadata-corruption-on-deployment-re/) |
@@ -65,9 +66,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed quick-024 (fix migration 069 wrong column names + BulkResolve UNIQUE constraint)
+Stopped at: Completed quick-025 (fix full-name contact search with spaces)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-20 — Quick task 024 completed*
+*Updated: 2026-02-20 — Quick task 025 completed*
