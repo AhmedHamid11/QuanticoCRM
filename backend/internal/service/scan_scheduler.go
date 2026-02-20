@@ -177,8 +177,25 @@ func (s *ScanScheduler) executeScheduledScan(schedule entity.ScanSchedule) {
 	// Check if already running (safety net, gocron singleton should prevent this)
 	runningJob, err := s.scanJobRepo.WithDB(dbCreds.tenantDB).GetRunningJobForEntity(ctx, schedule.OrgID, schedule.EntityType)
 	if err == nil && runningJob != nil {
-		log.Printf("Scan already running for org %s entity %s (job %s), skipping scheduled run", schedule.OrgID, schedule.EntityType, runningJob.ID)
-		return
+		// Auto-fail zombie jobs older than 30 minutes
+		isZombie := false
+		if runningJob.StartedAt != nil {
+			isZombie = time.Since(*runningJob.StartedAt) > 30*time.Minute
+		} else {
+			isZombie = time.Since(runningJob.CreatedAt) > 30*time.Minute
+		}
+		if isZombie {
+			log.Printf("[SCAN] Auto-failing zombie job %s for scheduled scan %s/%s",
+				runningJob.ID, schedule.OrgID, schedule.EntityType)
+			_ = s.scanJobRepo.WithDB(dbCreds.tenantDB).UpdateJobCompletion(ctx, runningJob.ID, "failed",
+				runningJob.TotalRecords, runningJob.ProcessedRecords, runningJob.DuplicatesFound)
+			errMsg := "Job interrupted (server restarted or timed out)"
+			_, _ = dbCreds.tenantDB.ExecContext(ctx,
+				"UPDATE scan_jobs SET error_message = ? WHERE id = ?", errMsg, runningJob.ID)
+		} else {
+			log.Printf("Scan already running for org %s entity %s (job %s), skipping scheduled run", schedule.OrgID, schedule.EntityType, runningJob.ID)
+			return
+		}
 	}
 
 	// Execute scan
@@ -256,7 +273,27 @@ func (s *ScanScheduler) TriggerManualScan(ctx context.Context, tenantDB *sql.DB,
 	// Check if already running
 	runningJob, err := s.scanJobRepo.WithDB(tenantDB).GetRunningJobForEntity(ctx, orgID, entityType)
 	if err == nil && runningJob != nil {
-		return "", fmt.Errorf("scan already running for this entity (job %s)", runningJob.ID)
+		// Auto-fail zombie jobs: if a job has been "running" for >30 minutes,
+		// it was likely interrupted by a server restart. Mark it as failed so
+		// a new scan can start.
+		isZombie := false
+		if runningJob.StartedAt != nil {
+			isZombie = time.Since(*runningJob.StartedAt) > 30*time.Minute
+		} else {
+			isZombie = time.Since(runningJob.CreatedAt) > 30*time.Minute
+		}
+		if isZombie {
+			errMsg := "Job interrupted (server restarted or timed out)"
+			log.Printf("[SCAN] Auto-failing zombie job %s for %s/%s (started %v)",
+				runningJob.ID, orgID, entityType, runningJob.StartedAt)
+			_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobCompletion(ctx, runningJob.ID, "failed",
+				runningJob.TotalRecords, runningJob.ProcessedRecords, runningJob.DuplicatesFound)
+			// Also set error message
+			_, _ = tenantDB.ExecContext(ctx,
+				"UPDATE scan_jobs SET error_message = ? WHERE id = ?", errMsg, runningJob.ID)
+		} else {
+			return "", fmt.Errorf("scan already running for this entity (job %s)", runningJob.ID)
+		}
 	}
 
 	// Execute scan
