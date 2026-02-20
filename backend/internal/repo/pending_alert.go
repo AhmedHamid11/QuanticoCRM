@@ -182,6 +182,18 @@ func (r *PendingAlertRepo) DeleteOldResolved(ctx context.Context, orgID string, 
 func (r *PendingAlertRepo) BulkResolve(ctx context.Context, orgID, entityType, status, userID string) (int64, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
+	// Delete any previously resolved alerts with the same target status to avoid
+	// UNIQUE constraint violation on (org_id, entity_type, record_id, status)
+	delWhere := "org_id = ? AND status = ?"
+	delArgs := []interface{}{orgID, status}
+	if entityType != "" {
+		delWhere += " AND entity_type = ?"
+		delArgs = append(delArgs, entityType)
+	}
+	delQuery := fmt.Sprintf("DELETE FROM pending_duplicate_alerts WHERE %s", delWhere)
+	r.db.ExecContext(ctx, delQuery, delArgs...)
+
+	// Now update pending alerts to the target status
 	whereClause := "org_id = ? AND status = 'pending'"
 	args := []interface{}{status, now, userID}
 	args = append(args, orgID)
