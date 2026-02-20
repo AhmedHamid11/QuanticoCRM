@@ -414,6 +414,39 @@ func (h *ScanJobHandler) RetryJob(c *fiber.Ctx) error {
 	})
 }
 
+// CancelJob cancels a currently running scan job
+func (h *ScanJobHandler) CancelJob(c *fiber.Ctx) error {
+	jobID := c.Params("id")
+	tenantDB := h.getDB(c)
+	repo := h.getScanJobRepo(c)
+
+	// Verify job exists and is running
+	job, err := repo.GetJob(c.Context(), jobID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Job not found",
+		})
+	}
+
+	if job.Status != entity.ScanStatusRunning {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Only running jobs can be cancelled",
+		})
+	}
+
+	if err := h.scanJobService.CancelJob(c.Context(), tenantDB, jobID); err != nil {
+		log.Printf("Error cancelling job %s: %v", jobID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to cancel job",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"jobId":  jobID,
+		"status": "cancelled",
+	})
+}
+
 // ========== SSE Progress Stream ==========
 
 // StreamProgress streams real-time progress events via SSE
@@ -626,6 +659,7 @@ func (h *ScanJobHandler) RegisterAdminRoutes(app fiber.Router) {
 	scanJobs.Get("/:id", h.GetJob)
 	scanJobs.Post("/run", h.TriggerManualScan)
 	scanJobs.Post("/:id/retry", h.RetryJob)
+	scanJobs.Post("/:id/cancel", h.CancelJob)
 
 	// SSE progress stream
 	scanJobs.Get("/progress/stream", h.StreamProgress)

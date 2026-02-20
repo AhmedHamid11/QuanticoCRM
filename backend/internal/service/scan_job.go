@@ -32,6 +32,9 @@ type ScanJobService struct {
 	// Progress event callback (set by handler for SSE broadcasting)
 	onProgress func(event ProgressEvent)
 	progressMu sync.RWMutex
+
+	// Cancellation functions keyed by jobID (zero-value sync.Map is ready to use)
+	cancelFuncs sync.Map
 }
 
 // ProgressEvent exported for handler SSE consumption
@@ -142,8 +145,14 @@ func (s *ScanJobService) ExecuteScan(ctx context.Context, tenantDB *sql.DB, orgI
 			}
 		}()
 
-		// Use background context with timeout per chunk (not Fiber context)
-		scanCtx := context.Background()
+		// Use cancellable background context so CancelJob can stop the scan loop
+		scanCtx, scanCancel := context.WithCancel(context.Background())
+		s.cancelFuncs.Store(jobID, scanCancel)
+		defer func() {
+			s.cancelFuncs.Delete(jobID)
+			scanCancel()
+		}()
+
 		if err := s.executeChunkedScan(scanCtx, tenantDB, orgID, jobID, entityType, totalRecords); err != nil {
 			log.Printf("Scan job %s failed: %v", jobID, err)
 		}
@@ -194,6 +203,21 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 
 	if err := dedup.BackfillBlockingKeysForEntity(ctx, tenantDB, entityType, s.detector.GetBlocker(), backfillProgressFn); err != nil {
 		log.Printf("[SCAN] Warning: Backfill failed for %s: %v (scan will continue but may miss some candidates)", entityType, err)
+	}
+
+	// Check if cancelled during backfill phase before starting scan loop
+	select {
+	case <-ctx.Done():
+		_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatus(ctx, jobID, entity.ScanStatusCancelled)
+		s.emitProgress(ProgressEvent{
+			JobID:       jobID,
+			OrgID:       orgID,
+			EntityType:  entityType,
+			TotalRecords: totalRecords,
+			Status:      entity.ScanStatusCancelled,
+		})
+		return ctx.Err()
+	default:
 	}
 
 	log.Printf("[SCAN] Phase 2: Starting chunked duplicate scan for %s (%d records)...", entityType, totalRecords)
@@ -533,6 +557,22 @@ func (s *ScanJobService) getRecordName(record map[string]interface{}) string {
 	return "Unknown"
 }
 
+// CancelJob signals a running scan job to stop via context cancellation.
+// It also immediately marks the job as cancelled in the DB for persistence,
+// so the status is correct even if the goroutine hasn't detected ctx.Done() yet.
+func (s *ScanJobService) CancelJob(ctx context.Context, tenantDB *sql.DB, jobID string) error {
+	cancelFn, ok := s.cancelFuncs.Load(jobID)
+	if !ok {
+		return fmt.Errorf("job %s is not currently running or already finished", jobID)
+	}
+	// Cancel the context — the scan loop checks ctx.Done() between chunks
+	cancelFn.(context.CancelFunc)()
+	// Update status immediately in case the goroutine is between chunks
+	_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatus(ctx, jobID, entity.ScanStatusCancelled)
+	s.cancelFuncs.Delete(jobID)
+	return nil
+}
+
 // ResumeInterruptedJobs marks orphaned "running" jobs as failed (called at startup)
 func (s *ScanJobService) ResumeInterruptedJobs(ctx context.Context) error {
 	// This would need to iterate all tenant DBs, which requires org list
@@ -591,7 +631,14 @@ func (s *ScanJobService) RetryJob(ctx context.Context, tenantDB *sql.DB, orgID, 
 			}
 		}()
 
-		scanCtx := context.Background()
+		// Use cancellable background context so CancelJob can stop the retry scan loop
+		scanCtx, scanCancel := context.WithCancel(context.Background())
+		s.cancelFuncs.Store(newJobID, scanCancel)
+		defer func() {
+			s.cancelFuncs.Delete(newJobID)
+			scanCancel()
+		}()
+
 		if checkpoint != nil {
 			log.Printf("Retry job %s resuming from offset %d", newJobID, checkpoint.LastOffset)
 		}
