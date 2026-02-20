@@ -225,10 +225,20 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	default:
 	}
 
+	// Pre-fetch matching rules once (instead of per-record) to avoid 33k+ identical queries
+	rules, err := s.matchingRuleRepo.WithDB(tenantDB).ListEnabledRules(ctx, orgID, entityType)
+	if err != nil {
+		log.Printf("[SCAN] Warning: Failed to load matching rules for %s: %v", entityType, err)
+		rules = nil
+	}
+	if len(rules) == 0 {
+		log.Printf("[SCAN] No enabled matching rules for %s — scan will find 0 duplicates", entityType)
+	}
+
 	// Clear status text as we transition from backfill to scanning
 	scanningText := fmt.Sprintf("Scanning %d records for duplicates...", totalRecords)
 	_ = s.scanJobRepo.WithDB(tenantDB).UpdateJobStatusText(ctx, jobID, &scanningText)
-	log.Printf("[SCAN] Phase 2: Starting chunked duplicate scan for %s (%d records)...", entityType, totalRecords)
+	log.Printf("[SCAN] Phase 2: Starting chunked duplicate scan for %s (%d records, %d rules)...", entityType, totalRecords, len(rules))
 
 	for {
 		// Check context cancellation (graceful shutdown)
@@ -262,7 +272,7 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 		}
 
 		// Process chunk
-		duplicatesInChunk, err := s.processChunk(ctx, tenantDB, orgID, entityType, records)
+		duplicatesInChunk, err := s.processChunk(ctx, tenantDB, orgID, entityType, records, rules)
 		if err != nil {
 			return s.handleChunkFailure(ctx, tenantDB, jobID, orgID, entityType, offset, totalRecords, totalDuplicates, err)
 		}
@@ -324,7 +334,9 @@ func (s *ScanJobService) executeChunkedScan(ctx context.Context, tenantDB *sql.D
 	return nil
 }
 
-// fetchChunk retrieves records in chunks using LIMIT/OFFSET
+// fetchChunk retrieves records in chunks using LIMIT/OFFSET.
+// Returns records with camelCase keys (via ScanRowsToMaps) so they match
+// the field names used in matching rules and GenerateBlockingKeys.
 func (s *ScanJobService) fetchChunk(ctx context.Context, tenantDB *sql.DB, tableName, orgID string, limit, offset int) ([]map[string]interface{}, error) {
 	query := fmt.Sprintf("SELECT * FROM %s WHERE org_id = ? ORDER BY id LIMIT ? OFFSET ?", tableName)
 	rows, err := tenantDB.QueryContext(ctx, query, orgID, limit, offset)
@@ -333,42 +345,12 @@ func (s *ScanJobService) fetchChunk(ctx context.Context, tenantDB *sql.DB, table
 	}
 	defer rows.Close()
 
-	// Get column names
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	var records []map[string]interface{}
-	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
-		for i := range values {
-			valuePtrs[i] = &values[i]
-		}
-
-		if err := rows.Scan(valuePtrs...); err != nil {
-			continue
-		}
-
-		record := make(map[string]interface{})
-		for i, col := range columns {
-			val := values[i]
-			if b, ok := val.([]byte); ok {
-				record[col] = string(b)
-			} else {
-				record[col] = val
-			}
-		}
-
-		records = append(records, record)
-	}
-
-	return records, nil
+	return util.ScanRowsToMaps(rows)
 }
 
-// processChunk detects duplicates for all records in a chunk
-func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, orgID, entityType string, records []map[string]interface{}) (int, error) {
+// processChunk detects duplicates for all records in a chunk.
+// Rules are pre-fetched once in executeChunkedScan to avoid per-record DB queries.
+func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, orgID, entityType string, records []map[string]interface{}, rules []entity.MatchingRule) (int, error) {
 	duplicateCount := 0
 	seenPairs := make(map[string]bool) // Track canonical pairs to avoid duplicates
 
@@ -385,8 +367,8 @@ func (s *ScanJobService) processChunk(ctx context.Context, tenantDB *sql.DB, org
 			continue
 		}
 
-		// Detect duplicates for this record
-		matches, err := s.detector.CheckForDuplicates(ctx, tenantDB, orgID, entityType, record, recordID)
+		// Detect duplicates for this record using pre-fetched rules
+		matches, err := s.detector.CheckForDuplicatesWithRules(ctx, tenantDB, orgID, entityType, record, recordID, rules)
 		if err != nil {
 			log.Printf("Failed to check duplicates for record %s: %v", recordID, err)
 			continue

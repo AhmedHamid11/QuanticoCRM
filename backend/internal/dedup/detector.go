@@ -37,8 +37,9 @@ type DuplicateMatch struct {
 	MatchResult *entity.MatchResult `json:"matchResult"`
 }
 
-// CheckForDuplicates finds duplicates for a single record (e.g., during create)
-// Returns matches above threshold, sorted by score descending
+// CheckForDuplicates finds duplicates for a single record (e.g., during create).
+// Loads matching rules from DB on each call. For batch operations (scan jobs),
+// use CheckForDuplicatesWithRules to avoid repeated rule queries.
 func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID, entityType string,
 	record map[string]interface{}, excludeID string) ([]DuplicateMatch, error) {
 
@@ -47,6 +48,14 @@ func (d *Detector) CheckForDuplicates(ctx context.Context, conn db.DBConn, orgID
 	if err != nil {
 		return nil, fmt.Errorf("failed to get matching rules: %w", err)
 	}
+
+	return d.CheckForDuplicatesWithRules(ctx, conn, orgID, entityType, record, excludeID, rules)
+}
+
+// CheckForDuplicatesWithRules finds duplicates using pre-fetched rules.
+// Use this in batch operations to avoid loading rules per-record.
+func (d *Detector) CheckForDuplicatesWithRules(ctx context.Context, conn db.DBConn, orgID, entityType string,
+	record map[string]interface{}, excludeID string, rules []entity.MatchingRule) ([]DuplicateMatch, error) {
 
 	if len(rules) == 0 {
 		return []DuplicateMatch{}, nil // No rules configured
