@@ -181,8 +181,16 @@ func (h *MergeHandler) Execute(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "entityType is required"})
 	}
 
-	// Execute merge
-	result, err := h.mergeService.ExecuteMerge(c.Context(), h.getDB(c), orgID, userID, req)
+	// Execute merge with retry on "database is locked" (SQLite contention with scan jobs)
+	var result *entity.MergeResult
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		result, err = h.mergeService.ExecuteMerge(c.Context(), h.getDB(c), orgID, userID, req)
+		if err == nil || !strings.Contains(err.Error(), "database is locked") {
+			break
+		}
+		time.Sleep(time.Duration(300*(attempt+1)) * time.Millisecond)
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
