@@ -6,13 +6,16 @@
 		bulkDismissAlerts,
 		mergePreview,
 		mergeExecute,
+		exportPendingAlerts,
 		getConfidenceBadgeClass,
 		formatConfidence,
 		type PendingAlert,
 		type MergePreview,
-		type PaginatedResponse
+		type PaginatedResponse,
+		type FieldDef
 	} from '$lib/api/data-quality';
 	import { resolveAlert } from '$lib/api/dedup';
+	import { get } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 
 	// State management with Svelte 5 runes
@@ -309,6 +312,63 @@
 	const totalPages = $derived(Math.ceil(total / pageSize));
 	const hasNextPage = $derived(currentPage < totalPages);
 	const hasPrevPage = $derived(currentPage > 1);
+
+	// ===== Export Modal State =====
+	let showExportModal = $state(false);
+	let exportFields = $state<Array<{ name: string; label: string; selected: boolean }>>([]);
+	let exportLoading = $state(false);
+	let exportEntityType = $state('Contact');
+
+	const commonFields = ['firstName', 'lastName', 'email', 'name', 'phone'];
+
+	async function openExportModal() {
+		exportEntityType = entityFilter || 'Contact';
+		await loadExportFields(exportEntityType);
+		showExportModal = true;
+	}
+
+	async function loadExportFields(entityType: string) {
+		try {
+			const fields = await get<FieldDef[]>(`/entities/${entityType}/fields`);
+			exportFields = (fields || []).map((f) => ({
+				name: f.name,
+				label: f.label,
+				selected: commonFields.includes(f.name)
+			}));
+		} catch (error: any) {
+			toast.error(`Failed to load fields: ${error.message || 'Unknown error'}`);
+		}
+	}
+
+	async function handleExportEntityTypeChange(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		exportEntityType = target.value;
+		await loadExportFields(exportEntityType);
+	}
+
+	function toggleSelectAllExportFields() {
+		const anySelected = exportFields.some((f) => f.selected);
+		exportFields = exportFields.map((f) => ({ ...f, selected: !anySelected }));
+	}
+
+	async function handleExport() {
+		const selectedFields = exportFields.filter((f) => f.selected).map((f) => f.name);
+		if (selectedFields.length === 0) {
+			toast.error('Please select at least one field to export.');
+			return;
+		}
+
+		exportLoading = true;
+		try {
+			await exportPendingAlerts({ entityType: exportEntityType, fields: selectedFields });
+			toast.success('CSV download started.');
+			showExportModal = false;
+		} catch (error: any) {
+			toast.error(`Export failed: ${error.message || 'Unknown error'}`);
+		} finally {
+			exportLoading = false;
+		}
+	}
 </script>
 
 <div class="p-6">
@@ -322,6 +382,15 @@
 		</div>
 
 		<div class="flex items-center gap-4">
+			<!-- Export CSV Button -->
+			<button
+				onclick={openExportModal}
+				disabled={total === 0}
+				class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+			>
+				Export CSV
+			</button>
+
 			<!-- Entity Filter -->
 			<label for="entity-filter" class="sr-only">Filter by entity type</label>
 			<select
@@ -588,6 +657,91 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Export Modal -->
+{#if showExportModal}
+	<div class="fixed inset-0 z-50 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
+		<div class="mx-auto mt-20 max-w-md rounded-xl bg-white p-6 shadow-xl">
+			<h2 id="export-modal-title" class="mb-4 text-lg font-semibold text-gray-900">Export Duplicates as CSV</h2>
+
+			<!-- Entity Type Selector -->
+			<div class="mb-4">
+				<label for="export-entity-type" class="mb-1 block text-sm font-medium text-gray-700">
+					Entity Type
+				</label>
+				<select
+					id="export-entity-type"
+					name="export-entity-type"
+					value={exportEntityType}
+					onchange={handleExportEntityTypeChange}
+					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				>
+					<option value="Contact">Contact</option>
+					<option value="Account">Account</option>
+					<option value="Lead">Lead</option>
+					<option value="Opportunity">Opportunity</option>
+				</select>
+			</div>
+
+			<!-- Field Selection -->
+			<div class="mb-4">
+				<div class="mb-2 flex items-center justify-between">
+					<span class="text-sm font-medium text-gray-700">Select Fields</span>
+					<button
+						onclick={toggleSelectAllExportFields}
+						class="text-xs font-medium text-blue-600 hover:text-blue-800"
+					>
+						{exportFields.some((f) => f.selected) ? 'Deselect All' : 'Select All'}
+					</button>
+				</div>
+				<div class="max-h-64 overflow-y-auto rounded-lg border border-gray-200">
+					{#if exportFields.length === 0}
+						<div class="px-4 py-6 text-center text-sm text-gray-500">Loading fields...</div>
+					{:else}
+						{#each exportFields as field, i (field.name)}
+							<label
+								class="flex cursor-pointer items-center gap-3 px-4 py-2 hover:bg-gray-50 {i > 0 ? 'border-t border-gray-100' : ''}"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportFields[i].selected}
+									class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+								/>
+								<span class="flex-1 text-sm text-gray-800">{field.label}</span>
+								<span class="text-xs text-gray-400">{field.name}</span>
+							</label>
+						{/each}
+					{/if}
+				</div>
+			</div>
+
+			<!-- Footer -->
+			<div class="flex items-center justify-end gap-3">
+				<button
+					onclick={() => { showExportModal = false; }}
+					class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={handleExport}
+					disabled={exportLoading || exportFields.every((f) => !f.selected)}
+					class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					{#if exportLoading}
+						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+						</svg>
+						Downloading...
+					{:else}
+						Download
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Floating Bulk Action Bar -->
 {#if showBulkBar}

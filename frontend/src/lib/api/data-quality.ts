@@ -321,6 +321,45 @@ export async function mergeHistoryExport(params?: { entityType?: string }): Prom
 	URL.revokeObjectURL(url);
 }
 
+export async function exportPendingAlerts(params: { entityType: string; fields: string[] }): Promise<void> {
+	const apiBase = PUBLIC_API_URL || '/api/v1';
+	const queryParams = new URLSearchParams();
+	queryParams.set('entityType', params.entityType);
+	queryParams.set('fields', params.fields.join(','));
+
+	const headers: Record<string, string> = {};
+	if (auth.accessToken) {
+		headers['Authorization'] = `Bearer ${auth.accessToken}`;
+	}
+
+	const response = await fetch(`${apiBase}/dedup/pending-alerts/export?${queryParams.toString()}`, {
+		headers,
+		credentials: 'include'
+	});
+
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({ error: 'Download failed' }));
+		throw new Error(err.error || `HTTP ${response.status}`);
+	}
+
+	const blob = await response.blob();
+	let filename = 'duplicates-export.csv';
+	const disposition = response.headers.get('Content-Disposition');
+	if (disposition) {
+		const match = disposition.match(/filename="?([^";\s]+)"?/);
+		if (match) filename = match[1];
+	}
+
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+}
+
 // --- Scan Jobs ---
 
 export async function listSchedules(): Promise<ScanSchedule[]> {
