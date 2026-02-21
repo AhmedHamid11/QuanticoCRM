@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
@@ -539,6 +542,113 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 	return ""
 }
 
+// ExportPendingAlerts handles GET /dedup/pending-alerts/export
+// Returns a CSV file of all pending duplicate alerts with selected field values
+func (h *DedupHandler) ExportPendingAlerts(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+
+	entityType := c.Query("entityType", "")
+	if entityType == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "entityType is required"})
+	}
+
+	fieldsParam := c.Query("fields", "")
+	if fieldsParam == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "fields is required"})
+	}
+	requestedFields := strings.Split(fieldsParam, ",")
+
+	// Fetch all pending alerts for this entity type (capped at 10k)
+	alerts, _, err := h.getAlertRepo(c).ListAllPending(c.Context(), orgID, entityType, 10000, 0)
+	if err != nil {
+		if isNoSuchTableError(err) {
+			// Return empty CSV with just the header
+			alerts = []entity.PendingDuplicateAlert{}
+		} else {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+	}
+
+	conn := h.getDB(c)
+	rawDB := db.GetRawDB(conn)
+	tableName := util.GetTableName(entityType)
+
+	// Build CSV
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	// Header row: group_id, record_role, confidence_score, confidence_tier, matching_fields, <fields...>
+	header := append([]string{"group_id", "record_role", "confidence_score", "confidence_tier", "matching_fields"}, requestedFields...)
+	if err := writer.Write(header); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to write CSV header"})
+	}
+
+	for _, alert := range alerts {
+		// Fetch source record
+		sourceRecord, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, alert.RecordID, orgID)
+
+		// Source row
+		sourceRow := make([]string, len(header))
+		sourceRow[0] = alert.ID
+		sourceRow[1] = "source"
+		sourceRow[2] = "" // no score for source
+		sourceRow[3] = "" // no confidence tier for source
+		sourceRow[4] = "" // no matching fields for source
+		if fetchErr == nil && sourceRecord != nil {
+			for i, fieldName := range requestedFields {
+				val := sourceRecord[fieldName]
+				if val == nil {
+					sourceRow[5+i] = ""
+				} else {
+					sourceRow[5+i] = fmt.Sprintf("%v", val)
+				}
+			}
+		}
+		if err := writer.Write(sourceRow); err != nil {
+			log.Printf("[DEDUP] Export: failed to write source row for alert %s: %v", alert.ID, err)
+		}
+
+		// Match rows
+		for _, match := range alert.Matches {
+			matchRecord, fetchErr := util.FetchRecordAsMap(c.Context(), rawDB, tableName, match.RecordID, orgID)
+
+			matchRow := make([]string, len(header))
+			matchRow[0] = alert.ID
+			matchRow[1] = "match"
+			if match.MatchResult != nil {
+				matchRow[2] = fmt.Sprintf("%.4f", match.MatchResult.Score)
+				matchRow[3] = match.MatchResult.ConfidenceTier
+				matchRow[4] = strings.Join(match.MatchResult.MatchingFields, ";")
+			}
+			if fetchErr == nil && matchRecord != nil {
+				for i, fieldName := range requestedFields {
+					val := matchRecord[fieldName]
+					if val == nil {
+						matchRow[5+i] = ""
+					} else {
+						matchRow[5+i] = fmt.Sprintf("%v", val)
+					}
+				}
+			}
+			if err := writer.Write(matchRow); err != nil {
+				log.Printf("[DEDUP] Export: failed to write match row for alert %s, record %s: %v", alert.ID, match.RecordID, err)
+			}
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to generate CSV"})
+	}
+
+	dateStr := time.Now().UTC().Format("2006-01-02")
+	filename := fmt.Sprintf("duplicates-%s-%s.csv", strings.ToLower(entityType), dateStr)
+
+	c.Set("Content-Type", "text/csv")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	return c.Send(buf.Bytes())
+}
+
 // RegisterRoutes registers dedup routes
 func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 	// Matching rules CRUD (admin only - apply admin middleware in main.go)
@@ -556,6 +666,7 @@ func (h *DedupHandler) RegisterRoutes(app fiber.Router) {
 
 	// Pending alert endpoints
 	app.Post("/dedup/bulk-dismiss", h.BulkDismissAlerts)
+	app.Get("/dedup/pending-alerts/export", h.ExportPendingAlerts)
 	app.Get("/dedup/pending-alerts", h.ListPendingAlerts)
 	app.Get("/dedup/:entity/:id/pending-alert", h.GetPendingAlert)
 	app.Post("/dedup/:entity/:id/resolve-alert", h.ResolveAlert)
