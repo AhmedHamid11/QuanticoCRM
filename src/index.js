@@ -1,6 +1,20 @@
-export async function onRequestPost(context) {
-  const { request, env } = context;
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
 
+    if (url.pathname === "/api/contact" && request.method === "POST") {
+      return handleContact(request, env);
+    }
+
+    if (url.pathname === "/api/contact" && request.method === "OPTIONS") {
+      return handleCORS();
+    }
+
+    return env.ASSETS.fetch(request);
+  },
+};
+
+async function handleContact(request, env) {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -54,7 +68,7 @@ export async function onRequestPost(context) {
   }
 }
 
-export async function onRequestOptions() {
+function handleCORS() {
   return new Response(null, {
     status: 204,
     headers: {
