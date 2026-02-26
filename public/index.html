@@ -613,7 +613,8 @@
     opacity: 0.4;
   }
 
-  .form-field input {
+  .form-field input,
+  .form-field textarea {
     width: 100%;
     padding: 0.7rem 0.9rem;
     border: 1.5px solid rgba(0,0,0,0.1);
@@ -625,11 +626,15 @@
     transition: border-color 0.2s;
   }
 
-  .form-field input:focus {
+  .form-field textarea { resize: vertical; font-family: inherit; }
+
+  .form-field input:focus,
+  .form-field textarea:focus {
     border-color: var(--coral);
   }
 
-  .form-field input::placeholder {
+  .form-field input::placeholder,
+  .form-field textarea::placeholder {
     color: rgba(0,0,0,0.25);
   }
 
@@ -856,6 +861,10 @@
         <label for="contactPhone">Phone <span class="optional">(optional)</span></label>
         <input type="tel" id="contactPhone" placeholder="(555) 123-4567">
       </div>
+      <div class="form-field">
+        <label for="contactMessage">What's on your mind? <span class="optional">(optional)</span></label>
+        <textarea id="contactMessage" placeholder="Tell us what you're looking for..." rows="3"></textarea>
+      </div>
       <button type="submit" class="modal-submit" id="modalSubmitBtn">Request a Callback</button>
     </form>
     <div class="modal-success" id="modalSuccess" style="display:none;">
@@ -947,11 +956,12 @@
     const name = document.getElementById('contactName').value;
     const email = document.getElementById('contactEmail').value;
     const phone = document.getElementById('contactPhone').value;
+    const message = document.getElementById('contactMessage').value;
 
     fetch('/api/contact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone })
+      body: JSON.stringify({ name, email, phone, message })
     });
 
     // Show success state

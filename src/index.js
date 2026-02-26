@@ -22,7 +22,7 @@ async function handleContact(request, env) {
   };
 
   try {
-    const { name, email, phone } = await request.json();
+    const { name, email, phone, message } = await request.json();
 
     if (!name || !email) {
       return new Response(JSON.stringify({ error: "Name and email are required" }), {
@@ -46,6 +46,7 @@ async function handleContact(request, env) {
         lastName,
         emailAddress: email,
         phoneNumber: phone || "",
+        notes: message || "",
       }),
     });
 
