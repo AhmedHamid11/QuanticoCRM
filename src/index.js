@@ -50,13 +50,7 @@ async function handleContact(request, env) {
     });
 
     if (!response.ok) {
-      const body = await response.text();
-      return new Response(JSON.stringify({
-        error: "Failed to submit contact request",
-        status: response.status,
-        detail: body,
-        tokenPresent: !!env.API_TOKEN,
-      }), {
+      return new Response(JSON.stringify({ error: "Failed to submit contact request" }), {
         status: 502,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
