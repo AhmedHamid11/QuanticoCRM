@@ -17,13 +17,22 @@ export async function onRequestPost(context) {
       });
     }
 
-    const response = await fetch(env.API_ENDPOINT, {
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    const response = await fetch("https://quantico-production.up.railway.app/api/v1/contacts/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${env.API_TOKEN}`,
       },
-      body: JSON.stringify({ name, email, phone }),
+      body: JSON.stringify({
+        firstName,
+        lastName,
+        emailAddress: email,
+        phoneNumber: phone || "",
+      }),
     });
 
     if (!response.ok) {
