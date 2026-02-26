@@ -140,6 +140,7 @@ func main() {
 	scanJobRepo := repo.NewScanJobRepo(masterDBConn)
 	notificationRepo := repo.NewNotificationRepo(masterDBConn)
 	salesforceRepo := repo.NewSalesforceRepo(masterDBConn)
+	schedulingRepo := repo.NewSchedulingRepo(masterDBConn)
 	ingestAPIKeyRepo := repo.NewIngestAPIKeyRepo(masterDBConn)
 	mirrorRepo := repo.NewMirrorRepo(masterDBConn)
 	ingestJobRepo := repo.NewIngestJobRepo(masterDBConn)
@@ -183,6 +184,10 @@ func main() {
 		sfEncryptionKey = nil // Service will error on token operations
 	}
 	salesforceOAuthService := service.NewSalesforceOAuthService(salesforceRepo, sfEncryptionKey)
+
+	// Initialize Google Calendar service (reuses same encryption key as Salesforce)
+	googleCalendarService := service.NewGoogleCalendarService(schedulingRepo, sfEncryptionKey)
+	schedulingService := service.NewSchedulingService(schedulingRepo, googleCalendarService)
 
 	// Initialize Salesforce delivery service components (Plan 03)
 	payloadBuilder := service.NewMergeInstructionBuilder(salesforceRepo, metadataRepo)
@@ -321,6 +326,8 @@ func main() {
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
+	schedulingHandler := handler.NewSchedulingHandler(schedulingService, googleCalendarService, schedulingRepo, dbManager, authRepo)
+
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
 	ingestHandler.SetMetadataRepo(metadataRepo)
@@ -456,6 +463,9 @@ func main() {
 	// Salesforce OAuth callback (public - user redirected back from Salesforce)
 	// State parameter provides CSRF protection (verified by service)
 	salesforceHandler.RegisterCallbackRoute(api)
+
+	// Scheduling public routes (no auth - public booking pages and Google OAuth callback)
+	schedulingHandler.RegisterPublicRoutes(api)
 
 	// CRITICAL: Register impersonate routes BEFORE the /auth group to bypass rate limiting.
 	// These are admin-only routes protected by strong auth — rate limiting is unnecessary
@@ -629,6 +639,9 @@ func main() {
 
 	// Salesforce integration - admin can configure OAuth and manage sync
 	salesforceHandler.RegisterRoutes(adminProtected)
+
+	// Scheduling - all authenticated users can manage their own scheduling pages
+	schedulingHandler.RegisterRoutes(protected)
 
 	// Mirror management (admin only - create/configure schema contracts)
 	mirrorHandler.RegisterRoutes(adminProtected)
