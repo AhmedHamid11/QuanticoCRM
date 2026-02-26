@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { get, del, post, put, isAbortError } from '$lib/utils/api';
+	import { get, del, post, put, isAbortError, ApiError } from '$lib/utils/api';
 	import { getEntityNameFromPath } from '$lib/stores/navigation.svelte';
 	import { TableSkeleton, ErrorDisplay } from '$lib/components/ui';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
@@ -54,6 +54,7 @@
 	let sortDir = $state<'asc' | 'desc'>('desc');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let knownTotal = $state<number | null>(null);
+	let pendingDeletes = $state(new Set<string>());
 
 	// Filter and List View state
 	let filterQuery = $state('');
@@ -219,16 +220,37 @@
 	}
 
 	async function deleteRecord(id: string) {
-		const backup = [...records];
+		// Prevent double-delete of the same record
+		if (pendingDeletes.has(id)) return;
+
+		// Track in-flight delete; create new Set for Svelte reactivity
+		pendingDeletes = new Set([...pendingDeletes, id]);
+
+		// Optimistic removal
 		records = records.filter(r => r.id !== id);
 		total = total - 1;
 
 		try {
 			await del(`/entities/${entityName}/records/${id}`);
 		} catch (e) {
-			records = backup;
-			total = total + 1;
+			// On failure, re-fetch only the specific record and restore it
+			try {
+				const restored = await get<Record<string, unknown>>(`/entities/${entityName}/records/${id}`);
+				records = [...records, restored];
+				total = total + 1;
+			} catch (refetchErr) {
+				// If record returns 404, it was actually deleted - leave it removed
+				if (!(refetchErr instanceof ApiError && refetchErr.status === 404)) {
+					// Unexpected error during re-fetch - restore conservatively
+					total = total + 1;
+				}
+			}
 			error = e instanceof Error ? e.message : 'Failed to delete record';
+		} finally {
+			// Always clean up the pending set
+			const next = new Set(pendingDeletes);
+			next.delete(id);
+			pendingDeletes = next;
 		}
 	}
 
@@ -447,6 +469,7 @@
 		layoutFields = [];
 		layoutExists = false;
 		records = [];
+		pendingDeletes = new Set<string>();
 		loading = true;
 		metadataLoading = true;
 		error = null;
@@ -739,7 +762,8 @@
 								</a>
 								<button
 									onclick={() => deleteRecord(String(record.id))}
-									class="text-red-600 hover:underline"
+									disabled={pendingDeletes.has(String(record.id))}
+									class="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									Delete
 								</button>

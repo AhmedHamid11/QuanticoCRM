@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { get, del, post, put } from '$lib/utils/api';
+	import { get, del, post, put, ApiError } from '$lib/utils/api';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import { TableSkeleton, ErrorDisplay } from '$lib/components/ui';
 	import type { Account, AccountListResponse } from '$lib/types/account';
@@ -37,6 +37,7 @@
 	let sortDir = $state<'asc' | 'desc'>('desc');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let knownTotal = $state<number | null>(null);
+	let pendingDeletes = $state(new Set<string>());
 
 	// Layout configuration
 	let layoutFields = $state<string[]>([]);
@@ -227,9 +228,15 @@
 	}
 
 	async function deleteAccount(id: string) {
+		// Prevent double-delete of the same account
+		if (pendingDeletes.has(id)) return;
+
 		if (!confirm('Are you sure you want to delete this account?')) return;
 
-		const backup = [...accounts];
+		// Track in-flight delete; create new Set for Svelte reactivity
+		pendingDeletes = new Set([...pendingDeletes, id]);
+
+		// Optimistic removal
 		accounts = accounts.filter((a) => a.id !== id);
 		total = total - 1;
 
@@ -237,10 +244,25 @@
 			await del(`/accounts/${id}`);
 			addToast('Account deleted', 'success');
 		} catch (e) {
-			accounts = backup;
-			total = total + 1;
+			// On failure, re-fetch only the specific account and restore it
+			try {
+				const restored = await get<Account>(`/accounts/${id}`);
+				accounts = [...accounts, restored];
+				total = total + 1;
+			} catch (refetchErr) {
+				// If account returns 404, it was actually deleted - leave it removed
+				if (!(refetchErr instanceof ApiError && refetchErr.status === 404)) {
+					// Unexpected error during re-fetch - restore conservatively
+					total = total + 1;
+				}
+			}
 			const message = e instanceof Error ? e.message : 'Failed to delete account';
 			addToast(message, 'error');
+		} finally {
+			// Always clean up the pending set
+			const next = new Set(pendingDeletes);
+			next.delete(id);
+			pendingDeletes = next;
 		}
 	}
 
@@ -623,7 +645,8 @@
 								</a>
 								<button
 									onclick={() => deleteAccount(account.id)}
-									class="text-red-600 hover:underline"
+									disabled={pendingDeletes.has(account.id)}
+									class="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									Delete
 								</button>
