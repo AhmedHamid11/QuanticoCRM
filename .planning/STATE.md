@@ -51,6 +51,7 @@ None.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 026 | Move Data Quality tile into Data section on admin dashboard | 2026-02-25 | a9d64ad | [026-move-the-data-quality-tile-up-to-data-se](./quick/26-move-the-data-quality-tile-up-to-data-se/) |
 | 025 | Fix full-name contact search with spaces (first_name \|\| last_name concatenation) | 2026-02-20 | 45744c2 | [025-fix-full-name-search-with-spaces-returni](./quick/25-fix-full-name-search-with-spaces-returni/) |
 | 024 | Fix migration 069 wrong column names + BulkResolve UNIQUE constraint violation | 2026-02-20 | 56511b2 | [024-fix-migration-069-wrong-column-names-bul](./quick/24-fix-migration-069-wrong-column-names-bul/) |
 | 019 | Add mirror table safety net to provisioning (self-healing handler) | 2026-02-11 | b87d33d | [019-add-mirror-table-safety-net-to-provision](./quick/19-add-mirror-table-safety-net-to-provision/) |
@@ -65,10 +66,10 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed quick-025 (fix full-name contact search with spaces)
+Last session: 2026-02-25
+Stopped at: Completed quick-026 (move Data Quality tile to Data section)
 Resume file: None
 
 ---
 
-*Updated: 2026-02-20 — Quick task 025 completed*
+*Updated: 2026-02-25 — Quick task 026 completed*
