@@ -246,6 +246,11 @@ func (h *ContactHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
+	// Capture any unknown top-level JSON keys as custom fields.
+	// This allows API consumers to send custom field values (e.g. lead_import_notes)
+	// as top-level keys without wrapping them in a "customFields" object.
+	input.CustomFields = mergeUnknownFieldsIntoCustomFields(c.Body(), contactKnownFields, input.CustomFields)
+
 	// Default assignedUserId to creating user if not set
 	if input.AssignedUserID == nil || *input.AssignedUserID == "" {
 		input.AssignedUserID = &userID
@@ -326,6 +331,9 @@ func (h *ContactHandler) Update(c *fiber.Ctx) error {
 			"error": "Invalid request body",
 		})
 	}
+
+	// Capture any unknown top-level JSON keys as custom fields.
+	input.CustomFields = mergeUnknownFieldsIntoCustomFields(c.Body(), contactKnownFields, input.CustomFields)
 
 	// Fetch old record for tripwire, validation, and notification evaluation
 	var oldRecord map[string]interface{}

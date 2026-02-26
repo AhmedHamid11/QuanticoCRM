@@ -43,6 +43,51 @@ type RealtimeCheckerInterface interface {
 // StructToMap is an alias for util.StructToMap for backward compatibility
 var StructToMap = util.StructToMap
 
+// mergeUnknownFieldsIntoCustomFields parses the raw JSON body and merges any
+// top-level keys that are not in knownFields into the customFields map.
+// Keys already present in customFields are NOT overwritten (explicit customFields takes priority).
+func mergeUnknownFieldsIntoCustomFields(body []byte, knownFields map[string]bool, customFields map[string]interface{}) map[string]interface{} {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return customFields
+	}
+	if customFields == nil {
+		customFields = make(map[string]interface{})
+	}
+	for key, value := range raw {
+		if knownFields[key] {
+			continue
+		}
+		if _, exists := customFields[key]; !exists {
+			customFields[key] = value
+		}
+	}
+	return customFields
+}
+
+// contactKnownFields contains all known JSON field names for ContactCreateInput and ContactUpdateInput.
+// Any top-level key NOT in this set is treated as a custom field.
+var contactKnownFields = map[string]bool{
+	"salutationName": true, "firstName": true, "lastName": true,
+	"emailAddress": true, "phoneNumber": true, "phoneNumberType": true,
+	"doNotCall": true, "description": true, "addressStreet": true,
+	"addressCity": true, "addressState": true, "addressCountry": true,
+	"addressPostalCode": true, "accountId": true, "accountName": true,
+	"assignedUserId": true, "customFields": true,
+}
+
+// accountKnownFields contains all known JSON field names for AccountCreateInput and AccountUpdateInput.
+// Any top-level key NOT in this set is treated as a custom field.
+var accountKnownFields = map[string]bool{
+	"name": true, "website": true, "emailAddress": true, "phoneNumber": true,
+	"type": true, "industry": true, "sicCode": true,
+	"billingAddressStreet": true, "billingAddressCity": true, "billingAddressState": true,
+	"billingAddressCountry": true, "billingAddressPostalCode": true,
+	"shippingAddressStreet": true, "shippingAddressCity": true, "shippingAddressState": true,
+	"shippingAddressCountry": true, "shippingAddressPostalCode": true,
+	"description": true, "stage": true, "assignedUserId": true, "customFields": true,
+}
+
 // GenericEntityHandler handles HTTP requests for dynamic entities
 type GenericEntityHandler struct {
 	defaultDB           db.DBConn

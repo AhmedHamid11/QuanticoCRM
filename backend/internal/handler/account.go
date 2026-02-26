@@ -448,6 +448,11 @@ func (h *AccountHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
+	// Capture any unknown top-level JSON keys as custom fields.
+	// This allows API consumers to send custom field values as top-level keys
+	// without wrapping them in a "customFields" object.
+	input.CustomFields = mergeUnknownFieldsIntoCustomFields(c.Body(), accountKnownFields, input.CustomFields)
+
 	// Default assignedUserId to creating user if not set
 	if input.AssignedUserID == nil || *input.AssignedUserID == "" {
 		input.AssignedUserID = &userID
@@ -501,40 +506,6 @@ func (h *AccountHandler) Update(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
 	id := c.Params("id")
 
-	// First parse into a map to capture all fields including unknown custom fields
-	var rawBody map[string]interface{}
-	if err := c.BodyParser(&rawBody); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
-		})
-	}
-
-	// Known system fields in AccountUpdateInput
-	systemFields := map[string]bool{
-		"name": true, "website": true, "emailAddress": true, "phoneNumber": true,
-		"type": true, "industry": true, "sicCode": true,
-		"billingAddressStreet": true, "billingAddressCity": true, "billingAddressState": true,
-		"billingAddressCountry": true, "billingAddressPostalCode": true,
-		"shippingAddressStreet": true, "shippingAddressCity": true, "shippingAddressState": true,
-		"shippingAddressCountry": true, "shippingAddressPostalCode": true,
-		"description": true, "stage": true, "assignedUserId": true, "customFields": true,
-	}
-
-	// Extract custom fields from top-level unknown fields
-	customFieldsFromBody := make(map[string]interface{})
-	if cf, ok := rawBody["customFields"].(map[string]interface{}); ok {
-		for k, v := range cf {
-			customFieldsFromBody[k] = v
-		}
-	}
-	// Any unknown top-level fields are also custom fields
-	for key, value := range rawBody {
-		if !systemFields[key] {
-			customFieldsFromBody[key] = value
-		}
-	}
-
-	// Now parse into the struct
 	var input entity.AccountUpdateInput
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -542,15 +513,9 @@ func (h *AccountHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 
-	// Merge extracted custom fields into input.CustomFields
-	if len(customFieldsFromBody) > 0 {
-		if input.CustomFields == nil {
-			input.CustomFields = make(map[string]interface{})
-		}
-		for k, v := range customFieldsFromBody {
-			input.CustomFields[k] = v
-		}
-	}
+	// Capture any unknown top-level JSON keys as custom fields.
+	// Keys already in the explicit customFields object take priority.
+	input.CustomFields = mergeUnknownFieldsIntoCustomFields(c.Body(), accountKnownFields, input.CustomFields)
 
 	// Fetch old record for tripwire, validation, and notification evaluation
 	var oldRecord map[string]interface{}
@@ -561,7 +526,7 @@ func (h *AccountHandler) Update(c *fiber.Ctx) error {
 
 	// Validate before save
 	if h.validationService != nil {
-		newRecord := rawBody // Use raw body which has all fields
+		newRecord := StructToMap(input)
 		validationResult, err := h.validationService.ValidateOperation(c.Context(), orgID, "Account", id, "UPDATE", oldRecord, newRecord)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
