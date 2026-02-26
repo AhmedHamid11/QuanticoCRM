@@ -46,7 +46,7 @@ async function handleContact(request, env) {
         lastName,
         emailAddress: email,
         phoneNumber: phone || "",
-        notes: message || "",
+        lead_import_notes: message || "",
       }),
     });
 
