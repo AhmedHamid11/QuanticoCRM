@@ -21,7 +21,8 @@
 		$page.url.pathname === '/register' ||
 		$page.url.pathname === '/forgot-password' ||
 		$page.url.pathname === '/reset-password' ||
-		$page.url.pathname.startsWith('/accept-invite')
+		$page.url.pathname.startsWith('/accept-invite') ||
+		$page.url.pathname.startsWith('/book/')
 	);
 
 	// Initialize auth on mount
