@@ -948,19 +948,11 @@
     const email = document.getElementById('contactEmail').value;
     const phone = document.getElementById('contactPhone').value;
 
-    // ═══════════════════════════════════════════════════
-    // TODO: Send to your backend / webhook / email service
-    // Example: POST to your API, n8n webhook, etc.
-    // ═══════════════════════════════════════════════════
-    console.log('Contact request:', { name, email, phone });
-
-    /*
     fetch('/api/contact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, phone })
     });
-    */
 
     // Show success state
     document.getElementById('contactForm').style.display = 'none';
