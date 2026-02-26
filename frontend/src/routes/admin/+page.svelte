@@ -39,7 +39,7 @@
 		{ title: 'User Management', description: 'Manage users and their roles in your organization', href: '/admin/users', borderColor: 'border-green-500', iconColor: 'text-green-500', iconPath: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', section: 'System' },
 		{ title: 'API Tokens', description: 'Generate tokens for programmatic API access', href: '/admin/api-tokens', borderColor: 'border-indigo-500', iconColor: 'text-indigo-500', iconPath: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z', section: 'System' },
 		{ title: 'Data Import', description: 'Upload records from CSV files — use for one-time bulk imports and backfills', href: '/admin/import', borderColor: 'border-sky-500', iconColor: 'text-sky-500', iconPath: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12', section: 'Data' },
-		{ title: 'Data Explorer', description: 'Query database and export data', href: '/admin/data-explorer', borderColor: 'border-teal-500', iconColor: 'text-teal-500', iconPath: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', section: 'System' },
+		{ title: 'Data Explorer', description: 'Query database and export data', href: '/admin/data-explorer', borderColor: 'border-teal-500', iconColor: 'text-teal-500', iconPath: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', section: 'Data' },
 		{ title: 'Changelog', description: 'View platform changes and updates by version', href: '/admin/changelog', borderColor: 'border-slate-500', iconColor: 'text-slate-500', iconPath: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', section: 'System' },
 		{ title: 'Audit Logs', description: 'View security events and compliance audit trail', href: '/admin/audit-logs', borderColor: 'border-yellow-500', iconColor: 'text-yellow-600', iconPath: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', section: 'System' },
 		{ title: 'Repair Metadata', description: 'Re-create default entities, fields, layouts if missing or corrupted', href: '', borderColor: 'border-rose-500', iconColor: 'text-rose-500', iconPath: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', section: 'System', isButton: true },
@@ -47,7 +47,7 @@
 		{ title: 'Platform Console', description: 'View all organizations and impersonate customers', href: '/admin/platform', borderColor: 'border-purple-600', iconColor: 'text-purple-600', iconPath: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', section: 'Platform Administration', badge: 'Admin', platformOnly: true },
 	];
 
-	const sectionOrder = ['Customization', 'Data Quality', 'Data', 'Automation', 'System', 'Platform Administration'];
+	const sectionOrder = ['Customization', 'Data', 'Data Quality', 'Automation', 'System', 'Platform Administration'];
 
 	let filteredTiles = $derived.by(() => {
 		const q = searchQuery.toLowerCase().trim();
