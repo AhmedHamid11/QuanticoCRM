@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { get, del, post, put } from '$lib/utils/api';
+	import { get, del, post, put, ApiError } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import { TableSkeleton, ErrorDisplay } from '$lib/components/ui';
 	import type { Contact, ContactListResponse } from '$lib/types/contact';
@@ -34,6 +34,7 @@
 	let sortDir = $state<'asc' | 'desc'>('desc');
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let knownTotal = $state<number | null>(null);
+	let pendingDeletes = $state(new Set<string>());
 
 	// Filter and List View state
 	let filterQuery = $state('');
@@ -122,7 +123,13 @@
 	}
 
 	async function deleteContact(id: string) {
-		const backup = [...contacts];
+		// Prevent double-delete of the same contact
+		if (pendingDeletes.has(id)) return;
+
+		// Track in-flight delete; create new Set for Svelte reactivity
+		pendingDeletes = new Set([...pendingDeletes, id]);
+
+		// Optimistic removal
 		contacts = contacts.filter((c) => c.id !== id);
 		total = total - 1;
 
@@ -130,10 +137,25 @@
 			await del(`/contacts/${id}`);
 			toast.success('Contact deleted');
 		} catch (e) {
-			contacts = backup;
-			total = total + 1;
+			// On failure, re-fetch only the specific contact and restore it
+			try {
+				const restored = await get<Contact>(`/contacts/${id}`);
+				contacts = [...contacts, restored];
+				total = total + 1;
+			} catch (refetchErr) {
+				// If the contact returns 404, it was actually deleted — leave it removed
+				if (!(refetchErr instanceof ApiError && refetchErr.status === 404)) {
+					// Unexpected error during re-fetch — restore conservatively
+					total = total + 1;
+				}
+			}
 			const message = e instanceof Error ? e.message : 'Failed to delete contact';
 			toast.error(message);
+		} finally {
+			// Always clean up the pending set
+			const next = new Set(pendingDeletes);
+			next.delete(id);
+			pendingDeletes = next;
 		}
 	}
 
@@ -530,7 +552,8 @@
 								</a>
 								<button
 									onclick={() => deleteContact(contact.id)}
-									class="text-red-600 hover:underline"
+									disabled={pendingDeletes.has(contact.id)}
+									class="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
 								>
 									Delete
 								</button>
