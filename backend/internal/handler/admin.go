@@ -761,6 +761,85 @@ func (h *AdminHandler) SaveLayoutV2(c *fiber.Ctx) error {
 	})
 }
 
+// GetLayoutV3 returns a layout in v3 format (up-converting v1/v2 if needed)
+func (h *AdminHandler) GetLayoutV3(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+	layoutType := c.Params("type")
+
+	layout, err := h.getMetadataRepo(c).GetLayout(c.Context(), orgID, entityName, layoutType)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	var layoutJSON string
+	if layout == nil {
+		layoutJSON = "[]"
+	} else {
+		layoutJSON = layout.LayoutData
+	}
+
+	layoutV3, err := h.layoutService.GetLayoutAsV3(layoutJSON)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"entityName": entityName,
+		"layoutType": layoutType,
+		"layout":     layoutV3,
+		"exists":     layout != nil,
+	})
+}
+
+// SaveLayoutV3 saves a layout in v3 format
+func (h *AdminHandler) SaveLayoutV3(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+	layoutType := c.Params("type")
+
+	var input entity.LayoutDataV3
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Enforce version and clear reserved fields
+	input.Version = entity.LayoutVersionV3
+	input.Conditions = nil
+
+	layoutJSON, err := json.Marshal(input)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to serialize layout",
+		})
+	}
+
+	layout, err := h.getMetadataRepo(c).SaveLayout(c.Context(), orgID, entityName, layoutType, string(layoutJSON))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	// Cache invalidation — same pattern as SaveLayoutV2
+	h.invalidateEntityCache(orgID, entityName)
+
+	return c.JSON(fiber.Map{
+		"id":         layout.ID,
+		"entityName": layout.EntityName,
+		"layoutType": layout.LayoutType,
+		"layout":     input,
+		"createdAt":  layout.CreatedAt,
+		"modifiedAt": layout.ModifiedAt,
+	})
+}
+
 // ReprovisionMetadata re-runs the default metadata provisioning for the current org
 // This is useful when an org was created but provisioning failed or was incomplete
 // POST /admin/reprovision
@@ -954,4 +1033,8 @@ func (h *AdminHandler) RegisterRoutes(app fiber.Router) {
 	// Layouts (v2 - sections with visibility)
 	admin.Get("/entities/:entity/layouts/:type/v2", h.GetLayoutV2)
 	admin.Put("/entities/:entity/layouts/:type/v2", h.SaveLayoutV2)
+
+	// Layouts (v3 - tabs, sidebar, header)
+	admin.Get("/entities/:entity/layouts/:type/v3", h.GetLayoutV3)
+	admin.Put("/entities/:entity/layouts/:type/v3", h.SaveLayoutV3)
 }
