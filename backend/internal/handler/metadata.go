@@ -4,6 +4,7 @@ import (
 	"github.com/fastcrm/backend/internal/cache"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
+	"github.com/fastcrm/backend/internal/service"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -12,12 +13,14 @@ import (
 type MetadataHandler struct {
 	metadataRepo  *repo.MetadataRepo
 	metadataCache *cache.MetadataCache // optional cache for read-only routes
+	layoutService *service.LayoutService  // for V3 up-conversion
 }
 
 // NewMetadataHandler creates a new MetadataHandler
 func NewMetadataHandler(metadataRepo *repo.MetadataRepo) *MetadataHandler {
 	return &MetadataHandler{
-		metadataRepo: metadataRepo,
+		metadataRepo:  metadataRepo,
+		layoutService: service.NewLayoutService(),
 	}
 }
 
@@ -94,6 +97,42 @@ func (h *MetadataHandler) GetEntityLayout(c *fiber.Ctx) error {
 	})
 }
 
+// GetEntityLayoutV3 returns a layout in v3 format for rendering (read-only)
+// Accessible to all authenticated users, not just admins.
+func (h *MetadataHandler) GetEntityLayoutV3(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	entityName := c.Params("entity")
+	layoutType := c.Params("type")
+
+	layout, err := h.getMetadataCache(c).GetLayout(c.Context(), orgID, entityName, layoutType)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	var layoutJSON string
+	if layout == nil {
+		layoutJSON = "[]"
+	} else {
+		layoutJSON = layout.LayoutData
+	}
+
+	layoutV3, err := h.layoutService.GetLayoutAsV3(layoutJSON)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"entityName": entityName,
+		"layoutType": layoutType,
+		"layout":     layoutV3,
+		"exists":     layout != nil,
+	})
+}
+
 // GetEntity returns a single entity definition (read-only)
 func (h *MetadataHandler) GetEntity(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
@@ -123,4 +162,5 @@ func (h *MetadataHandler) RegisterRoutes(app fiber.Router) {
 	metadata.Get("/entities/:entity", h.GetEntity)
 	metadata.Get("/entities/:entity/fields", h.GetEntityFields)
 	metadata.Get("/entities/:entity/layouts/:type", h.GetEntityLayout)
+	metadata.Get("/entities/:entity/layouts/:type/v3", h.GetEntityLayoutV3)
 }
