@@ -6,6 +6,7 @@ type OrgSettings struct {
 	HomePage               string `json:"homePage" db:"home_page"`
 	IdleTimeoutMinutes     int    `json:"idleTimeoutMinutes" db:"idle_timeout_minutes"`
 	AbsoluteTimeoutMinutes int    `json:"absoluteTimeoutMinutes" db:"absolute_timeout_minutes"`
+	AccentColor            string `json:"accentColor" db:"accent_color"`
 	SettingsJSON           string `json:"-" db:"settings_json"`
 }
 
@@ -14,6 +15,7 @@ type OrgSettingsUpdateInput struct {
 	HomePage               *string `json:"homePage"`
 	IdleTimeoutMinutes     *int    `json:"idleTimeoutMinutes"`
 	AbsoluteTimeoutMinutes *int    `json:"absoluteTimeoutMinutes"`
+	AccentColor            *string `json:"accentColor"`
 }
 
 // SessionTimeoutBounds defines valid ranges

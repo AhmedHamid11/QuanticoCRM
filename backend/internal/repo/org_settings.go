@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
@@ -28,14 +29,34 @@ func (r *OrgSettingsRepo) WithDB(conn db.DBConn) *OrgSettingsRepo {
 func (r *OrgSettingsRepo) Get(ctx context.Context, orgID string) (*entity.OrgSettings, error) {
 	var settings entity.OrgSettings
 	err := r.db.QueryRowContext(ctx,
-		`SELECT org_id, home_page, idle_timeout_minutes, absolute_timeout_minutes, COALESCE(settings_json, '{}')
+		`SELECT org_id, home_page, idle_timeout_minutes, absolute_timeout_minutes, COALESCE(accent_color, '#1e40af'), COALESCE(settings_json, '{}')
 		 FROM org_settings WHERE org_id = ?`, orgID).Scan(
 		&settings.OrgID,
 		&settings.HomePage,
 		&settings.IdleTimeoutMinutes,
 		&settings.AbsoluteTimeoutMinutes,
+		&settings.AccentColor,
 		&settings.SettingsJSON,
 	)
+
+	if err != nil && strings.Contains(err.Error(), "no such column") {
+		// Auto-add missing accent_color column and retry
+		_, alterErr := r.db.ExecContext(ctx, "ALTER TABLE org_settings ADD COLUMN accent_color TEXT DEFAULT '#1e40af'")
+		if alterErr != nil && !strings.Contains(alterErr.Error(), "duplicate column") {
+			return nil, alterErr
+		}
+		// Retry the query
+		err = r.db.QueryRowContext(ctx,
+			`SELECT org_id, home_page, idle_timeout_minutes, absolute_timeout_minutes, COALESCE(accent_color, '#1e40af'), COALESCE(settings_json, '{}')
+			 FROM org_settings WHERE org_id = ?`, orgID).Scan(
+			&settings.OrgID,
+			&settings.HomePage,
+			&settings.IdleTimeoutMinutes,
+			&settings.AbsoluteTimeoutMinutes,
+			&settings.AccentColor,
+			&settings.SettingsJSON,
+		)
+	}
 
 	if err == sql.ErrNoRows {
 		// Create default settings
@@ -44,6 +65,7 @@ func (r *OrgSettingsRepo) Get(ctx context.Context, orgID string) (*entity.OrgSet
 			HomePage:               "/",
 			IdleTimeoutMinutes:     entity.DefaultIdleTimeout,
 			AbsoluteTimeoutMinutes: entity.DefaultAbsoluteTimeout,
+			AccentColor:            "#1e40af",
 		}
 		_, err = r.db.ExecContext(ctx,
 			`INSERT INTO org_settings (org_id, home_page, idle_timeout_minutes, absolute_timeout_minutes) VALUES (?, ?, ?, ?)`,
@@ -97,17 +119,21 @@ func (r *OrgSettingsRepo) Update(ctx context.Context, orgID string, input *entit
 	if input.AbsoluteTimeoutMinutes != nil {
 		current.AbsoluteTimeoutMinutes = *input.AbsoluteTimeoutMinutes
 	}
+	if input.AccentColor != nil {
+		current.AccentColor = *input.AccentColor
+	}
 
 	// Upsert the settings
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO org_settings (org_id, home_page, idle_timeout_minutes, absolute_timeout_minutes, modified_at)
-		 VALUES (?, ?, ?, ?, datetime('now'))
+		`INSERT INTO org_settings (org_id, home_page, idle_timeout_minutes, absolute_timeout_minutes, accent_color, modified_at)
+		 VALUES (?, ?, ?, ?, ?, datetime('now'))
 		 ON CONFLICT(org_id) DO UPDATE SET
 		 home_page = excluded.home_page,
 		 idle_timeout_minutes = excluded.idle_timeout_minutes,
 		 absolute_timeout_minutes = excluded.absolute_timeout_minutes,
+		 accent_color = excluded.accent_color,
 		 modified_at = datetime('now')`,
-		orgID, current.HomePage, current.IdleTimeoutMinutes, current.AbsoluteTimeoutMinutes)
+		orgID, current.HomePage, current.IdleTimeoutMinutes, current.AbsoluteTimeoutMinutes, current.AccentColor)
 
 	if err != nil {
 		return nil, err

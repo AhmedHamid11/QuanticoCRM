@@ -59,6 +59,7 @@ func (h *OrgSettingsHandler) Get(c *fiber.Ctx) error {
 				if createErr == nil {
 					tenantDB.ExecContext(c.Context(), "ALTER TABLE org_settings ADD COLUMN idle_timeout_minutes INTEGER DEFAULT 30")
 					tenantDB.ExecContext(c.Context(), "ALTER TABLE org_settings ADD COLUMN absolute_timeout_minutes INTEGER DEFAULT 1440")
+					tenantDB.ExecContext(c.Context(), "ALTER TABLE org_settings ADD COLUMN accent_color TEXT DEFAULT '#1e40af'")
 				}
 				if createErr == nil {
 					// Retry the get
@@ -162,6 +163,9 @@ func (h *OrgSettingsHandler) Update(c *fiber.Ctx) error {
 	}
 	if input.HomePage != nil {
 		changedFields = append(changedFields, "homePage")
+	}
+	if input.AccentColor != nil {
+		changedFields = append(changedFields, "accentColor")
 	}
 
 	// Audit log the settings change

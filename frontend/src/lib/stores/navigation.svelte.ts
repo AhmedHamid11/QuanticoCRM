@@ -14,6 +14,7 @@ export interface NavigationTab {
 export interface OrgSettings {
     orgId: string;
     homePage: string;
+    accentColor?: string;
 }
 
 // Navigation state
@@ -84,6 +85,11 @@ export function getHomePage(): string {
 // Get org settings
 export function getOrgSettings(): OrgSettings | null {
     return orgSettings;
+}
+
+// Get accent color (default deep blue #1e40af)
+export function getAccentColor(): string {
+    return orgSettings?.accentColor || '#1e40af';
 }
 
 // Export the load function
