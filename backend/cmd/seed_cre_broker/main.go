@@ -175,21 +175,20 @@ func main() {
 		log.Println("CRE data tables created successfully")
 	}
 
-	// Run default metadata provisioning (Account, Contact, Task, Quote entities) — on tenant DB
+	// Run CRE broker provisioning — includes default metadata (Account, Contact, Task, Quote)
+	// plus CRE-specific entities (Lead, Property, Deal). All metadata uses INSERT OR IGNORE
+	// so it's idempotent and safe to re-run.
 	provSvc := service.NewProvisioningService(tenantDB)
-	log.Println("Running default metadata provisioning...")
-	if err := provSvc.ProvisionDefaultMetadata(ctx, targetOrgID); err != nil {
-		log.Fatalf("Failed to provision default metadata: %v", err)
-	}
-	log.Println("Default metadata provisioned")
-
-	// Run CRE broker provisioning (Lead, Property, Deal entities + CRE-specific fields/layouts/nav) — on tenant DB
-	log.Println("Running CRE Broker provisioning...")
+	log.Println("Running CRE Broker provisioning (includes default + CRE metadata)...")
 	if *withSampleData {
 		if err := provSvc.ProvisionCREBrokerComplete(ctx, targetOrgID); err != nil {
 			log.Fatalf("Failed to provision CRE Broker: %v", err)
 		}
 	} else {
+		// Metadata-only: provision defaults first, then CRE overlay
+		if err := provSvc.ProvisionMetadataOnly(ctx, targetOrgID); err != nil {
+			log.Fatalf("Failed to provision default metadata: %v", err)
+		}
 		if err := provSvc.ProvisionCREBroker(ctx, targetOrgID); err != nil {
 			log.Fatalf("Failed to provision CRE Broker metadata: %v", err)
 		}

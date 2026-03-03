@@ -433,10 +433,10 @@ func (r *MergeRepo) CleanupExpired(ctx context.Context, orgID string) (int, erro
 	return int(rows), nil
 }
 
-// EnsureArchiveColumns ensures the archived_at column exists on a table
+// EnsureArchiveColumns ensures the archived_at, archived_reason, and survivor_id columns exist on a table
 // This is a static utility that checks PRAGMA table_info and adds missing columns
 func (r *MergeRepo) EnsureArchiveColumns(ctx context.Context, dbConn db.DBConn, tableName string) error {
-	// Check if archived_at column exists
+	// Check which archive columns already exist
 	rows, err := dbConn.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", tableName))
 	if err != nil {
 		return fmt.Errorf("failed to get table info: %w", err)
@@ -444,6 +444,8 @@ func (r *MergeRepo) EnsureArchiveColumns(ctx context.Context, dbConn db.DBConn, 
 	defer rows.Close()
 
 	hasArchivedAt := false
+	hasArchivedReason := false
+	hasSurvivorId := false
 	for rows.Next() {
 		var cid int
 		var name, colType string
@@ -453,9 +455,13 @@ func (r *MergeRepo) EnsureArchiveColumns(ctx context.Context, dbConn db.DBConn, 
 		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
 			continue
 		}
-		if name == "archived_at" {
+		switch name {
+		case "archived_at":
 			hasArchivedAt = true
-			break
+		case "archived_reason":
+			hasArchivedReason = true
+		case "survivor_id":
+			hasSurvivorId = true
 		}
 	}
 
@@ -464,6 +470,22 @@ func (r *MergeRepo) EnsureArchiveColumns(ctx context.Context, dbConn db.DBConn, 
 		alterSQL := fmt.Sprintf("ALTER TABLE %s ADD COLUMN archived_at TEXT", util.QuoteIdentifier(tableName))
 		if _, err := dbConn.ExecContext(ctx, alterSQL); err != nil {
 			return fmt.Errorf("failed to add archived_at column: %w", err)
+		}
+	}
+
+	// Add archived_reason if missing
+	if !hasArchivedReason {
+		alterSQL := fmt.Sprintf("ALTER TABLE %s ADD COLUMN archived_reason TEXT", util.QuoteIdentifier(tableName))
+		if _, err := dbConn.ExecContext(ctx, alterSQL); err != nil {
+			return fmt.Errorf("failed to add archived_reason column: %w", err)
+		}
+	}
+
+	// Add survivor_id if missing
+	if !hasSurvivorId {
+		alterSQL := fmt.Sprintf("ALTER TABLE %s ADD COLUMN survivor_id TEXT", util.QuoteIdentifier(tableName))
+		if _, err := dbConn.ExecContext(ctx, alterSQL); err != nil {
+			return fmt.Errorf("failed to add survivor_id column: %w", err)
 		}
 	}
 

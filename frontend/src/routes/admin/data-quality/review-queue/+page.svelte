@@ -169,10 +169,16 @@
 
 			toast.success('Records merged successfully.');
 
-			// Mark alert as merged
-			await resolveAlert(alert.entityType, alert.recordId, 'merged');
+			// Mark alert as merged - wrap separately so resolve failure
+			// doesn't make the merge appear unsuccessful
+			try {
+				await resolveAlert(alert.entityType, alert.recordId, 'merged');
+			} catch (resolveErr) {
+				console.error('Failed to resolve alert after successful merge:', alert.id, resolveErr);
+			}
 
 		} catch (error: any) {
+			console.error('Merge failed for alert:', alert.id, error);
 			toast.error(`Merge failed: ${error.message || 'Unknown error'}`);
 		}
 	}
@@ -256,7 +262,8 @@
 						pageSize: batchSize
 					});
 					batch = response.data || [];
-				} catch {
+				} catch (err) {
+					console.error('Bulk merge fetch failed:', err);
 					break;
 				}
 
@@ -266,7 +273,8 @@
 					try {
 						await quickMerge(alert);
 						successCount++;
-					} catch {
+					} catch (err) {
+						console.error('Merge failed for alert:', alert.id, err);
 						failCount++;
 					}
 					bulkProgress.current++;
@@ -291,6 +299,7 @@
 					await quickMerge(alert);
 					successCount++;
 				} catch (error) {
+					console.error('Merge failed for alert:', alert.id, error);
 					failCount++;
 				}
 				bulkProgress.current++;
@@ -302,7 +311,7 @@
 		bulkProcessing = false;
 
 		if (failCount > 0) {
-			toast.error(`Merged ${successCount} groups, ${failCount} failed`);
+			toast.error(`Merged ${successCount} groups, ${failCount} failed. Check browser console for details.`);
 		} else {
 			toast.success(`Merged ${successCount} groups`);
 		}

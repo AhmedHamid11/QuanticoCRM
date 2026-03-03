@@ -76,7 +76,7 @@ func main() {
 		if err := provSvc.ProvisionWulfRecruiting(ctx, *orgID); err != nil {
 			log.Fatalf("Failed to provision metadata: %v", err)
 		}
-		provSvc.ProvisionNavigation(ctx, *orgID)
+		// Navigation is already created inside ProvisionWulfRecruiting (custom tabs)
 	}
 
 	log.Println("Wulf Recruiting provisioning completed successfully!")

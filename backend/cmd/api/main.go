@@ -159,7 +159,7 @@ func main() {
 
 	// Initialize merge services (requires auditLogger)
 	mergeDiscoveryService := service.NewMergeDiscoveryService(metadataRepo)
-	mergeService := service.NewMergeService(mergeRepo, metadataRepo, mergeDiscoveryService, auditLogger)
+	mergeService := service.NewMergeService(mergeRepo, metadataRepo, mergeDiscoveryService, auditLogger, pendingAlertRepo)
 
 	// Initialize notification service
 	notificationService := service.NewNotificationService(notificationRepo, authRepo)

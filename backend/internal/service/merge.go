@@ -24,6 +24,7 @@ type MergeService struct {
 	metadataRepo     *repo.MetadataRepo
 	discoveryService *MergeDiscoveryService
 	auditLogger      *AuditLogger
+	pendingAlertRepo *repo.PendingAlertRepo
 }
 
 // NewMergeService creates a new MergeService
@@ -32,12 +33,14 @@ func NewMergeService(
 	metadataRepo *repo.MetadataRepo,
 	discoveryService *MergeDiscoveryService,
 	auditLogger *AuditLogger,
+	pendingAlertRepo *repo.PendingAlertRepo,
 ) *MergeService {
 	return &MergeService{
 		mergeRepo:        mergeRepo,
 		metadataRepo:     metadataRepo,
 		discoveryService: discoveryService,
 		auditLogger:      auditLogger,
+		pendingAlertRepo: pendingAlertRepo,
 	}
 }
 
@@ -246,10 +249,15 @@ func (s *MergeService) ExecuteMerge(ctx context.Context, db *sql.DB, orgID, user
 			"UPDATE %s SET archived_at = ?, archived_reason = 'MERGED', survivor_id = ? WHERE id = ? AND org_id = ?",
 			tableName,
 		)
-		_, err := tx.ExecContext(ctx, archiveSQL, now, req.SurvivorID, dupID, orgID)
+		result, err := tx.ExecContext(ctx, archiveSQL, now, req.SurvivorID, dupID, orgID)
 		if err != nil {
 			tx.Rollback()
 			return nil, fmt.Errorf("failed to archive duplicate %s: %w", dupID, err)
+		}
+		rowsAffected, _ := result.RowsAffected()
+		if rowsAffected == 0 {
+			tx.Rollback()
+			return nil, fmt.Errorf("duplicate record %s not found or not accessible in org", dupID)
 		}
 	}
 
@@ -285,6 +293,43 @@ func (s *MergeService) ExecuteMerge(ctx context.Context, db *sql.DB, orgID, user
 	// 12. Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// 12.5 Resolve pending duplicate alerts (fire-and-forget, outside transaction)
+	if s.pendingAlertRepo != nil {
+		for _, dupID := range req.DuplicateIDs {
+			s.pendingAlertRepo.Resolve(ctx, orgID, req.EntityType, dupID, "merged", userID, "")
+		}
+		s.pendingAlertRepo.Resolve(ctx, orgID, req.EntityType, req.SurvivorID, "merged", userID, "")
+
+		// 12.6 Cascade: resolve alerts where matches_json references any merged duplicate
+		// Best-effort — don't fail the merge if this errors
+		allMergedIDs := append(req.DuplicateIDs, req.SurvivorID)
+		for _, mergedID := range allMergedIDs {
+			// Find pending alerts whose matches_json contains this record ID
+			cascadeQuery := `
+				SELECT record_id FROM pending_duplicate_alerts
+				WHERE org_id = ? AND entity_type = ? AND status = 'pending'
+				AND matches_json LIKE ?
+			`
+			likePattern := "%" + mergedID + "%"
+			rows, err := db.QueryContext(ctx, cascadeQuery, orgID, req.EntityType, likePattern)
+			if err != nil {
+				log.Printf("WARNING: cascade alert cleanup query failed for %s: %v", mergedID, err)
+				continue
+			}
+			var affectedRecordIDs []string
+			for rows.Next() {
+				var recordID string
+				if err := rows.Scan(&recordID); err == nil {
+					affectedRecordIDs = append(affectedRecordIDs, recordID)
+				}
+			}
+			rows.Close()
+			for _, recordID := range affectedRecordIDs {
+				s.pendingAlertRepo.Resolve(ctx, orgID, req.EntityType, recordID, "merged", userID, "")
+			}
+		}
 	}
 
 	// 13. Create audit log (OUTSIDE transaction, fire-and-forget)

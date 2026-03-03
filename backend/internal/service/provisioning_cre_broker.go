@@ -380,14 +380,40 @@ func getCREEntityLookupConfig(entityName string) (displayField string, searchFie
 	}
 }
 
-// ProvisionCREBrokerComplete runs full CRE provisioning including metadata, navigation, and sample data
+// ProvisionCREBrokerComplete runs full CRE provisioning including metadata, navigation, and sample data.
+// It first provisions the default entities (Account, Contact, Task, Quote) via provisionMetadata,
+// then layers CRE-specific entities (Lead, Property, Deal) on top. All metadata inserts use
+// INSERT OR IGNORE so calling default provisioning first is safe and idempotent.
 func (s *ProvisioningService) ProvisionCREBrokerComplete(ctx context.Context, orgID string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Step 1: Provision default entities, fields, layouts (Account, Contact, Task, Quote).
+	// Uses INSERT OR IGNORE throughout, so it's safe even if already provisioned.
+	if err := s.provisionMetadata(ctx, orgID, now); err != nil {
+		return fmt.Errorf("failed to provision default metadata: %w", err)
+	}
+
+	// Step 2: Layer CRE-specific entities, fields, layouts, nav tabs on top.
+	// Navigation tabs are deleted and recreated with CRE-specific tabs inside ProvisionCREBroker.
 	if err := s.ProvisionCREBroker(ctx, orgID); err != nil {
 		return fmt.Errorf("failed to provision CRE metadata: %w", err)
 	}
-	// Navigation is already created inside ProvisionCREBroker (custom tabs)
+
+	// Step 3: Create CRE-specific system list views for Lead, Property, Deal
+	s.createCRESystemListViews(ctx, orgID, now)
+
+	// Step 4: Seed CRE sample data (not default sample data — CRE has its own)
 	s.ProvisionCREBrokerSampleData(ctx, orgID)
 	return nil
+}
+
+// createCRESystemListViews creates "My Records" and "Unassigned" system list views for CRE entities
+func (s *ProvisioningService) createCRESystemListViews(ctx context.Context, orgID, now string) {
+	for _, entity := range []string{"Lead", "Property", "Deal"} {
+		s.createSystemListView(ctx, orgID, entity, "My Records", "owner:me", now)
+		s.createSystemListView(ctx, orgID, entity, "Unassigned", "owner:unassigned", now)
+	}
+	log.Printf("[Provisioning] Created CRE system list views for org %s", orgID)
 }
 
 // ProvisionCREBrokerSampleData seeds realistic CRE brokerage data:

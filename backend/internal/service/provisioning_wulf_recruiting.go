@@ -387,8 +387,9 @@ func (s *ProvisioningService) ProvisionWulfRecruiting(ctx context.Context, orgID
 	]`, now)
 
 	// ========================================================================
-	// NAVIGATION TABS
+	// NAVIGATION TABS — replace any existing tabs with Wulf-specific tabs
 	// ========================================================================
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM navigation_tabs WHERE org_id = ?`, orgID)
 	s.createNavTab(ctx, orgID, "Home", "/", "", 0, true, now)
 	s.createNavTab(ctx, orgID, "Clients", "/clients", "Client", 1, true, now)
 	s.createNavTab(ctx, orgID, "Candidates", "/candidates", "Candidate", 2, true, now)
@@ -417,7 +418,7 @@ func (s *ProvisioningService) createRecruitingEntity(ctx context.Context, orgID,
 	displayField, searchFields := getRecruitingEntityLookupConfig(name)
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO entity_defs (id, org_id, name, label, label_plural, icon, color, is_custom, is_customizable, has_stream, has_activities, display_field, search_fields, created_at, modified_at)
+		INSERT OR IGNORE INTO entity_defs (id, org_id, name, label, label_plural, icon, color, is_custom, is_customizable, has_stream, has_activities, display_field, search_fields, created_at, modified_at)
 		VALUES (?, ?, ?, ?, ?, '', '', 0, 1, 0, 0, ?, ?, ?, ?)
 	`, id, orgID, name, name, plural, displayField, searchFields, now, now)
 	return err
@@ -653,7 +654,7 @@ func (s *ProvisioningService) ProvisionWulfRecruitingComplete(ctx context.Contex
 	if err := s.ProvisionWulfRecruiting(ctx, orgID); err != nil {
 		return fmt.Errorf("failed to provision metadata: %w", err)
 	}
-	s.ProvisionNavigation(ctx, orgID)
+	// Navigation is already created inside ProvisionWulfRecruiting (custom tabs)
 	s.ProvisionWulfRecruitingSampleData(ctx, orgID)
 	return nil
 }

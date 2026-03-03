@@ -393,6 +393,10 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	if hasDeletedCol {
 		whereParts = append(whereParts, "t.deleted = 0")
 	}
+	// Exclude archived (merged) records
+	if tableHasColumn(c.Context(), h.getDB(c), tableName, "archived_at") {
+		whereParts = append(whereParts, "(t.archived_at IS NULL OR t.archived_at = '')")
+	}
 	// Apply owner filter
 	if owner == "unassigned" {
 		if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
@@ -530,7 +534,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 
 			// Generate the link URL if we have an ID and linked entity
 			if idVal != nil && idVal != "" && fieldDef.LinkEntity != nil {
-				linkedEntityPlural := strings.ToLower(*fieldDef.LinkEntity) + "s"
+				linkedEntityPlural := util.GetTableName(*fieldDef.LinkEntity)
 				camelRecord[fieldName+"Link"] = "/" + linkedEntityPlural + "/" + fmt.Sprintf("%v", idVal)
 			} else {
 				camelRecord[fieldName+"Link"] = nil
@@ -553,7 +557,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 
 			// Generate the links array if we have IDs and linked entity
 			if idsVal != nil && idsVal != "" && idsVal != "[]" && fieldDef.LinkEntity != nil {
-				linkedEntityPlural := strings.ToLower(*fieldDef.LinkEntity) + "s"
+				linkedEntityPlural := util.GetTableName(*fieldDef.LinkEntity)
 				// Parse the IDs JSON array and create links
 				var ids []string
 				if idsStr, ok := idsVal.(string); ok {
@@ -743,7 +747,7 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 
 		// Generate the link URL if we have an ID and linked entity
 		if idVal != nil && idVal != "" && fieldDef.LinkEntity != nil {
-			linkedEntityPlural := strings.ToLower(*fieldDef.LinkEntity) + "s"
+			linkedEntityPlural := util.GetTableName(*fieldDef.LinkEntity)
 			camelRecord[fieldName+"Link"] = "/" + linkedEntityPlural + "/" + fmt.Sprintf("%v", idVal)
 		} else {
 			camelRecord[fieldName+"Link"] = nil
@@ -766,7 +770,7 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 
 		// Generate the links array if we have IDs and linked entity
 		if idsVal != nil && idsVal != "" && idsVal != "[]" && fieldDef.LinkEntity != nil {
-			linkedEntityPlural := strings.ToLower(*fieldDef.LinkEntity) + "s"
+			linkedEntityPlural := util.GetTableName(*fieldDef.LinkEntity)
 			// Parse the IDs JSON array and create links
 			var ids []string
 			if idsStr, ok := idsVal.(string); ok {
