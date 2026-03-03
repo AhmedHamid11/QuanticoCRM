@@ -25,7 +25,18 @@ func (s *LayoutService) ParseLayoutData(layoutJSON string) (*entity.LayoutDataPa
 		}, nil
 	}
 
-	// First, try to parse as v2 (object with version field)
+	// First, try to parse as v3 (version == 3) — MUST come before v2 check
+	// because Go JSON ignores unknown fields, so a v3 blob would unmarshal
+	// successfully into LayoutDataV2 with version=3, silently dropping tabs/sidebar/header.
+	var v3Data entity.LayoutDataV3
+	if err := json.Unmarshal([]byte(layoutJSON), &v3Data); err == nil && v3Data.Version == entity.LayoutVersionV3 {
+		return &entity.LayoutDataParsed{
+			Version: entity.LayoutVersionV3,
+			V3Data:  &v3Data,
+		}, nil
+	}
+
+	// Try to parse as v2 (object with version field)
 	var v2Data entity.LayoutDataV2
 	if err := json.Unmarshal([]byte(layoutJSON), &v2Data); err == nil && v2Data.Version == entity.LayoutVersionV2 {
 		return &entity.LayoutDataParsed{
@@ -149,6 +160,32 @@ func (s *LayoutService) GetLayoutAsV2(layoutJSON string) (*entity.LayoutDataV2, 
 
 	// Convert v1 to v2
 	return entity.ConvertV1ToV2(parsed.V1Fields), nil
+}
+
+// GetLayoutAsV3 returns layout data in v3 format, up-converting v1/v2 if needed.
+// Does NOT mutate or persist anything — read-only conversion.
+func (s *LayoutService) GetLayoutAsV3(layoutJSON string) (*entity.LayoutDataV3, error) {
+	parsed, err := s.ParseLayoutData(layoutJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	var v2Data *entity.LayoutDataV2
+
+	switch parsed.Version {
+	case entity.LayoutVersionV3:
+		// Already V3 — use parsed data directly
+		v3 := parsed.V3Data
+		v3.Conditions = nil // strip any stored conditions value, not yet implemented
+		return v3, nil
+	case entity.LayoutVersionV2:
+		v2Data = parsed.V2Data
+	default:
+		// V1 or V1.5 — convert to V2 first
+		v2Data = entity.ConvertV1ToV2(parsed.V1Fields)
+	}
+
+	return entity.ConvertV2ToV3(v2Data), nil
 }
 
 // EvaluateVisibility checks if a visibility rule passes given the record data
