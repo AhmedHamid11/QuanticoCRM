@@ -300,7 +300,10 @@ func (p *MigrationPropagator) applyMigrations(ctx context.Context, tenantDB db.D
 	}
 	for rows.Next() {
 		var name string
-		rows.Scan(&name)
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("failed to scan migration name: %w", err)
+		}
 		applied[name] = true
 	}
 	rows.Close()

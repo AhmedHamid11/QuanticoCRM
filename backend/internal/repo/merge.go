@@ -42,7 +42,7 @@ func (r *MergeRepo) EnsureTableExists(ctx context.Context) error {
 		return nil // Table already exists
 	}
 
-	// Create the table
+	// Create the table - schema matches migration 055_create_merge_snapshots.sql
 	createSQL := `
 		CREATE TABLE IF NOT EXISTS merge_snapshots (
 			id TEXT PRIMARY KEY,
@@ -55,7 +55,7 @@ func (r *MergeRepo) EnsureTableExists(ctx context.Context) error {
 			related_record_fks TEXT NOT NULL,
 			merged_by_id TEXT NOT NULL,
 			consumed_at TEXT,
-			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			created_at TEXT NOT NULL,
 			expires_at TEXT NOT NULL
 		)
 	`
@@ -63,11 +63,11 @@ func (r *MergeRepo) EnsureTableExists(ctx context.Context) error {
 		return fmt.Errorf("failed to create merge_snapshots table: %w", err)
 	}
 
-	// Create indexes
+	// Create indexes - matching migration 055
 	indexes := []string{
-		"CREATE INDEX IF NOT EXISTS idx_merge_snapshots_org_survivor ON merge_snapshots(org_id, survivor_id)",
-		"CREATE INDEX IF NOT EXISTS idx_merge_snapshots_org_created ON merge_snapshots(org_id, created_at DESC)",
-		"CREATE INDEX IF NOT EXISTS idx_merge_snapshots_expires ON merge_snapshots(org_id, expires_at)",
+		"CREATE INDEX IF NOT EXISTS idx_merge_snapshots_org ON merge_snapshots(org_id)",
+		"CREATE INDEX IF NOT EXISTS idx_merge_snapshots_survivor ON merge_snapshots(org_id, survivor_id)",
+		"CREATE INDEX IF NOT EXISTS idx_merge_snapshots_expires ON merge_snapshots(expires_at)",
 	}
 	for _, idx := range indexes {
 		if _, err := r.db.ExecContext(ctx, idx); err != nil {

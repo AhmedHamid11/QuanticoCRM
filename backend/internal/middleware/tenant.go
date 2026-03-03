@@ -54,6 +54,12 @@ func (m *TenantMiddleware) ResolveTenant() fiber.Handler {
 			// No org context - might be a platform-level request
 			// Set master DB for these cases
 			masterDB := m.dbManager.GetMasterDB()
+			if masterDB == nil {
+				log.Printf("[TENANT-MW] CRITICAL: GetMasterDB() returned nil")
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"error": "Database service unavailable",
+				})
+			}
 			// Use wrappers to prevent fasthttp from closing shared connections
 			c.Locals(DBKey, &sqlDBWrapper{db: masterDB})
 			c.Locals(DBConnKey, &dbConnWrapper{conn: masterDB})
@@ -63,6 +69,12 @@ func (m *TenantMiddleware) ResolveTenant() fiber.Handler {
 		orgID, ok := orgIDVal.(string)
 		if !ok || orgID == "" {
 			masterDB := m.dbManager.GetMasterDB()
+			if masterDB == nil {
+				log.Printf("[TENANT-MW] CRITICAL: GetMasterDB() returned nil (empty orgID path)")
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+					"error": "Database service unavailable",
+				})
+			}
 			c.Locals(DBKey, &sqlDBWrapper{db: masterDB})
 			c.Locals(DBConnKey, &dbConnWrapper{conn: masterDB})
 			return c.Next()
@@ -111,12 +123,10 @@ func (m *TenantMiddleware) ResolveTenant() fiber.Handler {
 
 		// Get tenant database connection
 		if org.DatabaseURL == "" {
-			log.Printf("[TENANT-MW] Org=%s WARNING: No database URL configured, using master DB", orgID)
-			// Fall back to master DB (legacy behavior during migration)
-			masterDB := m.dbManager.GetMasterDB()
-			c.Locals(DBKey, &sqlDBWrapper{db: masterDB})
-			c.Locals(DBConnKey, &dbConnWrapper{conn: masterDB})
-			return c.Next()
+			log.Printf("[TENANT-MW] Org=%s ERROR: No database URL configured, rejecting request", orgID)
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "Organization database not provisioned. Please contact support.",
+			})
 		}
 
 		// Use GetTenantDBConn for retry-enabled connection (preferred)

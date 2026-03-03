@@ -49,11 +49,20 @@ func (r *RelatedListRepo) DB() db.DBConn {
 // EnsureSchema ensures the related_list_configs table has all required columns
 // This handles schema migrations for tenant databases that may be missing columns
 func (r *RelatedListRepo) EnsureSchema(ctx context.Context) error {
+	// First check if the table exists at all
+	var tableExists int
+	if err := r.dbConn.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='related_list_configs'").Scan(&tableExists); err != nil {
+		return fmt.Errorf("failed to check related_list_configs table existence: %w", err)
+	}
+	if tableExists == 0 {
+		return nil // Table doesn't exist yet - will be created by migrations
+	}
+
 	// Check if is_multi_lookup column exists
 	var count int
 	err := r.dbConn.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('related_list_configs') WHERE name = 'is_multi_lookup'").Scan(&count)
 	if err != nil {
-		return nil // Table might not exist yet, that's fine
+		return fmt.Errorf("failed to check is_multi_lookup column: %w", err)
 	}
 
 	if count == 0 {
@@ -67,7 +76,7 @@ func (r *RelatedListRepo) EnsureSchema(ctx context.Context) error {
 	// Check if edit_in_list column exists
 	err = r.dbConn.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_table_info('related_list_configs') WHERE name = 'edit_in_list'").Scan(&count)
 	if err != nil {
-		return nil // Table might not exist yet, that's fine
+		return fmt.Errorf("failed to check edit_in_list column: %w", err)
 	}
 
 	if count == 0 {

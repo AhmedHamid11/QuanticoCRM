@@ -156,13 +156,25 @@ func (s *AuthService) Register(ctx context.Context, input entity.RegisterInput) 
 		// Provision tenant database and metadata
 		tenantDB, err := s.tenantProvisioning.ProvisionTenant(ctx, org.ID, slug)
 		if err != nil {
-			// Log but don't fail registration if provisioning fails
-			fmt.Printf("Warning: failed to provision tenant database: %v\n", err)
-		} else if tenantDB.URL != "" {
+			// Provisioning failed - delete the orphaned org and fail registration
+			log.Printf("[Register] ERROR: tenant provisioning failed for org %s: %v", org.ID, err)
+			if delErr := s.repo.DeleteOrganization(ctx, org.ID); delErr != nil {
+				log.Printf("[Register] ERROR: failed to clean up org %s after provisioning failure: %v", org.ID, delErr)
+			}
+			return nil, fmt.Errorf("failed to provision organization database: %w", err)
+		}
+		if tenantDB.URL != "" {
 			// Update org with database credentials
 			if err := s.repo.UpdateOrganizationDatabase(ctx, org.ID, tenantDB.URL, tenantDB.Token, tenantDB.Name); err != nil {
-				fmt.Printf("Warning: failed to save database credentials: %v\n", err)
+				log.Printf("[Register] ERROR: failed to save database credentials for org %s: %v", org.ID, err)
+				return nil, fmt.Errorf("failed to save database credentials: %w", err)
 			}
+		} else {
+			log.Printf("[Register] ERROR: tenant provisioning returned empty URL for org %s", org.ID)
+			if delErr := s.repo.DeleteOrganization(ctx, org.ID); delErr != nil {
+				log.Printf("[Register] ERROR: failed to clean up org %s: %v", org.ID, delErr)
+			}
+			return nil, fmt.Errorf("tenant database provisioning returned empty URL")
 		}
 	} else {
 		// Legacy path: create org and provision metadata to shared DB
@@ -711,13 +723,24 @@ func (s *AuthService) ValidateAccessToken(tokenString string) (*entity.TokenClai
 		return nil, ErrInvalidToken
 	}
 
+	// Use safe type assertion helpers for all claims to prevent panics
+	userID := getStringClaim(claims, "userId")
+	orgID := getStringClaim(claims, "orgId")
+	email := getStringClaim(claims, "email")
+	role := getStringClaim(claims, "role")
+
+	// Validate required claims are present
+	if userID == "" || orgID == "" || email == "" || role == "" {
+		return nil, ErrInvalidToken
+	}
+
 	return &entity.TokenClaims{
-		UserID:             claims["userId"].(string),
-		OrgID:              claims["orgId"].(string),
-		Email:              claims["email"].(string),
-		Role:               claims["role"].(string),
-		IsPlatformAdmin:    claims["isPlatformAdmin"].(bool),
-		IsImpersonation:    claims["isImpersonation"].(bool),
+		UserID:             userID,
+		OrgID:              orgID,
+		Email:              email,
+		Role:               role,
+		IsPlatformAdmin:    getBoolClaim(claims, "isPlatformAdmin"),
+		IsImpersonation:    getBoolClaim(claims, "isImpersonation"),
 		ImpersonatedBy:     getStringClaim(claims, "impersonatedBy"),
 		MustChangePassword: getBoolClaim(claims, "mustChangePassword"),
 	}, nil

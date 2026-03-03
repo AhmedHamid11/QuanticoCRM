@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fastcrm/backend/internal/entity"
@@ -47,6 +48,9 @@ func (r *CustomPageRepo) List(ctx context.Context, orgID string) ([]entity.Custo
 
 	rows, err := r.db.QueryContext(ctx, query, orgID)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return []entity.CustomPageListItem{}, nil
+		}
 		return nil, fmt.Errorf("failed to list custom pages: %w", err)
 	}
 	defer rows.Close()

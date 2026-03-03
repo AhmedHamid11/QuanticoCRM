@@ -126,6 +126,9 @@ func (r *FlowRepo) ListFlows(ctx context.Context, orgID string, params flow.Flow
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM flow_definitions WHERE %s", where)
 	var total int
 	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return &flow.FlowListResponse{Data: []flow.FlowDefinitionDB{}, Total: 0, Page: params.Page, PageSize: params.PageSize}, nil
+		}
 		return nil, fmt.Errorf("failed to count flows: %w", err)
 	}
 

@@ -45,17 +45,21 @@ func (h *OrgSettingsHandler) Get(c *fiber.Ctx) error {
 		// Auto-create table if missing (for existing orgs before this migration)
 		if strings.Contains(err.Error(), "no such table") {
 			if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+				// Schema must match migration 044_create_org_settings.sql
 				_, createErr := tenantDB.ExecContext(c.Context(), `
 					CREATE TABLE IF NOT EXISTS org_settings (
 						org_id TEXT PRIMARY KEY,
 						home_page TEXT DEFAULT '/',
-						idle_timeout_minutes INTEGER NOT NULL DEFAULT 30,
-						absolute_timeout_minutes INTEGER NOT NULL DEFAULT 1440,
 						settings_json TEXT DEFAULT '{}',
-						created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-						modified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+						created_at TEXT NOT NULL DEFAULT (datetime('now')),
+						modified_at TEXT NOT NULL DEFAULT (datetime('now'))
 					)
 				`)
+				// Add timeout columns that were added later
+				if createErr == nil {
+					tenantDB.ExecContext(c.Context(), "ALTER TABLE org_settings ADD COLUMN idle_timeout_minutes INTEGER DEFAULT 30")
+					tenantDB.ExecContext(c.Context(), "ALTER TABLE org_settings ADD COLUMN absolute_timeout_minutes INTEGER DEFAULT 1440")
+				}
 				if createErr == nil {
 					// Retry the get
 					settings, err = tenantRepo.Get(c.Context(), orgID)

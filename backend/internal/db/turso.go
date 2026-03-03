@@ -236,7 +236,17 @@ func (t *TursoDB) QueryRowContext(ctx context.Context, query string, args ...int
 	}
 
 	log.Printf("TursoDB: QueryRowContext failed after 3 attempts: %v", lastErr)
-	// Return nil - caller should handle this
+	// Last resort: try currentDB even though getConnection failed.
+	// *sql.DB.QueryRowContext never returns nil - it defers errors to Scan().
+	// This avoids nil pointer panics in callers.
+	t.mu.Lock()
+	fallbackDB := t.currentDB
+	t.mu.Unlock()
+	if fallbackDB != nil {
+		return fallbackDB.QueryRowContext(ctx, query, args...)
+	}
+	// Truly no connection available - this should be extremely rare
+	log.Printf("TursoDB: CRITICAL - no connection available at all, returning nil Row")
 	return nil
 }
 
@@ -459,11 +469,14 @@ func (t *TenantDB) QueryRowContext(ctx context.Context, query string, args ...in
 	if needsReconnect {
 		if err := t.reconnect(); err != nil {
 			log.Printf("[TENANT-DB] Org=%s QueryRowContext reconnect failed: %v", t.orgID, err)
-			return nil
 		}
 		t.mu.Lock()
 		db = t.db
 		t.mu.Unlock()
+	}
+	if db == nil {
+		log.Printf("[TENANT-DB] Org=%s CRITICAL - QueryRowContext db is nil, no connection available", t.orgID)
+		return nil
 	}
 	return db.QueryRowContext(ctx, query, args...)
 }

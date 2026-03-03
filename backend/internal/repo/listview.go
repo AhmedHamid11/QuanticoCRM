@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/fastcrm/backend/internal/db"
@@ -47,6 +48,9 @@ func (r *ListViewRepo) List(ctx context.Context, orgID, entityName string) ([]en
 
 	rows, err := r.conn.QueryContext(ctx, query, orgID, entityName)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return []entity.ListView{}, nil
+		}
 		return nil, err
 	}
 	defer rows.Close()
