@@ -2,7 +2,7 @@
 
 import { fieldNameToKey, getRecordValue } from '$lib/utils/fieldMapping';
 
-export type LayoutVersion = 1 | 2;
+export type LayoutVersion = 1 | 2 | 3;
 
 export type VisibilityType = 'always' | 'conditional' | 'never';
 
@@ -63,6 +63,45 @@ export interface LayoutV2Response {
 	entityName: string;
 	layoutType: string;
 	layout: LayoutDataV2;
+	exists: boolean;
+}
+
+// V3 layout types — mirrors backend entity/layout.go
+export interface LayoutTabV3 {
+	id: string;
+	label: string;
+	order: number;
+	sectionIds: string[];
+}
+
+export interface LayoutSidebarCardV3 {
+	id: string;
+	label: string;
+	order: number;
+	fields: string[];
+}
+
+export interface LayoutSidebarV3 {
+	cards: LayoutSidebarCardV3[];
+}
+
+export interface LayoutHeaderV3 {
+	fields: string[];
+}
+
+export interface LayoutDataV3 {
+	version: 3;
+	sections: LayoutSectionV2[];
+	tabs: LayoutTabV3[];
+	sidebar: LayoutSidebarV3;
+	header: LayoutHeaderV3;
+	conditions: null;
+}
+
+export interface LayoutV3Response {
+	entityName: string;
+	layoutType: string;
+	layout: LayoutDataV3;
 	exists: boolean;
 }
 
@@ -243,6 +282,24 @@ export function getVisibleSections(
 			fields: section.fields.filter((field) => evaluateVisibility(field.visibility, record))
 		}))
 		.filter((section) => section.fields.length > 0)
+		.sort((a, b) => a.order - b.order);
+}
+
+// Get visible sections assigned to a specific V3 tab
+export function getSectionsForTab(
+	layout: LayoutDataV3,
+	tabId: string,
+	record: Record<string, unknown>
+): LayoutSectionV2[] {
+	const tab = layout.tabs.find((t) => t.id === tabId);
+	if (!tab) return [];
+	return layout.sections
+		.filter((s) => tab.sectionIds.includes(s.id) && evaluateVisibility(s.visibility, record))
+		.map((s) => ({
+			...s,
+			fields: s.fields.filter((f) => evaluateVisibility(f.visibility, record))
+		}))
+		.filter((s) => s.fields.length > 0)
 		.sort((a, b) => a.order - b.order);
 }
 
