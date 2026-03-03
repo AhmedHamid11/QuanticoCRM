@@ -6,6 +6,7 @@ type LayoutVersion int
 const (
 	LayoutVersionV1 LayoutVersion = 1 // Flat array of field names
 	LayoutVersionV2 LayoutVersion = 2 // Sections with visibility rules
+	LayoutVersionV3 LayoutVersion = 3 // Tabbed layout with sidebar and header
 )
 
 // VisibilityType represents how visibility is determined
@@ -58,12 +59,50 @@ type LayoutDataV2 struct {
 	Sections []LayoutSectionV2 `json:"sections"`
 }
 
+// LayoutTabV3 represents a named tab containing section IDs
+type LayoutTabV3 struct {
+	ID         string   `json:"id"`
+	Label      string   `json:"label"`
+	Order      int      `json:"order"`
+	SectionIDs []string `json:"sectionIds"`
+}
+
+// LayoutSidebarCardV3 represents a card in the right sidebar
+type LayoutSidebarCardV3 struct {
+	ID     string   `json:"id"`
+	Label  string   `json:"label"`
+	Order  int      `json:"order"`
+	Fields []string `json:"fields"`
+}
+
+// LayoutSidebarV3 holds the sidebar configuration
+type LayoutSidebarV3 struct {
+	Cards []LayoutSidebarCardV3 `json:"cards"`
+}
+
+// LayoutHeaderV3 holds the header strip configuration (4-6 key fields)
+type LayoutHeaderV3 struct {
+	Fields []string `json:"fields"`
+}
+
+// LayoutDataV3 is the V3 layout data structure with tabs, sidebar, and header.
+// The Conditions field is reserved for future conditional visibility — always null.
+type LayoutDataV3 struct {
+	Version    LayoutVersion     `json:"version"`
+	Sections   []LayoutSectionV2 `json:"sections"`
+	Tabs       []LayoutTabV3     `json:"tabs"`
+	Sidebar    LayoutSidebarV3   `json:"sidebar"`
+	Header     LayoutHeaderV3    `json:"header"`
+	Conditions interface{}       `json:"conditions"`
+}
+
 // LayoutDataParsed is a union type for parsed layout data
-// It can be either v1 (flat array) or v2 (sections)
+// It can be either v1 (flat array), v2 (sections), or v3 (tabbed with sidebar/header)
 type LayoutDataParsed struct {
 	Version  LayoutVersion
 	V1Fields []string      // For v1 layouts
 	V2Data   *LayoutDataV2 // For v2 layouts
+	V3Data   *LayoutDataV3 // For v3 layouts
 }
 
 // NewDefaultVisibility creates an "always visible" visibility rule
@@ -112,6 +151,32 @@ func ConvertV1ToV2(fields []string) *LayoutDataV2 {
 				Fields:      layoutFields,
 			},
 		},
+	}
+}
+
+// ConvertV2ToV3 wraps a V2 layout in a V3 envelope.
+// All existing sections are placed in a single default "Overview" tab.
+// Sidebar and Header start empty (populated by admin via PUT later).
+func ConvertV2ToV3(v2 *LayoutDataV2) *LayoutDataV3 {
+	sectionIDs := make([]string, len(v2.Sections))
+	for i, s := range v2.Sections {
+		sectionIDs[i] = s.ID
+	}
+
+	return &LayoutDataV3{
+		Version:  LayoutVersionV3,
+		Sections: v2.Sections,
+		Tabs: []LayoutTabV3{
+			{
+				ID:         "tab_overview",
+				Label:      "Overview",
+				Order:      1,
+				SectionIDs: sectionIDs,
+			},
+		},
+		Sidebar:    LayoutSidebarV3{Cards: []LayoutSidebarCardV3{}},
+		Header:     LayoutHeaderV3{Fields: []string{}},
+		Conditions: nil,
 	}
 }
 
