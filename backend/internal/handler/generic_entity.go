@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fastcrm/backend/internal/cache"
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
@@ -92,6 +93,8 @@ var accountKnownFields = map[string]bool{
 type GenericEntityHandler struct {
 	defaultDB           db.DBConn
 	metadataRepo        *repo.MetadataRepo
+	metadataCache       *cache.MetadataCache  // in-memory cache for metadata reads
+	schemaCache         *cache.SchemaCache    // in-memory cache for PRAGMA table_info results
 	authRepo            *repo.AuthRepo // NEW: for user name lookups
 	tripwireService     TripwireServiceInterface
 	validationService   ValidationServiceInterface
@@ -109,6 +112,13 @@ func NewGenericEntityHandler(conn db.DBConn, metadataRepo *repo.MetadataRepo, au
 		validationService: validationService,
 		realtimeChecker:   realtimeChecker,
 	}
+}
+
+// SetCaches injects the shared metadata and schema caches.
+// Call this after NewGenericEntityHandler to enable caching.
+func (h *GenericEntityHandler) SetCaches(mc *cache.MetadataCache, sc *cache.SchemaCache) {
+	h.metadataCache = mc
+	h.schemaCache = sc
 }
 
 // getDB returns the tenant database from context, falling back to default db
@@ -131,6 +141,29 @@ func (h *GenericEntityHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo 
 		return h.metadataRepo.WithDB(tenantDB)
 	}
 	return h.metadataRepo
+}
+
+// getMetadataCache returns the MetadataCache scoped to the tenant DB for this request.
+// Falls back to direct repo access if no cache is configured (backwards compatibility).
+func (h *GenericEntityHandler) getMetadataCache(c *fiber.Ctx) *cache.MetadataCache {
+	if h.metadataCache == nil {
+		// No cache configured — create a short-lived passthrough cache so callers
+		// always get the same interface. This path should not occur in production.
+		return cache.NewMetadataCache(h.getMetadataRepo(c), cache.DefaultMetadataTTL)
+	}
+	if tenantDB := middleware.GetTenantDB(c); tenantDB != nil {
+		return h.metadataCache.WithDB(tenantDB)
+	}
+	return h.metadataCache
+}
+
+// hasColumn checks column existence using the SchemaCache when available,
+// or falls back to a direct PRAGMA query.
+func (h *GenericEntityHandler) hasColumn(ctx context.Context, conn db.DBConn, tableName, columnName string) bool {
+	if h.schemaCache != nil {
+		return h.schemaCache.HasColumn(ctx, conn, tableName, columnName)
+	}
+	return tableHasColumn(ctx, conn, tableName, columnName)
 }
 
 // SetProvisioningService injects the provisioning service for auto-provisioning
@@ -294,7 +327,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Try to resolve entity name case-insensitively (e.g., "jobs" -> "Job")
-	resolvedName, err := h.getMetadataRepo(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
+	resolvedName, err := h.getMetadataCache(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -303,7 +336,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Verify entity exists for this org
-	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+	ent, err := h.getMetadataCache(c).GetEntity(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -317,7 +350,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Get field definitions to identify lookup fields
-	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	fields, err := h.getMetadataCache(c).ListFields(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -384,7 +417,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Check if table has a 'deleted' column (custom entities may not)
-	hasDeletedCol := tableHasColumn(c.Context(), h.getDB(c), tableName, "deleted")
+	hasDeletedCol := h.hasColumn(c.Context(), h.getDB(c), tableName, "deleted")
 
 	// Build common WHERE clause fragments
 	var whereParts []string
@@ -394,16 +427,16 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 		whereParts = append(whereParts, "t.deleted = 0")
 	}
 	// Exclude archived (merged) records
-	if tableHasColumn(c.Context(), h.getDB(c), tableName, "archived_at") {
+	if h.hasColumn(c.Context(), h.getDB(c), tableName, "archived_at") {
 		whereParts = append(whereParts, "(t.archived_at IS NULL OR t.archived_at = '')")
 	}
 	// Apply owner filter
 	if owner == "unassigned" {
-		if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+		if h.hasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
 			whereParts = append(whereParts, "(t.assigned_user_id IS NULL OR t.assigned_user_id = '')")
 		}
 	} else if owner != "" {
-		if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+		if h.hasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
 			whereParts = append(whereParts, "t.assigned_user_id = ?")
 			whereArgs = append(whereArgs, owner)
 		}
@@ -420,7 +453,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 		// Fallback: if no search fields configured, try common patterns
 		if len(searchFields) == 0 {
 			// Check if table has a 'name' column
-			if tableHasColumn(c.Context(), h.getDB(c), tableName, "name") {
+			if h.hasColumn(c.Context(), h.getDB(c), tableName, "name") {
 				searchFields = []string{"name"}
 			}
 		}
@@ -431,7 +464,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 				// Convert camelCase field name to snake_case column name
 				colName := util.CamelToSnake(sf)
 				// Verify the column exists to prevent SQL errors
-				if tableHasColumn(c.Context(), h.getDB(c), tableName, colName) {
+				if h.hasColumn(c.Context(), h.getDB(c), tableName, colName) {
 					searchParts = append(searchParts, fmt.Sprintf("t.%s LIKE ?", colName))
 					whereArgs = append(whereArgs, "%"+search+"%")
 				}
@@ -650,7 +683,7 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	// Try to resolve entity name case-insensitively (e.g., "jobs" -> "Job")
-	resolvedName, err := h.getMetadataRepo(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
+	resolvedName, err := h.getMetadataCache(c).GetEntityByLowercaseName(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -659,7 +692,7 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 	}
 
 	// Verify entity exists for this org
-	ent, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, entityName)
+	ent, err := h.getMetadataCache(c).GetEntity(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -668,7 +701,7 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 	}
 
 	// Get field definitions to identify lookup fields
-	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	fields, err := h.getMetadataCache(c).ListFields(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -1004,7 +1037,7 @@ func (h *GenericEntityHandler) Create(c *fiber.Ctx) error {
 	values = append(values, now, now, userID, userID)
 
 	// Default assigned_user_id to creating user if not already set
-	if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+	if h.hasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
 		hasAssigned := false
 		for _, col := range columns {
 			if col == "\"assigned_user_id\"" || col == "assigned_user_id" {
@@ -1747,7 +1780,7 @@ func (h *GenericEntityHandler) upsertCreate(c *fiber.Ctx, orgID, entityName, tab
 	values = append(values, now, now, userID, userID)
 
 	// Default assigned_user_id to creating user if not already set
-	if tableHasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
+	if h.hasColumn(c.Context(), h.getDB(c), tableName, "assigned_user_id") {
 		hasAssigned := false
 		for _, col := range columns {
 			if col == "\"assigned_user_id\"" || col == "assigned_user_id" {

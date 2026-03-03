@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/fastcrm/backend/internal/cache"
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/gofiber/fiber/v2"
@@ -9,7 +10,8 @@ import (
 // MetadataHandler provides read-only access to entity metadata
 // This is accessible to all authenticated users for rendering layouts
 type MetadataHandler struct {
-	metadataRepo *repo.MetadataRepo
+	metadataRepo  *repo.MetadataRepo
+	metadataCache *cache.MetadataCache // optional cache for read-only routes
 }
 
 // NewMetadataHandler creates a new MetadataHandler
@@ -17,6 +19,11 @@ func NewMetadataHandler(metadataRepo *repo.MetadataRepo) *MetadataHandler {
 	return &MetadataHandler{
 		metadataRepo: metadataRepo,
 	}
+}
+
+// SetMetadataCache injects the shared metadata cache for read-only routes.
+func (h *MetadataHandler) SetMetadataCache(mc *cache.MetadataCache) {
+	h.metadataCache = mc
 }
 
 // getMetadataRepo returns a metadata repo using the tenant database from context
@@ -27,12 +34,23 @@ func (h *MetadataHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo {
 	return h.metadataRepo
 }
 
+// getMetadataCache returns the MetadataCache scoped to the tenant DB for this request.
+func (h *MetadataHandler) getMetadataCache(c *fiber.Ctx) *cache.MetadataCache {
+	if h.metadataCache == nil {
+		return cache.NewMetadataCache(h.getMetadataRepo(c), cache.DefaultMetadataTTL)
+	}
+	if tenantDB := middleware.GetTenantDB(c); tenantDB != nil {
+		return h.metadataCache.WithDB(tenantDB)
+	}
+	return h.metadataCache
+}
+
 // GetEntityFields returns field definitions for an entity (read-only)
 func (h *MetadataHandler) GetEntityFields(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 	entityName := c.Params("entity")
 
-	fields, err := h.getMetadataRepo(c).ListFields(c.Context(), orgID, entityName)
+	fields, err := h.getMetadataCache(c).ListFields(c.Context(), orgID, entityName)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -48,7 +66,7 @@ func (h *MetadataHandler) GetEntityLayout(c *fiber.Ctx) error {
 	entityName := c.Params("entity")
 	layoutType := c.Params("type")
 
-	layout, err := h.getMetadataRepo(c).GetLayout(c.Context(), orgID, entityName, layoutType)
+	layout, err := h.getMetadataCache(c).GetLayout(c.Context(), orgID, entityName, layoutType)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
@@ -81,7 +99,7 @@ func (h *MetadataHandler) GetEntity(c *fiber.Ctx) error {
 	orgID := c.Locals("orgID").(string)
 	name := c.Params("entity")
 
-	entity, err := h.getMetadataRepo(c).GetEntity(c.Context(), orgID, name)
+	entity, err := h.getMetadataCache(c).GetEntity(c.Context(), orgID, name)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),

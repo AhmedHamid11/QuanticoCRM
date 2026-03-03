@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/fastcrm/backend/internal/cache"
 	"github.com/fastcrm/backend/internal/config"
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/dedup"
@@ -113,6 +114,15 @@ func main() {
 	if err := metadataRepo.EnsureSchema(context.Background()); err != nil {
 		log.Printf("Warning: Failed to ensure metadata schema: %v", err)
 	}
+
+	// Initialize shared in-memory caches for metadata and schema reads.
+	// These are safe to share across all handlers — keys include orgID for tenant isolation.
+	metadataCache := cache.NewMetadataCache(metadataRepo, cache.DefaultMetadataTTL)
+	defer metadataCache.Stop()
+	schemaCache := cache.NewSchemaCache(cache.DefaultSchemaTTL)
+	defer schemaCache.Stop()
+	log.Printf("Metadata cache initialized (TTL=%s), schema cache initialized (TTL=%s)",
+		cache.DefaultMetadataTTL, cache.DefaultSchemaTTL)
 
 	// Ensure submittals table has client_id column (migration 040)
 	ensureSubmittalsClientID(masterDB)
@@ -284,15 +294,18 @@ func main() {
 	// Initialize handlers
 	contactHandler := handler.NewContactHandler(contactRepo, taskRepo, authRepo, tripwireService, validationService, realtimeChecker, notificationService, masterDBConn)
 	accountHandler := handler.NewAccountHandler(accountRepo, taskRepo, masterDB, metadataRepo, authRepo, tripwireService, validationService, notificationService)
+	accountHandler.SetMetadataCache(metadataCache)
 	taskHandler := handler.NewTaskHandler(taskRepo, authRepo, tripwireService, validationService, notificationService, masterDBConn)
 	adminHandler := handler.NewAdminHandlerWithManager(masterDB, dbManager, metadataRepo, navigationRepo)
 	adminHandler.SetProvisioningService(provisioningService) // Enable re-provisioning endpoint
+	adminHandler.SetMetadataCache(metadataCache)             // Enable cache invalidation on metadata mutations
 	navigationHandler := handler.NewNavigationHandler(navigationRepo)
 	lookupHandler := handler.NewLookupHandler(masterDB, metadataRepo)
 	relatedHandler := handler.NewRelatedHandler(masterDB)
 	relatedListHandler := handler.NewRelatedListHandler(relatedListRepo, metadataRepo, masterDB)
 	genericEntityHandler := handler.NewGenericEntityHandler(masterDB, metadataRepo, authRepo, tripwireService, validationService, realtimeChecker)
 	genericEntityHandler.SetProvisioningService(provisioningService)
+	genericEntityHandler.SetCaches(metadataCache, schemaCache)
 	dataExplorerHandler := handler.NewDataExplorerHandler(masterDB)
 	tripwireHandler := handler.NewTripwireHandler(tripwireRepo)
 	bearingHandler := handler.NewBearingHandler(bearingRepo)
@@ -314,6 +327,7 @@ func main() {
 		log.Println("Import preflight quota checks enabled (Turso API configured)")
 	}
 	metadataHandler := handler.NewMetadataHandler(metadataRepo)
+	metadataHandler.SetMetadataCache(metadataCache)
 	customPageHandler := handler.NewCustomPageHandler(customPageRepo)
 	listViewHandler := handler.NewListViewHandler(listViewRepo)
 	quoteHandler := handler.NewQuoteHandler(quoteRepo, authRepo, tripwireService, validationService, notificationService, masterDBConn)

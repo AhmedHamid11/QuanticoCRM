@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/fastcrm/backend/internal/cache"
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
@@ -29,6 +30,7 @@ type AdminHandler struct {
 	db                  *sql.DB
 	dbManager           *db.Manager
 	metadataRepo        *repo.MetadataRepo
+	metadataCache       *cache.MetadataCache // shared cache to invalidate on mutations
 	navigationRepo      *repo.NavigationRepo
 	layoutService       *service.LayoutService
 	provisioningService ProvisioningServiceInterface
@@ -58,6 +60,28 @@ func NewAdminHandlerWithManager(masterDB *sql.DB, dbManager *db.Manager, metadat
 // SetProvisioningService sets the provisioning service for re-provisioning support
 func (h *AdminHandler) SetProvisioningService(svc ProvisioningServiceInterface) {
 	h.provisioningService = svc
+}
+
+// SetMetadataCache injects the shared metadata cache so that mutations
+// (create/update/delete entity/field/layout) can invalidate stale entries.
+func (h *AdminHandler) SetMetadataCache(mc *cache.MetadataCache) {
+	h.metadataCache = mc
+}
+
+// invalidateEntityCache removes cache entries for entityName in orgID.
+// Safe to call even when no cache is configured.
+func (h *AdminHandler) invalidateEntityCache(orgID, entityName string) {
+	if h.metadataCache != nil {
+		h.metadataCache.InvalidateEntity(orgID, entityName)
+	}
+}
+
+// invalidateOrgCache removes all cache entries for orgID.
+// Used when the entity list changes (create/delete entity).
+func (h *AdminHandler) invalidateOrgCache(orgID string) {
+	if h.metadataCache != nil {
+		h.metadataCache.InvalidateOrg(orgID)
+	}
 }
 
 // getMetadataRepo returns a metadata repo using the tenant database from context
@@ -190,6 +214,9 @@ func (h *AdminHandler) CreateEntity(c *fiber.Ctx) error {
 		})
 	}
 
+	// Invalidate org-level cache (entity list has changed)
+	h.invalidateOrgCache(orgID)
+
 	// Create navigation tab for the new entity
 	labelPlural := input.LabelPlural
 	if labelPlural == "" {
@@ -269,6 +296,9 @@ func (h *AdminHandler) UpdateEntity(c *fiber.Ctx) error {
 		})
 	}
 
+	// Invalidate cache for this entity (label/icon may have changed)
+	h.invalidateEntityCache(orgID, name)
+
 	return c.JSON(ent)
 }
 
@@ -293,6 +323,9 @@ func (h *AdminHandler) DeleteEntity(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
+
+	// Invalidate org-level cache (entity list has changed, entity is gone)
+	h.invalidateOrgCache(orgID)
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
@@ -407,6 +440,9 @@ func (h *AdminHandler) CreateField(c *fiber.Ctx) error {
 		// Log the error - this is critical for debugging "no such column" issues
 		log.Printf("WARNING: Failed to add column for field %s.%s: %v - column may need manual sync", entityName, input.Name, err)
 	}
+
+	// Invalidate cached field list for this entity
+	h.invalidateEntityCache(orgID, entityName)
 
 	return c.Status(fiber.StatusCreated).JSON(field)
 }
@@ -529,6 +565,9 @@ func (h *AdminHandler) UpdateField(c *fiber.Ctx) error {
 		})
 	}
 
+	// Invalidate cached field list for this entity
+	h.invalidateEntityCache(orgID, entityName)
+
 	return c.JSON(field)
 }
 
@@ -544,6 +583,9 @@ func (h *AdminHandler) DeleteField(c *fiber.Ctx) error {
 			"error": "Field not found",
 		})
 	}
+
+	// Invalidate cached field list for this entity
+	h.invalidateEntityCache(orgID, entityName)
 
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
@@ -568,6 +610,9 @@ func (h *AdminHandler) ReorderFields(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
+
+	// Invalidate cached field list for this entity (sort order changed)
+	h.invalidateEntityCache(orgID, entityName)
 
 	return c.JSON(fiber.Map{"success": true})
 }
@@ -629,6 +674,9 @@ func (h *AdminHandler) SaveLayout(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
+
+	// Invalidate cached layout for this entity
+	h.invalidateEntityCache(orgID, entityName)
 
 	return c.JSON(layout)
 }
@@ -699,6 +747,9 @@ func (h *AdminHandler) SaveLayoutV2(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
+
+	// Invalidate cached layout for this entity
+	h.invalidateEntityCache(orgID, entityName)
 
 	return c.JSON(fiber.Map{
 		"id":         layout.ID,

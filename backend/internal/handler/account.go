@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log"
 
+	"github.com/fastcrm/backend/internal/cache"
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/middleware"
@@ -19,6 +20,7 @@ type AccountHandler struct {
 	taskRepo            *repo.TaskRepo
 	db                  *sql.DB
 	metadataRepo        *repo.MetadataRepo
+	metadataCache       *cache.MetadataCache // optional cache for field lookups
 	authRepo            *repo.AuthRepo
 	tripwireService     TripwireServiceInterface
 	validationService   ValidationServiceInterface
@@ -28,6 +30,11 @@ type AccountHandler struct {
 // NewAccountHandler creates a new AccountHandler
 func NewAccountHandler(repo *repo.AccountRepo, taskRepo *repo.TaskRepo, db *sql.DB, metadataRepo *repo.MetadataRepo, authRepo *repo.AuthRepo, tripwireService TripwireServiceInterface, validationService ValidationServiceInterface, notificationService NotificationServiceInterface) *AccountHandler {
 	return &AccountHandler{repo: repo, taskRepo: taskRepo, db: db, metadataRepo: metadataRepo, authRepo: authRepo, tripwireService: tripwireService, validationService: validationService, notificationService: notificationService}
+}
+
+// SetMetadataCache injects the shared metadata cache for field lookups.
+func (h *AccountHandler) SetMetadataCache(mc *cache.MetadataCache) {
+	h.metadataCache = mc
 }
 
 // getRepo returns the Account repo using the tenant database from context
@@ -52,6 +59,17 @@ func (h *AccountHandler) getMetadataRepo(c *fiber.Ctx) *repo.MetadataRepo {
 		return h.metadataRepo.WithDB(tenantDB)
 	}
 	return h.metadataRepo
+}
+
+// getMetadataCache returns the MetadataCache scoped to the tenant DB for this request.
+func (h *AccountHandler) getMetadataCache(c *fiber.Ctx) *cache.MetadataCache {
+	if h.metadataCache == nil {
+		return cache.NewMetadataCache(h.getMetadataRepo(c), cache.DefaultMetadataTTL)
+	}
+	if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+		return h.metadataCache.WithDB(tenantDB)
+	}
+	return h.metadataCache
 }
 
 // getDBConn returns the tenant database connection as db.DBConn
@@ -165,7 +183,7 @@ func (h *AccountHandler) List(c *fiber.Ctx) error {
 	}
 
 	// Check for rollup fields
-	fields, _ := h.getMetadataRepo(c).ListFields(c.Context(), orgID, "Account")
+	fields, _ := h.getMetadataCache(c).ListFields(c.Context(), orgID, "Account")
 	var rollupFields []*entity.FieldDef
 	for i := range fields {
 		if fields[i].Type == entity.FieldTypeRollup {
@@ -330,7 +348,7 @@ func (h *AccountHandler) Get(c *fiber.Ctx) error {
 	}
 
 	// Check for rollup fields and execute them
-	fields, _ := h.getMetadataRepo(c).ListFields(c.Context(), orgID, "Account")
+	fields, _ := h.getMetadataCache(c).ListFields(c.Context(), orgID, "Account")
 	var hasRollupFields bool
 	for _, f := range fields {
 		if f.Type == entity.FieldTypeRollup {
