@@ -189,27 +189,32 @@
 		{/if}
 
 		<nav class="bg-white shadow-sm border-b border-gray-200">
-			<div class="w-full max-w-[75%] mx-auto px-4 sm:px-6 lg:px-8">
-				<div class="flex justify-between h-14">
-					<div class="flex items-center">
+			<div class="w-full px-6 lg:px-8">
+				<div class="flex items-center justify-between h-14">
+					<!-- Left: Logo -->
+					<div class="flex items-center flex-shrink-0">
 						<a href="/" class="flex-shrink-0 flex items-center">
 							<img src="/logo.png" alt="Quantico CRM" class="h-10 w-auto" />
 						</a>
-						<div class="ml-10 flex space-x-1">
-							{#each getNavigationTabs() as tab (tab.id)}
-								<a
-									href={tab.href}
-									class="px-3 py-2 text-sm font-medium rounded-md transition-colors
-										{isActive(tab.href)
-											? 'bg-blue-50 text-blue-700'
-											: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}"
-								>
-									{tab.label}
-								</a>
-							{/each}
-						</div>
 					</div>
-					<div class="flex items-center space-x-2">
+
+					<!-- Center: Navigation tabs -->
+					<div class="flex items-center space-x-1">
+						{#each getNavigationTabs() as tab (tab.id)}
+							<a
+								href={tab.href}
+								class="px-3 py-2 text-sm font-medium rounded-md transition-colors
+									{isActive(tab.href)
+										? 'bg-blue-50 text-blue-700'
+										: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}"
+							>
+								{tab.label}
+							</a>
+						{/each}
+					</div>
+
+					<!-- Right: Org switcher + icons + user menu -->
+					<div class="flex items-center space-x-2 flex-shrink-0">
 						<!-- Org Switcher -->
 						{#if auth.memberships.length > 1}
 							<div class="relative org-switcher-container">
@@ -327,7 +332,7 @@
 			</div>
 		</nav>
 
-		<main class="w-full max-w-[75%] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+		<main class="w-full px-6 lg:px-8 py-6">
 			<div class="crm-card p-6">
 				{@render children()}
 			</div>
