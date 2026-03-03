@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/fastcrm/backend/internal/db"
@@ -24,7 +25,7 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 	}
 
 	if count > 0 {
-		return nil // Table exists
+		return ensureAuditColumns(ctx, conn, tableName)
 	}
 
 	// Build CREATE TABLE statement
@@ -119,6 +120,62 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 			return err
 		}
 	}
+	return nil
+}
+
+// ensureAuditColumns checks that the standard audit columns exist on the given table
+// and adds any that are missing. This repairs tables created by seed scripts or
+// external mechanisms that omitted the standard audit columns.
+func ensureAuditColumns(ctx context.Context, conn db.DBConn, tableName string) error {
+	// Get existing column names via PRAGMA table_info
+	rows, err := conn.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", tableName))
+	if err != nil {
+		return fmt.Errorf("ensureAuditColumns: failed to get table info for %s: %w", tableName, err)
+	}
+	defer rows.Close()
+
+	existingCols := make(map[string]bool)
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notNull int
+		var dfltValue interface{}
+		var pk int
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			continue
+		}
+		existingCols[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("ensureAuditColumns: error reading table info for %s: %w", tableName, err)
+	}
+
+	// Define the 4 standard audit columns and their SQL definitions
+	type auditCol struct {
+		name string
+		def  string
+	}
+	auditColumns := []auditCol{
+		{"created_at", fmt.Sprintf("ALTER TABLE %s ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP", tableName)},
+		{"modified_at", fmt.Sprintf("ALTER TABLE %s ADD COLUMN modified_at TEXT DEFAULT CURRENT_TIMESTAMP", tableName)},
+		{"created_by_id", fmt.Sprintf("ALTER TABLE %s ADD COLUMN created_by_id TEXT", tableName)},
+		{"modified_by_id", fmt.Sprintf("ALTER TABLE %s ADD COLUMN modified_by_id TEXT", tableName)},
+	}
+
+	for _, col := range auditColumns {
+		if existingCols[col.name] {
+			continue
+		}
+		log.Printf("WARNING: Table %s missing audit column %s, adding it", tableName, col.name)
+		if _, err := conn.ExecContext(ctx, col.def); err != nil {
+			// Ignore duplicate column errors (race condition safety)
+			if strings.Contains(err.Error(), "duplicate column") {
+				continue
+			}
+			return fmt.Errorf("ensureAuditColumns: failed to add column %s to %s: %w", col.name, tableName, err)
+		}
+	}
+
 	return nil
 }
 

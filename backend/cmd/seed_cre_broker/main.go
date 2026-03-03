@@ -737,6 +737,8 @@ func createCRETables(ctx context.Context, db *sql.DB) error {
 			description TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			created_by_id TEXT,
+			modified_by_id TEXT,
 			deleted INTEGER DEFAULT 0,
 			custom_fields TEXT DEFAULT '{}'
 		)`,
@@ -763,6 +765,8 @@ func createCRETables(ctx context.Context, db *sql.DB) error {
 			description TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			created_by_id TEXT,
+			modified_by_id TEXT,
 			deleted INTEGER DEFAULT 0,
 			custom_fields TEXT DEFAULT '{}'
 		)`,
@@ -804,6 +808,8 @@ func createCRETables(ctx context.Context, db *sql.DB) error {
 			notes TEXT,
 			created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 			modified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+			created_by_id TEXT,
+			modified_by_id TEXT,
 			deleted INTEGER DEFAULT 0,
 			custom_fields TEXT DEFAULT '{}'
 		)`,
