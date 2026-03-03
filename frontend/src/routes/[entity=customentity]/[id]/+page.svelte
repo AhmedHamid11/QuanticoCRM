@@ -4,29 +4,14 @@
 	import { get, del } from '$lib/utils/api';
 	import { getEntityNameFromPath } from '$lib/stores/navigation.svelte';
 	import { fieldNameToKey, getRecordValue as getRecordValueUtil } from '$lib/utils/fieldMapping';
-	import RelatedList from '$lib/components/RelatedList.svelte';
 	import Bearing from '$lib/components/Bearing.svelte';
-	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
 	import FlowButton from '$lib/components/flow/FlowButton.svelte';
-	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
+	import RecordDetailLayout from '$lib/components/RecordDetailLayout.svelte';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
 	import type { RelatedListConfig } from '$lib/types/related-list';
 	import type { BearingWithStages } from '$lib/types/bearing';
-	import type { LayoutDataV2, LayoutV2Response } from '$lib/types/layout';
-	import { parseLayoutData, convertV1ToV2, getVisibleSections } from '$lib/types/layout';
-
-	type TabId = 'details' | 'activities';
-
-	// Read initial tab from URL query param
-	let initialTab = $derived($page.url.searchParams.get('tab') as TabId | null);
-	let activeTab = $state<TabId>('details');
-
-	// Set initial tab from URL on first load
-	$effect(() => {
-		if (initialTab && (initialTab === 'details' || initialTab === 'activities')) {
-			activeTab = initialTab;
-		}
-	});
+	import type { LayoutDataV3, LayoutV3Response } from '$lib/types/layout';
+	import { convertV1ToV2 } from '$lib/types/layout';
 
 	let entitySlug = $derived($page.params.entity!);
 	let entityName = $derived(getEntityNameFromPath(entitySlug) || toPascalCase(entitySlug));
@@ -59,7 +44,7 @@
 
 	let entityDef = $state<EntityDef | null>(null);
 	let fields = $state<FieldDef[]>([]);
-	let layout = $state<LayoutDataV2 | null>(null);
+	let layout = $state<LayoutDataV3 | null>(null);
 	let record = $state<Record<string, unknown> | null>(null);
 	let relatedListConfigs = $state<RelatedListConfig[]>([]);
 	let bearings = $state<BearingWithStages[]>([]);
@@ -73,12 +58,6 @@
 			.filter((c) => c.enabled)
 			.sort((a, b) => a.sortOrder - b.sortOrder)
 	);
-
-	// Get visible sections based on record data
-	let visibleSections = $derived(() => {
-		if (!layout || !record) return [];
-		return getVisibleSections(layout, record);
-	});
 
 	async function loadEntityDef() {
 		try {
@@ -101,12 +80,12 @@
 	async function loadLayout() {
 		// Use public endpoint (doesn't require admin role)
 		try {
-			const layoutResponse = await get<{ layoutData: string }>(
-				`/entities/${entityName}/layouts/detail`
+			const layoutResponse = await get<LayoutV3Response>(
+				`/metadata/entities/${entityName}/layouts/detail/v3`
 			);
-			layout = parseLayoutData(layoutResponse.layoutData, fields.map(f => f.name));
+			layout = layoutResponse.layout;
 		} catch {
-			layout = null; // Will be set after fields load
+			layout = null;
 		}
 	}
 
@@ -256,7 +235,7 @@
 		const _entity = entityName;
 		const _recordId = recordId;
 
-		// Reset state
+		// Reset state — do NOT reset tab state, it's URL-based inside RecordDetailLayout
 		entityDef = null;
 		fields = [];
 		layout = null;
@@ -266,14 +245,21 @@
 		entityFlows = [];
 		loading = true;
 		error = null;
-		activeTab = 'details';
 
 		// Load all data
 		(async () => {
 			await Promise.all([loadEntityDef(), loadFields(), loadLayout(), loadRelatedListConfigs(), loadBearings(), loadEntityFlows()]);
-			// If no layout configured, fallback to showing all fields
+			// If no layout configured, create a minimal V3 fallback
 			if (!layout && fields.length > 0) {
-				layout = convertV1ToV2(fields.filter(f => f.name !== 'id').map(f => f.name));
+				const v2Fallback = convertV1ToV2(fields.filter(f => f.name !== 'id').map(f => f.name));
+				layout = {
+					version: 3,
+					sections: v2Fallback.sections,
+					tabs: [{ id: 'tab_overview', label: 'Overview', order: 1, sectionIds: v2Fallback.sections.map(s => s.id) }],
+					sidebar: { cards: [] },
+					header: { fields: [] },
+					conditions: null
+				};
 			}
 			await loadRecord();
 		})();
@@ -343,114 +329,70 @@
 		</div>
 	</div>
 
-	<!-- Tabs (only show if entity has activities enabled) -->
-	{#if entityDef?.hasActivities}
-		<div class="border-b border-gray-200">
-			<nav class="-mb-px flex space-x-8">
-				<button
-					onclick={() => activeTab = 'details'}
-					class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Details
-				</button>
-				<button
-					onclick={() => activeTab = 'activities'}
-					class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Activities
-				</button>
-			</nav>
-		</div>
-	{/if}
-
-	{#if activeTab === 'details'}
-	<!-- Bearings (Stage Progress Indicators) -->
-	{#if bearings.length > 0 && record}
-		<div class="space-y-4">
-			{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
-				<Bearing
-					{bearing}
-					currentValue={getRecordValue(bearing.sourcePicklist) as string | null}
-					recordId={String(record.id)}
-					entityType={entityName}
-					fieldName={bearing.sourcePicklist}
-					onUpdate={(newValue) => handleBearingUpdate(bearing.sourcePicklist, newValue)}
-				/>
-			{/each}
-		</div>
-	{/if}
-
 	{#if loading}
 		<div class="text-center py-12 text-gray-500">Loading...</div>
 	{:else if error}
 		<div class="text-center py-12 text-red-500">{error}</div>
-	{:else if record}
-		<!-- Dynamic Sections from Layout -->
-		{#each visibleSections() as section (section.id)}
-			<SectionRenderer
-				{section}
-				{fields}
-				{record}
-				formatValue={formatFieldValue}
-				renderLink={getLinkInfo}
-				entityName={entityName}
-				recordId={String(record.id)}
-				onRecordUpdate={handleRecordUpdate}
-			/>
-		{/each}
+	{:else if record && layout}
+		<RecordDetailLayout
+			{layout}
+			{fields}
+			{record}
+			entityName={entityName}
+			recordId={String(record.id)}
+			{relatedListConfigs}
+			formatValue={formatFieldValue}
+			renderLink={getLinkInfo}
+			onRecordUpdate={handleRecordUpdate}
+		>
+			<!-- Bearings -->
+			{#if bearings.length > 0}
+				<div class="space-y-4">
+					{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
+						<Bearing
+							{bearing}
+							currentValue={getRecordValue(bearing.sourcePicklist) as string | null}
+							recordId={String(record.id)}
+							entityType={entityName}
+							fieldName={bearing.sourcePicklist}
+							onUpdate={(newValue) => handleBearingUpdate(bearing.sourcePicklist, newValue)}
+						/>
+					{/each}
+				</div>
+			{/if}
 
-		<!-- System Info -->
-		<div class="bg-white shadow rounded-lg overflow-hidden">
-			<div class="px-6 py-4 border-b border-gray-200">
-				<h2 class="text-lg font-medium text-gray-900">System Information</h2>
+			<!-- System Info -->
+			<div class="crm-card overflow-hidden">
+				<div class="px-6 py-4 border-b border-gray-200">
+					<h2 class="text-lg font-medium text-gray-900">System Information</h2>
+				</div>
+				<div class="px-6 py-4">
+					<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+						<div>
+							<dt class="text-sm font-medium text-gray-500">Created</dt>
+							<dd class="mt-1 text-sm text-gray-900">
+								{record.createdAt ? new Date(String(record.createdAt)).toLocaleString() : '-'}
+								{#if record.createdByName}
+									<span class="text-gray-500"> by {record.createdByName}</span>
+								{/if}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-sm font-medium text-gray-500">Modified</dt>
+							<dd class="mt-1 text-sm text-gray-900">
+								{record.modifiedAt ? new Date(String(record.modifiedAt)).toLocaleString() : '-'}
+								{#if record.modifiedByName}
+									<span class="text-gray-500"> by {record.modifiedByName}</span>
+								{/if}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-sm font-medium text-gray-500">ID</dt>
+							<dd class="mt-1 text-sm text-gray-500 font-mono">{record.id}</dd>
+						</div>
+					</dl>
+				</div>
 			</div>
-			<div class="px-6 py-4">
-				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Created</dt>
-						<dd class="mt-1 text-sm text-gray-900">
-							{record.createdAt ? new Date(String(record.createdAt)).toLocaleString() : '-'}
-							{#if record.createdByName}
-								<span class="text-gray-500"> by {record.createdByName}</span>
-							{/if}
-						</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Modified</dt>
-						<dd class="mt-1 text-sm text-gray-900">
-							{record.modifiedAt ? new Date(String(record.modifiedAt)).toLocaleString() : '-'}
-							{#if record.modifiedByName}
-								<span class="text-gray-500"> by {record.modifiedByName}</span>
-							{/if}
-						</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">ID</dt>
-						<dd class="mt-1 text-sm text-gray-500 font-mono">{record.id}</dd>
-					</div>
-				</dl>
-			</div>
-		</div>
-
-		<!-- Related Lists -->
-		{#if enabledRelatedLists.length > 0}
-			{#each enabledRelatedLists as config (config.id)}
-				<RelatedList
-					{config}
-					parentEntity={entityName}
-					parentId={String(record.id)}
-				/>
-			{/each}
-		{/if}
-	{/if}
-	{:else if activeTab === 'activities'}
-		<!-- Activities Tab -->
-		{#if record}
-			<ActivitiesStream
-				parentEntity={entityName}
-				parentId={String(record.id)}
-				parentName={getDisplayName()}
-			/>
-		{/if}
+		</RecordDetailLayout>
 	{/if}
 </div>
