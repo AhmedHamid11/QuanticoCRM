@@ -8,6 +8,29 @@
   min-height: 100vh;
 }
 
+/* Top navigation bar - warm glass aesthetic */
+.crm-nav {
+  background: linear-gradient(180deg, rgba(255,248,243,0.95) 0%, rgba(255,252,250,0.85) 100%);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+
+.crm-nav-tabs {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+  backdrop-filter: blur(4px);
+}
+
+.crm-nav-icon {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+  transition: background 150ms ease;
+}
+
+.crm-nav-icon:hover {
+  background: rgba(255,255,255,0.95);
+}
+
 /* Semi-transparent card overlay for content areas */
 .crm-card {
   background: rgba(255, 255, 255, 0.96);

@@ -188,9 +188,9 @@
 			</div>
 		{/if}
 
-		<nav class="bg-white shadow-sm border-b border-gray-200">
+		<nav class="crm-nav">
 			<div class="w-full px-6 lg:px-8">
-				<div class="flex items-center justify-between h-14">
+				<div class="flex items-center justify-between h-16">
 					<!-- Left: Logo -->
 					<div class="flex items-center flex-shrink-0">
 						<a href="/" class="flex-shrink-0 flex items-center">
@@ -198,15 +198,15 @@
 						</a>
 					</div>
 
-					<!-- Center: Navigation tabs -->
-					<div class="flex items-center space-x-1">
+					<!-- Center: Navigation tabs in pill container -->
+					<div class="crm-nav-tabs rounded-full px-1.5 py-1.5 flex items-center space-x-0.5">
 						{#each getNavigationTabs() as tab (tab.id)}
 							<a
 								href={tab.href}
-								class="px-3 py-2 text-sm font-medium rounded-md transition-colors
+								class="px-4 py-1.5 text-sm rounded-full transition-all
 									{isActive(tab.href)
-										? 'bg-blue-50 text-blue-700'
-										: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}"
+										? 'bg-white shadow-sm text-gray-900 font-semibold'
+										: 'text-gray-500 hover:text-gray-700'}"
 							>
 								{tab.label}
 							</a>
@@ -220,7 +220,7 @@
 							<div class="relative org-switcher-container">
 								<button
 									onclick={() => showOrgSwitcher = !showOrgSwitcher}
-									class="flex items-center px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+									class="crm-nav-icon flex items-center px-3 py-1.5 text-sm text-gray-700 rounded-full transition-colors"
 								>
 									<span class="font-medium whitespace-nowrap truncate max-w-[200px]">{auth.currentOrg?.orgName}</span>
 									<svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,7 +257,7 @@
 							{#if currentEntitySetupLink}
 								<a
 									href={currentEntitySetupLink}
-									class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+									class="crm-nav-icon w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors"
 									title="Edit Object"
 								>
 									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,7 +267,7 @@
 							{/if}
 							<a
 								href="/admin"
-								class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+								class="crm-nav-icon w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors"
 								title="Setup"
 							>
 								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,9 +281,9 @@
 						<div class="relative user-menu-container">
 							<button
 								onclick={() => showUserMenu = !showUserMenu}
-								class="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 transition-colors"
+								class="flex items-center p-0.5 rounded-full hover:opacity-80 transition-opacity"
 							>
-								<div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
+								<div class="w-9 h-9 rounded-full bg-blue-600 ring-2 ring-white shadow-sm flex items-center justify-center text-white text-sm font-medium">
 									{userInitials()}
 								</div>
 							</button>
