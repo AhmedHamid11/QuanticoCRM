@@ -1,0 +1,19 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner Dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: root
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: /opt/quantico/deploy.sh
