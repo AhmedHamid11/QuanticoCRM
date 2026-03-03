@@ -192,20 +192,8 @@
 			<div class="w-full max-w-[75%] mx-auto px-4 sm:px-6 lg:px-8">
 				<div class="flex justify-between h-14">
 					<div class="flex items-center">
-						<a href="/" class="flex items-center gap-2">
-							<svg class="h-7 w-7" viewBox="0 0 48 48" fill="black" xmlns="http://www.w3.org/2000/svg">
-								<!-- Starburst -->
-								<path d="M12 6 L13 2 L14 6 L18 5 L15 8 L18 11 L14 10 L13 14 L12 10 L8 11 L11 8 L8 5 Z"/>
-								<!-- Bird body -->
-								<path d="M8 42 C4 38 3 30 7 24 C10 20 15 19 19 22 C15 23 11 27 10 32 C9 36 10 39 13 41 Z"/>
-								<!-- Upper wing -->
-								<path d="M19 22 L38 6" stroke="black" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-								<path d="M36 8 L30 16" stroke="black" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-								<!-- Lower wing -->
-								<path d="M17 27 L35 13" stroke="black" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-								<path d="M33 15 L28 22" stroke="black" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-							</svg>
-							<span class="text-sm font-light tracking-[0.3em] text-black uppercase" style="font-family: 'Inter', sans-serif;">Quantico CRM</span>
+						<a href="/" class="flex items-center">
+							<img src="/logo.png" alt="Quantico CRM" class="h-8" />
 						</a>
 						<div class="ml-10 flex space-x-1">
 							{#each getNavigationTabs() as tab (tab.id)}
