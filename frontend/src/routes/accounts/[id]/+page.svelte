@@ -4,30 +4,14 @@
 	import { goto } from '$app/navigation';
 	import { get, del } from '$lib/utils/api';
 	import { addToast } from '$lib/stores/toast.svelte';
-	import RelatedList from '$lib/components/RelatedList.svelte';
-	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
 	import Bearing from '$lib/components/Bearing.svelte';
-	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
 	import DetailPageAlertWrapper from '$lib/components/DetailPageAlertWrapper.svelte';
+	import RecordDetailLayout from '$lib/components/RecordDetailLayout.svelte';
 	import type { Account } from '$lib/types/account';
 	import type { RelatedListConfig } from '$lib/types/related-list';
 	import type { BearingWithStages } from '$lib/types/bearing';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
-	import type { LayoutDataV2, LayoutV2Response } from '$lib/types/layout';
-	import { parseLayoutData, getVisibleSections } from '$lib/types/layout';
-
-	type TabId = 'details' | 'activities';
-
-	// Read initial tab from URL query param
-	let initialTab = $derived($page.url.searchParams.get('tab') as TabId | null);
-	let activeTab = $state<TabId>('details');
-
-	// Set initial tab from URL on first load
-	$effect(() => {
-		if (initialTab && (initialTab === 'details' || initialTab === 'activities')) {
-			activeTab = initialTab;
-		}
-	});
+	import type { LayoutDataV3, LayoutV3Response } from '$lib/types/layout';
 
 	// System fields that exist as columns in the accounts table
 	const SYSTEM_FIELDS = new Set([
@@ -47,7 +31,7 @@
 	let relatedListConfigs = $state<RelatedListConfig[]>([]);
 	let bearings = $state<BearingWithStages[]>([]);
 	let fields = $state<FieldDef[]>([]);
-	let layout = $state<LayoutDataV2 | null>(null);
+	let layout = $state<LayoutDataV3 | null>(null);
 	let entityDef = $state<EntityDef | null>(null);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -91,12 +75,6 @@
 		return data;
 	});
 
-	// Get visible sections based on record data
-	let visibleSections = $derived(() => {
-		if (!layout) return [];
-		return getVisibleSections(layout, recordData());
-	});
-
 	async function loadAccount() {
 		try {
 			loading = true;
@@ -114,15 +92,12 @@
 			fields = fieldsData;
 			entityDef = entityDefData;
 
-			// Load layout (may be v1, v2, or legacy section array format)
+			// Load V3 layout
 			try {
-				const layoutResponse = await get<{ layoutData: string }>(
-					'/entities/Account/layouts/detail'
-				);
-				layout = parseLayoutData(layoutResponse.layoutData, fieldsData.map(f => f.name));
+				const layoutResponse = await get<LayoutV3Response>('/metadata/entities/Account/layouts/detail/v3');
+				layout = layoutResponse.layout;
 			} catch {
-				// Default to field-based layout if no layout exists
-				layout = parseLayoutData('[]', fieldsData.map(f => f.name));
+				layout = null;
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load account';
@@ -280,108 +255,74 @@
 			recordId={account.id}
 		/>
 
-		<!-- Tabs (only show if entity has activities enabled) -->
-		{#if entityDef?.hasActivities}
-			<div class="border-b border-gray-200">
-				<nav class="-mb-px flex space-x-8">
-					<button
-						onclick={() => activeTab = 'details'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-					>
-						Details
-					</button>
-					<button
-						onclick={() => activeTab = 'activities'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-					>
-						Activities
-					</button>
-				</nav>
-			</div>
-		{/if}
-
-		{#if activeTab === 'details'}
-		<!-- Bearings (Stage Progress Indicators) -->
-		{#if bearings.length > 0}
-			<div class="space-y-4">
-				{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
-					{@const fieldName = bearing.sourcePicklist}
-					{@const currentVal = isSystemField(fieldName)
-						? (account as unknown as Record<string, unknown>)[fieldName]
-						: account.customFields?.[fieldName]}
-					<Bearing
-						{bearing}
-						currentValue={currentVal as string | null}
-						recordId={account.id}
-						entityType="Account"
-						fieldName={fieldName}
-						onUpdate={(newValue) => handleBearingUpdate(fieldName, newValue)}
-					/>
-				{/each}
-			</div>
-		{/if}
-
-		<!-- Dynamic Sections from Layout -->
-		{#each visibleSections() as section (section.id)}
-			<SectionRenderer
-				{section}
+		<!-- V3 Layout -->
+		{#if layout}
+			<RecordDetailLayout
+				{layout}
 				{fields}
 				record={recordData()}
+				entityName="Account"
+				recordId={account.id}
+				{relatedListConfigs}
 				formatValue={formatFieldValue}
 				renderLink={getLinkInfo}
-			/>
-		{/each}
+			>
+				<!-- Bearings (Stage Progress Indicators) — passed as children snippet -->
+				{#if bearings.length > 0}
+					<div class="space-y-4">
+						{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
+							{@const fieldName = bearing.sourcePicklist}
+							{@const currentVal = isSystemField(fieldName)
+								? (account as unknown as Record<string, unknown>)[fieldName]
+								: account.customFields?.[fieldName]}
+							<Bearing
+								{bearing}
+								currentValue={currentVal as string | null}
+								recordId={account.id}
+								entityType="Account"
+								fieldName={fieldName}
+								onUpdate={(newValue) => handleBearingUpdate(fieldName, newValue)}
+							/>
+						{/each}
+					</div>
+				{/if}
 
-		<!-- System Info -->
-		<div class="bg-white shadow rounded-lg overflow-hidden">
-			<div class="px-6 py-4 border-b border-gray-200">
-				<h2 class="text-lg font-medium text-gray-900">System Information</h2>
-			</div>
-			<div class="px-6 py-4">
-				<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Created</dt>
-						<dd class="mt-1 text-sm text-gray-900">
-							{formatDate(account.createdAt)}
-							{#if account.createdByName}
-								<span class="text-gray-500"> by {account.createdByName}</span>
-							{/if}
-						</dd>
+				<!-- System Info -->
+				<div class="crm-card overflow-hidden">
+					<div class="px-6 py-4 border-b border-gray-200">
+						<h2 class="text-lg font-medium text-gray-900">System Information</h2>
 					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Last Modified</dt>
-						<dd class="mt-1 text-sm text-gray-900">
-							{formatDate(account.modifiedAt)}
-							{#if account.modifiedByName}
-								<span class="text-gray-500"> by {account.modifiedByName}</span>
-							{/if}
-						</dd>
+					<div class="px-6 py-4">
+						<dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+							<div>
+								<dt class="text-sm font-medium text-gray-500">Created</dt>
+								<dd class="mt-1 text-sm text-gray-900">
+									{formatDate(account.createdAt)}
+									{#if account.createdByName}
+										<span class="text-gray-500"> by {account.createdByName}</span>
+									{/if}
+								</dd>
+							</div>
+							<div>
+								<dt class="text-sm font-medium text-gray-500">Last Modified</dt>
+								<dd class="mt-1 text-sm text-gray-900">
+									{formatDate(account.modifiedAt)}
+									{#if account.modifiedByName}
+										<span class="text-gray-500"> by {account.modifiedByName}</span>
+									{/if}
+								</dd>
+							</div>
+							<div>
+								<dt class="text-sm font-medium text-gray-500">ID</dt>
+								<dd class="mt-1 text-sm text-gray-500 font-mono">{account.id}</dd>
+							</div>
+						</dl>
 					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">ID</dt>
-						<dd class="mt-1 text-sm text-gray-500 font-mono">{account.id}</dd>
-					</div>
-				</dl>
-			</div>
-		</div>
-
-		<!-- Related Lists -->
-		{#if enabledRelatedLists.length > 0}
-			{#each enabledRelatedLists as config (config.id)}
-				<RelatedList
-					{config}
-					parentEntity="Account"
-					parentId={account.id}
-				/>
-			{/each}
-		{/if}
-		{:else if activeTab === 'activities'}
-		<!-- Activities Tab -->
-		<ActivitiesStream
-			parentEntity="Account"
-			parentId={account.id}
-			parentName={account.name}
-		/>
+				</div>
+			</RecordDetailLayout>
+		{:else}
+			<!-- Fallback: no layout loaded -->
+			<p class="text-gray-500 text-sm">Layout not available.</p>
 		{/if}
 	</div>
 {/if}

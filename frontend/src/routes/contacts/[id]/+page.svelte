@@ -5,18 +5,13 @@
 	import { get, del } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import { DetailSkeleton, ErrorDisplay } from '$lib/components/ui';
-	import RelatedList from '$lib/components/RelatedList.svelte';
-	import ActivitiesStream from '$lib/components/ActivitiesStream.svelte';
-	import SectionRenderer from '$lib/components/SectionRenderer.svelte';
 	import DetailPageAlertWrapper from '$lib/components/DetailPageAlertWrapper.svelte';
+	import RecordDetailLayout from '$lib/components/RecordDetailLayout.svelte';
 	import type { Contact } from '$lib/types/contact';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
 	import type { RelatedListConfig } from '$lib/types/related-list';
-	import type { LayoutDataV2, LayoutV2Response, LayoutSectionV2 } from '$lib/types/layout';
-	import { parseLayoutData, getVisibleSections } from '$lib/types/layout';
+	import type { LayoutDataV3, LayoutV3Response } from '$lib/types/layout';
 
-	type TabId = 'details' | 'activities';
-	let activeTab = $state<TabId>('details');
 	let entityDef = $state<EntityDef | null>(null);
 
 	// System fields that exist as columns in the contacts table
@@ -30,7 +25,7 @@
 	let contactId = $derived($page.params.id);
 	let contact = $state<Contact | null>(null);
 	let fields = $state<FieldDef[]>([]);
-	let layout = $state<LayoutDataV2 | null>(null);
+	let layout = $state<LayoutDataV3 | null>(null);
 	let relatedListConfigs = $state<RelatedListConfig[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -67,12 +62,6 @@
 		return data;
 	});
 
-	// Get visible sections based on record data
-	let visibleSections = $derived(() => {
-		if (!layout) return [];
-		return getVisibleSections(layout, recordData());
-	});
-
 	// Map field names to contact property keys (camelCase)
 	function fieldNameToKey(fieldName: string): string {
 		// Convert snake_case to camelCase
@@ -101,15 +90,12 @@
 			relatedListConfigs = configsData;
 			entityDef = entityDefData;
 
-			// Load layout (may be v1, v2, or legacy section array format)
+			// Load V3 layout
 			try {
-				const layoutResponse = await get<{ layoutData: string }>(
-					'/entities/Contact/layouts/detail'
-				);
-				layout = parseLayoutData(layoutResponse.layoutData, fieldsData.map(f => f.name));
+				const layoutResponse = await get<LayoutV3Response>('/metadata/entities/Contact/layouts/detail/v3');
+				layout = layoutResponse.layout;
 			} catch {
-				// Default layout with all fields
-				layout = parseLayoutData('[]', fieldsData.map(f => f.name));
+				layout = null;
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load contact';
@@ -144,18 +130,6 @@
 
 	function getFieldDef(fieldName: string): FieldDef | undefined {
 		return fields.find(f => f.name === fieldName);
-	}
-
-	function getFieldValue(fieldName: string): unknown {
-		if (!contact) return null;
-
-		if (isSystemField(fieldName)) {
-			const key = fieldNameToKey(fieldName) as keyof Contact;
-			return contact[key];
-		} else {
-			// Custom field - get from customFields
-			return (contact as Contact & { customFields?: Record<string, unknown> }).customFields?.[fieldName];
-		}
 	}
 
 	function formatFieldValue(fieldName: string, value: unknown): string {
@@ -295,88 +269,46 @@
 			</div>
 		</div>
 
-		<!-- Tabs (only show if entity has activities enabled) -->
-		{#if entityDef?.hasActivities}
-			<div class="border-b border-gray-200">
-				<nav class="-mb-px flex space-x-8">
-					<button
-						onclick={() => activeTab = 'details'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'details' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-					>
-						Details
-					</button>
-					<button
-						onclick={() => activeTab = 'activities'}
-						class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {activeTab === 'activities' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-					>
-						Activities
-					</button>
-				</nav>
-			</div>
-		{/if}
-
-		{#if activeTab === 'details'}
-			<!-- Dynamic Sections from Layout -->
-			{#each visibleSections() as section (section.id)}
-				<SectionRenderer
-					{section}
-					{fields}
-					record={recordData()}
-					formatValue={formatFieldValue}
-					renderLink={getLinkInfo}
-				/>
-			{/each}
-
-			<!-- Description (only if NOT already rendered in layout sections) -->
-			{#if contact.description && !visibleSections().some(s => s.fields.some(f => f.name === 'description'))}
-				<div class="bg-white shadow rounded-lg p-6">
-					<h2 class="text-lg font-medium text-gray-900 mb-4">Description</h2>
-					<p class="text-sm text-gray-900 whitespace-pre-wrap">{contact.description}</p>
+		<!-- V3 Layout -->
+		{#if layout}
+			<RecordDetailLayout
+				{layout}
+				{fields}
+				record={recordData()}
+				entityName="Contact"
+				recordId={contact.id}
+				{relatedListConfigs}
+				formatValue={formatFieldValue}
+				renderLink={getLinkInfo}
+			>
+				<!-- Record Information (system info) as children snippet -->
+				<div class="crm-card p-6">
+					<h2 class="text-lg font-medium text-gray-900 mb-4">Record Information</h2>
+					<dl class="grid grid-cols-2 gap-4">
+						<div>
+							<dt class="text-sm font-medium text-gray-500">Created</dt>
+							<dd class="text-sm text-gray-900">
+								{formatDate(contact.createdAt)}
+								{#if contact.createdByName}
+									<span class="text-gray-500"> by {contact.createdByName}</span>
+								{/if}
+							</dd>
+						</div>
+						<div>
+							<dt class="text-sm font-medium text-gray-500">Last Modified</dt>
+							<dd class="text-sm text-gray-900">
+								{formatDate(contact.modifiedAt)}
+								{#if contact.modifiedByName}
+									<span class="text-gray-500"> by {contact.modifiedByName}</span>
+								{/if}
+							</dd>
+						</div>
+					</dl>
 				</div>
-			{/if}
-
-			<!-- Record Information -->
-			<div class="bg-white shadow rounded-lg p-6">
-				<h2 class="text-lg font-medium text-gray-900 mb-4">Record Information</h2>
-				<dl class="grid grid-cols-2 gap-4">
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Created</dt>
-						<dd class="text-sm text-gray-900">
-							{formatDate(contact.createdAt)}
-							{#if contact.createdByName}
-								<span class="text-gray-500"> by {contact.createdByName}</span>
-							{/if}
-						</dd>
-					</div>
-					<div>
-						<dt class="text-sm font-medium text-gray-500">Last Modified</dt>
-						<dd class="text-sm text-gray-900">
-							{formatDate(contact.modifiedAt)}
-							{#if contact.modifiedByName}
-								<span class="text-gray-500"> by {contact.modifiedByName}</span>
-							{/if}
-						</dd>
-					</div>
-				</dl>
-			</div>
-
-			<!-- Related Lists -->
-			{#if enabledRelatedLists.length > 0}
-				{#each enabledRelatedLists as config (config.id)}
-					<RelatedList
-						{config}
-						parentEntity="Contact"
-						parentId={contact.id}
-					/>
-				{/each}
-			{/if}
-		{:else if activeTab === 'activities'}
-			<!-- Activities Tab -->
-			<ActivitiesStream
-				parentEntity="Contact"
-				parentId={contact.id}
-				parentName={getFullName(contact)}
-			/>
+			</RecordDetailLayout>
+		{:else}
+			<!-- Fallback: no layout loaded -->
+			<p class="text-gray-500 text-sm">Layout not available.</p>
 		{/if}
 	{/if}
 </div>
