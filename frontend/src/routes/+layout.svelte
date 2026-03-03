@@ -3,7 +3,7 @@
 	import Toast from '$lib/components/Toast.svelte';
 	import { NavigationProgress } from '$lib/components/ui';
 	import { onMount } from 'svelte';
-	import { loadNavigation, getNavigationTabs } from '$lib/stores/navigation.svelte';
+	import { loadNavigation, getNavigationTabs, getAccentColor } from '$lib/stores/navigation.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { auth, logout, initAuth, switchOrg, stopImpersonation } from '$lib/stores/auth.svelte';
@@ -50,6 +50,9 @@
 
 	// Get current path for active state
 	let currentPath = $derived($page.url.pathname);
+
+	// Get accent color for gradient background
+	let accentColor = $derived(getAccentColor());
 
 	// Check if a nav item is active
 	function isActive(href: string): boolean {
@@ -171,7 +174,7 @@
 		</div>
 	</div>
 {:else if auth.isAuthenticated}
-	<div class="min-h-screen bg-gray-50">
+	<div class="crm-gradient-bg" style="--crm-accent-color: {accentColor}">
 		<!-- Impersonation banner -->
 		{#if auth.isImpersonation}
 			<div class="bg-amber-500 text-white px-4 py-2 text-center text-sm">
@@ -325,7 +328,9 @@
 		</nav>
 
 		<main class="w-full max-w-[75%] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-			{@render children()}
+			<div class="crm-card p-6">
+				{@render children()}
+			</div>
 		</main>
 	</div>
 {:else}
