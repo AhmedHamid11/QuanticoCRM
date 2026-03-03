@@ -193,7 +193,7 @@
 				<div class="flex justify-between h-14">
 					<div class="flex items-center">
 						<a href="/" class="flex-shrink-0 flex items-center">
-							<img src="/logo.png" alt="Quantico CRM" class="h-7 w-auto" />
+							<img src="/logo.png" alt="Quantico CRM" class="h-10 w-auto" />
 						</a>
 						<div class="ml-10 flex space-x-1">
 							{#each getNavigationTabs() as tab (tab.id)}
