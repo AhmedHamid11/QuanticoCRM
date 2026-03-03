@@ -223,6 +223,11 @@ func main() {
 		dbManager = db.NewManagerWithTurso(tursoDB, dbManagerConfig)
 	} else {
 		// Local mode with regular *sql.DB
+		// Force localMode=true: master DB is local SQLite, so tenant routing
+		// must use the shared database. DefaultManagerConfig() may incorrectly
+		// set localMode=false when TURSO_API_TOKEN is present (used for Platform
+		// API quota checks) but no TURSO_DATABASE_URL exists for actual DB connections.
+		dbManagerConfig.LocalMode = true
 		dbManager = db.NewManager(masterDB, dbManagerConfig)
 	}
 	defer dbManager.Close()
