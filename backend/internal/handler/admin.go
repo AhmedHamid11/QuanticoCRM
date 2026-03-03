@@ -14,6 +14,7 @@ import (
 	"github.com/fastcrm/backend/internal/middleware"
 	"github.com/fastcrm/backend/internal/repo"
 	"github.com/fastcrm/backend/internal/service"
+	"github.com/fastcrm/backend/internal/util"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -102,7 +103,7 @@ func camelToSnakeAdmin(s string) string {
 
 // getTableNameAdmin converts entity name to table name (e.g., "Candidate" -> "candidates")
 func getTableNameAdmin(entityName string) string {
-	return strings.ToLower(entityName) + "s"
+	return util.GetTableName(entityName)
 }
 
 // quoteIdentifierAdmin quotes a SQL identifier (column/table name) for SQLite
@@ -192,7 +193,7 @@ func (h *AdminHandler) CreateEntity(c *fiber.Ctx) error {
 	// Create navigation tab for the new entity
 	labelPlural := input.LabelPlural
 	if labelPlural == "" {
-		labelPlural = input.Label + "s"
+		labelPlural = util.Pluralize(input.Label)
 	}
 	// Use plural lowercase for href (e.g., "Candidate" -> "/candidates")
 	href := "/" + strings.ToLower(labelPlural)
@@ -426,10 +427,11 @@ func (h *AdminHandler) addFieldColumnsToTable(c *fiber.Ctx, entityName string, i
 	// For lookup fields, add both _id and _name columns
 	if input.Type == entity.FieldTypeLink {
 		snakeName := camelToSnakeAdmin(input.Name)
+		idCol, nameCol := util.GetLinkColumnNames(snakeName)
 
-		// Add {field_name}_id column
+		// Add ID column
 		idColSQL := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s TEXT",
-			tableName, quoteIdentifierAdmin(snakeName+"_id"))
+			tableName, quoteIdentifierAdmin(idCol))
 		if _, err := db.ExecContext(c.Context(), idColSQL); err != nil {
 			// Column might already exist, ignore error
 			if !strings.Contains(err.Error(), "duplicate column") {
@@ -437,9 +439,9 @@ func (h *AdminHandler) addFieldColumnsToTable(c *fiber.Ctx, entityName string, i
 			}
 		}
 
-		// Add {field_name}_name column
+		// Add name column
 		nameColSQL := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s TEXT DEFAULT ''",
-			tableName, quoteIdentifierAdmin(snakeName+"_name"))
+			tableName, quoteIdentifierAdmin(nameCol))
 		if _, err := db.ExecContext(c.Context(), nameColSQL); err != nil {
 			// Column might already exist, ignore error
 			if !strings.Contains(err.Error(), "duplicate column") {

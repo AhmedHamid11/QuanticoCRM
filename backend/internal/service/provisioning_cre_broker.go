@@ -68,8 +68,6 @@ func (s *ProvisioningService) ProvisionCREBroker(ctx context.Context, orgID stri
 	s.createEnumField(ctx, orgID, "Lead", "source", "Source", []string{"Website", "Referral", "Cold Call", "Networking Event", "CoStar", "LoopNet", "Sign Call"}, 15, now)
 	s.createLinkField(ctx, orgID, "Lead", "assignedUserId", "Assigned To", "User", 20, now)
 	s.createField(ctx, orgID, "Lead", "description", "Description", "text", false, 30, now)
-	s.createField(ctx, orgID, "Lead", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Lead", "modifiedAt", "Modified At", "datetime", false, 101, now)
 
 	// ========================================================================
 	// PROPERTY FIELDS
@@ -88,8 +86,6 @@ func (s *ProvisioningService) ProvisionCREBroker(ctx context.Context, orgID stri
 	s.createField(ctx, orgID, "Property", "availabilityDate", "Availability Date", "date", false, 24, now)
 	s.createEnumField(ctx, orgID, "Property", "propertyType", "Property Type", []string{"Office", "Retail", "Industrial", "Mixed-Use"}, 25, now)
 	s.createField(ctx, orgID, "Property", "description", "Description", "text", false, 30, now)
-	s.createField(ctx, orgID, "Property", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Property", "modifiedAt", "Modified At", "datetime", false, 101, now)
 
 	// ========================================================================
 	// DEAL FIELDS
@@ -122,8 +118,6 @@ func (s *ProvisioningService) ProvisionCREBroker(ctx context.Context, orgID stri
 	s.createEnumField(ctx, orgID, "Deal", "commissionStatus", "Commission Status", []string{"Not Yet Earned", "Earned", "Paid"}, 42, now)
 	s.createField(ctx, orgID, "Deal", "commissionPaidDate", "Commission Paid Date", "date", false, 43, now)
 	s.createField(ctx, orgID, "Deal", "notes", "Notes", "text", false, 50, now)
-	s.createField(ctx, orgID, "Deal", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Deal", "modifiedAt", "Modified At", "datetime", false, 101, now)
 
 	// ========================================================================
 	// LIST LAYOUTS
@@ -560,7 +554,7 @@ func (s *ProvisioningService) ProvisionCREBrokerSampleData(ctx context.Context, 
 		contactID := contactIDs[p.contactName]
 
 		_, err := s.db.ExecContext(ctx, `
-			INSERT INTO propertys (id, org_id, name, address_street, address_city, address_state, address_postal_code,
+			INSERT INTO properties (id, org_id, name, address_street, address_city, address_state, address_postal_code,
 				landlord_id, landlord_id_name, primary_contact_id, primary_contact_id_name,
 				total_sq_ft, available_sq_ft, status, asking_price_per_sq_ft, availability_date,
 				property_type, created_at, modified_at, deleted, custom_fields)

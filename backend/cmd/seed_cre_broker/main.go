@@ -742,8 +742,8 @@ func createCRETables(ctx context.Context, db *sql.DB) error {
 			custom_fields TEXT DEFAULT '{}'
 		)`,
 
-		// Properties table (table name is "propertys" to match GetTableName("Property") convention)
-		`CREATE TABLE IF NOT EXISTS propertys (
+		// Properties table (table name is "properties" to match GetTableName("Property") convention)
+		`CREATE TABLE IF NOT EXISTS properties (
 			id TEXT PRIMARY KEY,
 			org_id TEXT NOT NULL,
 			name TEXT NOT NULL,
@@ -815,11 +815,11 @@ func createCRETables(ctx context.Context, db *sql.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(org_id)",
 		"CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(org_id, status)",
 		"CREATE INDEX IF NOT EXISTS idx_leads_company ON leads(org_id, company_name)",
-		// Properties indexes (table name is "propertys")
-		"CREATE INDEX IF NOT EXISTS idx_propertys_org ON propertys(org_id)",
-		"CREATE INDEX IF NOT EXISTS idx_propertys_status ON propertys(org_id, status)",
-		"CREATE INDEX IF NOT EXISTS idx_propertys_landlord ON propertys(org_id, landlord_id)",
-		"CREATE INDEX IF NOT EXISTS idx_propertys_type ON propertys(org_id, property_type)",
+		// Properties indexes (table name is "properties")
+		"CREATE INDEX IF NOT EXISTS idx_properties_org ON properties(org_id)",
+		"CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(org_id, status)",
+		"CREATE INDEX IF NOT EXISTS idx_properties_landlord ON properties(org_id, landlord_id)",
+		"CREATE INDEX IF NOT EXISTS idx_properties_type ON properties(org_id, property_type)",
 		// Deals indexes
 		"CREATE INDEX IF NOT EXISTS idx_deals_org ON deals(org_id)",
 		"CREATE INDEX IF NOT EXISTS idx_deals_status ON deals(org_id, status)",

@@ -659,8 +659,6 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Contact", "addressCountry", "Country", "varchar", false, 23, now)
 	s.createField(ctx, orgID, "Contact", "addressPostalCode", "Postal Code", "varchar", false, 24, now)
 	s.createLinkField(ctx, orgID, "Contact", "assignedUserId", "Assigned To", "User", 9, now)
-	s.createField(ctx, orgID, "Contact", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Contact", "modifiedAt", "Modified At", "datetime", false, 101, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Contact", "createdById", "Created By", "User", 102, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Contact", "modifiedById", "Modified By", "User", 103, now)
 
@@ -686,8 +684,6 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Account", "shippingAddressCountry", "Shipping Country", "varchar", false, 33, now)
 	s.createField(ctx, orgID, "Account", "shippingAddressPostalCode", "Shipping Postal Code", "varchar", false, 34, now)
 	s.createLinkField(ctx, orgID, "Account", "assignedUserId", "Assigned To", "User", 9, now)
-	s.createField(ctx, orgID, "Account", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Account", "modifiedAt", "Modified At", "datetime", false, 101, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Account", "createdById", "Created By", "User", 102, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Account", "modifiedById", "Modified By", "User", 103, now)
 
@@ -702,8 +698,6 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Task", "parentType", "Related Type", "varchar", false, 11, now)
 	s.createField(ctx, orgID, "Task", "parentName", "Related Name", "varchar", false, 12, now)
 	s.createLinkField(ctx, orgID, "Task", "assignedUserId", "Assigned To", "User", 7, now)
-	s.createField(ctx, orgID, "Task", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Task", "modifiedAt", "Modified At", "datetime", false, 101, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Task", "createdById", "Created By", "User", 102, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Task", "modifiedById", "Modified By", "User", 103, now)
 
@@ -736,8 +730,6 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "Quote", "shippingAddressCountry", "Shipping Country", "varchar", false, 43, now)
 	s.createField(ctx, orgID, "Quote", "shippingAddressPostalCode", "Shipping Postal Code", "varchar", false, 44, now)
 	s.createLinkField(ctx, orgID, "Quote", "assignedUserId", "Assigned To", "User", 50, now)
-	s.createField(ctx, orgID, "Quote", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "Quote", "modifiedAt", "Modified At", "datetime", false, 101, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Quote", "createdById", "Created By", "User", 102, now)
 	s.createReadOnlyLinkField(ctx, orgID, "Quote", "modifiedById", "Modified By", "User", 103, now)
 
@@ -753,8 +745,6 @@ func (s *ProvisioningService) provisionMetadata(ctx context.Context, orgID, now 
 	s.createField(ctx, orgID, "QuoteLineItem", "total", "Total", "currency", false, 9, now)
 	s.createLinkField(ctx, orgID, "QuoteLineItem", "quoteId", "Quote", "Quote", 10, now)
 	s.createField(ctx, orgID, "QuoteLineItem", "sortOrder", "Sort Order", "int", false, 11, now)
-	s.createField(ctx, orgID, "QuoteLineItem", "createdAt", "Created At", "datetime", false, 100, now)
-	s.createField(ctx, orgID, "QuoteLineItem", "modifiedAt", "Modified At", "datetime", false, 101, now)
 
 	// Create navigation tabs (in metadata provisioning for tenant DB)
 	// This ensures navigation tabs are always available when metadata is provisioned

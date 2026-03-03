@@ -1809,15 +1809,17 @@ func (h *ImportHandler) updateRecord(
 		// Handle lookup fields
 		if field.Type == entity.FieldTypeLink {
 			snakeName := util.CamelToSnake(field.Name)
-			idKey := field.Name + "Id"
-			nameKey := field.Name + "Name"
+			idCol, nameCol := util.GetLinkColumnNames(snakeName)
+			baseName := strings.TrimSuffix(field.Name, "Id")
+			idKey := baseName + "Id"
+			nameKey := baseName + "Name"
 
 			if idVal, ok := record[idKey]; ok {
-				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_id")))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(idCol)))
 				values = append(values, idVal)
 			}
 			if nameVal, ok := record[nameKey]; ok {
-				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_name")))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(nameCol)))
 				values = append(values, nameVal)
 			}
 			continue
@@ -3085,14 +3087,16 @@ func (h *ImportHandler) ensureTableExists(ctx context.Context, db *sql.DB, orgID
 	columns = append(columns, "org_id TEXT NOT NULL")
 
 	for _, field := range fields {
-		if field.Name == "id" || field.Name == "created_at" || field.Name == "modified_at" {
+		snakeFieldName := util.CamelToSnake(field.Name)
+		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" || snakeFieldName == "created_by_id" || snakeFieldName == "modified_by_id" {
 			continue
 		}
 
 		if field.Type == entity.FieldTypeLink {
 			snakeName := util.CamelToSnake(field.Name)
-			columns = append(columns, fmt.Sprintf("%s TEXT", quoteIdentifier(snakeName+"_id")))
-			columns = append(columns, fmt.Sprintf("%s TEXT DEFAULT ''", quoteIdentifier(snakeName+"_name")))
+			idCol, nameCol := util.GetLinkColumnNames(snakeName)
+			columns = append(columns, fmt.Sprintf("%s TEXT", quoteIdentifier(idCol)))
+			columns = append(columns, fmt.Sprintf("%s TEXT DEFAULT ''", quoteIdentifier(nameCol)))
 			continue
 		}
 

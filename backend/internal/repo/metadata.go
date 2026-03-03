@@ -10,6 +10,7 @@ import (
 	"github.com/fastcrm/backend/internal/db"
 	"github.com/fastcrm/backend/internal/entity"
 	"github.com/fastcrm/backend/internal/sfid"
+	"github.com/fastcrm/backend/internal/util"
 )
 
 // MetadataRepo handles database operations for entity/field metadata
@@ -195,7 +196,7 @@ func (r *MetadataRepo) CreateEntity(ctx context.Context, orgID string, input ent
 	label := input.Label
 	labelPlural := input.LabelPlural
 	if labelPlural == "" {
-		labelPlural = label + "s"
+		labelPlural = util.Pluralize(label)
 	}
 	icon := input.Icon
 	if icon == "" {

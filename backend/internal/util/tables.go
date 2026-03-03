@@ -34,7 +34,7 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 
 	for _, field := range fields {
 		snakeFieldName := CamelToSnake(field.Name)
-		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" {
+		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" || snakeFieldName == "created_by_id" || snakeFieldName == "modified_by_id" {
 			continue // Already added or will be added as standard audit columns
 		}
 
@@ -45,12 +45,12 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 
 		// For lookup fields, create both _id and _name columns
 		if field.Type == entity.FieldTypeLink {
-			snakeName := CamelToSnake(field.Name)
-			// Create {field_name}_id column for the foreign key
-			idColDef := fmt.Sprintf("%s TEXT", QuoteIdentifier(snakeName+"_id"))
+			idCol, nameCol := GetLinkColumnNames(snakeFieldName)
+			// Create ID column for the foreign key
+			idColDef := fmt.Sprintf("%s TEXT", QuoteIdentifier(idCol))
 			columns = append(columns, idColDef)
-			// Create {field_name}_name column for the denormalized display name
-			nameColDef := fmt.Sprintf("%s TEXT DEFAULT ''", QuoteIdentifier(snakeName+"_name"))
+			// Create name column for the denormalized display name
+			nameColDef := fmt.Sprintf("%s TEXT DEFAULT ''", QuoteIdentifier(nameCol))
 			columns = append(columns, nameColDef)
 			continue
 		}
@@ -111,7 +111,7 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 	// Create COLLATE NOCASE index on (org_id, name) for fast case-insensitive lookups during import
 	// Only if the entity actually has a "name" field
 	for _, field := range fields {
-		if field.Name == "name" {
+		if CamelToSnake(field.Name) == "name" {
 			nocaseIndexSQL := fmt.Sprintf(
 				"CREATE INDEX IF NOT EXISTS idx_%s_org_name_nocase ON %s(org_id, name COLLATE NOCASE)",
 				tableName, tableName)
@@ -185,7 +185,7 @@ func SyncFieldColumns(ctx context.Context, conn db.DBConn, entityName string, fi
 	// Check each field and add missing columns
 	for _, field := range fields {
 		snakeFieldName := CamelToSnake(field.Name)
-		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" {
+		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" || snakeFieldName == "created_by_id" || snakeFieldName == "modified_by_id" {
 			continue
 		}
 
@@ -198,8 +198,7 @@ func SyncFieldColumns(ctx context.Context, conn db.DBConn, entityName string, fi
 
 		// Handle lookup fields (need _id and _name columns)
 		if field.Type == entity.FieldTypeLink {
-			idCol := snakeName + "_id"
-			nameCol := snakeName + "_name"
+			idCol, nameCol := GetLinkColumnNames(snakeName)
 
 			if !existingCols[idCol] {
 				sql := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s TEXT", tableName, QuoteIdentifier(idCol))

@@ -518,8 +518,7 @@ func (h *GenericEntityHandler) List(c *fiber.Ctx) error {
 		// Add derived fields for lookups: {fieldName}Id, {fieldName}Name, {fieldName}Link
 		for fieldName, fieldDef := range lookupFields {
 			snakeName := util.CamelToSnake(fieldName)
-			idCol := snakeName + "_id"
-			nameCol := snakeName + "_name"
+			idCol, nameCol := util.GetLinkColumnNames(snakeName)
 
 			// Get the ID and Name values from the record
 			idVal := record[idCol]
@@ -732,8 +731,7 @@ func (h *GenericEntityHandler) Get(c *fiber.Ctx) error {
 	// Add derived fields for lookups: {fieldName}Id, {fieldName}Name, {fieldName}Link
 	for fieldName, fieldDef := range lookupFields {
 		snakeName := util.CamelToSnake(fieldName)
-		idCol := snakeName + "_id"
-		nameCol := snakeName + "_name"
+		idCol, nameCol := util.GetLinkColumnNames(snakeName)
 
 		// Get the ID and Name values from the record
 		idVal := record[idCol]
@@ -899,14 +897,15 @@ func (h *GenericEntityHandler) Create(c *fiber.Ctx) error {
 			continue
 		}
 
-		// Handle lookup fields specially - they have {fieldName}Id and {fieldName}Name in body
+		// Handle lookup fields specially - they have {fieldName} and {fieldName}Name in body
+		// Note: field.Name already includes "Id" suffix (e.g., "landlordId"), so no need to append "Id" again
 		if field.Type == entity.FieldTypeLink {
 			snakeName := util.CamelToSnake(field.Name)
-			idKey := field.Name + "Id"
+			idKey := field.Name
 			nameKey := field.Name + "Name"
 
 			if idVal, ok := body[idKey]; ok {
-				columns = append(columns, quoteIdentifier(snakeName+"_id"))
+				columns = append(columns, quoteIdentifier(snakeName))
 				placeholders = append(placeholders, "?")
 				values = append(values, idVal)
 			}
@@ -1167,14 +1166,15 @@ func (h *GenericEntityHandler) Update(c *fiber.Ctx) error {
 			continue
 		}
 
-		// Handle lookup fields specially - they have {fieldName}Id and {fieldName}Name in body
+		// Handle lookup fields specially - they have {fieldName} and {fieldName}Name in body
+		// Note: field.Name already includes "Id" suffix (e.g., "landlordId"), so no need to append "Id" again
 		if field.Type == entity.FieldTypeLink {
 			snakeName := util.CamelToSnake(field.Name)
-			idKey := field.Name + "Id"
+			idKey := field.Name
 			nameKey := field.Name + "Name"
 
 			if idVal, ok := body[idKey]; ok {
-				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_id")))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName)))
 				values = append(values, idVal)
 			}
 			if nameVal, ok := body[nameKey]; ok {
@@ -1684,13 +1684,14 @@ func (h *GenericEntityHandler) upsertCreate(c *fiber.Ctx, orgID, entityName, tab
 		}
 
 		// Handle lookup fields
+		// Note: field.Name already includes "Id" suffix (e.g., "landlordId"), so no need to append "Id" again
 		if field.Type == entity.FieldTypeLink {
 			snakeName := util.CamelToSnake(field.Name)
-			idKey := field.Name + "Id"
+			idKey := field.Name
 			nameKey := field.Name + "Name"
 
 			if idVal, ok := body[idKey]; ok {
-				columns = append(columns, quoteIdentifier(snakeName+"_id"))
+				columns = append(columns, quoteIdentifier(snakeName))
 				placeholders = append(placeholders, "?")
 				values = append(values, idVal)
 			}
@@ -1814,13 +1815,14 @@ func (h *GenericEntityHandler) upsertUpdate(c *fiber.Ctx, orgID, entityName, tab
 		}
 
 		// Handle lookup fields
+		// Note: field.Name already includes "Id" suffix (e.g., "landlordId"), so no need to append "Id" again
 		if field.Type == entity.FieldTypeLink {
 			snakeName := util.CamelToSnake(field.Name)
-			idKey := field.Name + "Id"
+			idKey := field.Name
 			nameKey := field.Name + "Name"
 
 			if idVal, ok := body[idKey]; ok {
-				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName+"_id")))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", quoteIdentifier(snakeName)))
 				values = append(values, idVal)
 			}
 			if nameVal, ok := body[nameKey]; ok {

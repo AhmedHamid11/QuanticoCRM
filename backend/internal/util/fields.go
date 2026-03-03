@@ -3,7 +3,6 @@ package util
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/fastcrm/backend/internal/entity"
 )
@@ -27,16 +26,17 @@ func BuildInsertFieldValues(fields []entity.FieldDef, body map[string]interface{
 		// Handle lookup fields specially - they have {fieldName}Id and {fieldName}Name in body
 		if field.Type == entity.FieldTypeLink {
 			snakeName := CamelToSnake(field.Name)
+			idCol, nameCol := GetLinkColumnNames(snakeName)
 			idKey := field.Name + "Id"
 			nameKey := field.Name + "Name"
 
 			if idVal, ok := body[idKey]; ok {
-				fv.Columns = append(fv.Columns, QuoteIdentifier(snakeName+"_id"))
+				fv.Columns = append(fv.Columns, QuoteIdentifier(idCol))
 				fv.Placeholders = append(fv.Placeholders, "?")
 				fv.Values = append(fv.Values, idVal)
 			}
 			if nameVal, ok := body[nameKey]; ok {
-				fv.Columns = append(fv.Columns, QuoteIdentifier(snakeName+"_name"))
+				fv.Columns = append(fv.Columns, QuoteIdentifier(nameCol))
 				fv.Placeholders = append(fv.Placeholders, "?")
 				fv.Values = append(fv.Values, nameVal)
 			}
@@ -89,15 +89,16 @@ func BuildUpdateSetClauses(fields []entity.FieldDef, body map[string]interface{}
 		// Handle lookup fields specially
 		if field.Type == entity.FieldTypeLink {
 			snakeName := CamelToSnake(field.Name)
+			idCol, nameCol := GetLinkColumnNames(snakeName)
 			idKey := field.Name + "Id"
 			nameKey := field.Name + "Name"
 
 			if idVal, ok := body[idKey]; ok {
-				setClauses = append(setClauses, fmt.Sprintf("%s = ?", QuoteIdentifier(snakeName+"_id")))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", QuoteIdentifier(idCol)))
 				values = append(values, idVal)
 			}
 			if nameVal, ok := body[nameKey]; ok {
-				setClauses = append(setClauses, fmt.Sprintf("%s = ?", QuoteIdentifier(snakeName+"_name")))
+				setClauses = append(setClauses, fmt.Sprintf("%s = ?", QuoteIdentifier(nameCol)))
 				values = append(values, nameVal)
 			}
 			continue
@@ -135,8 +136,7 @@ func AddDerivedLookupFields(record, camelRecord map[string]interface{}, lookupFi
 	// Add derived fields for lookups: {fieldName}Id, {fieldName}Name, {fieldName}Link
 	for fieldName, fieldDef := range lookupFields {
 		snakeName := CamelToSnake(fieldName)
-		idCol := snakeName + "_id"
-		nameCol := snakeName + "_name"
+		idCol, nameCol := GetLinkColumnNames(snakeName)
 
 		// Get the ID and Name values from the record
 		idVal := record[idCol]
@@ -148,7 +148,7 @@ func AddDerivedLookupFields(record, camelRecord map[string]interface{}, lookupFi
 
 		// Generate the link URL if we have an ID and linked entity
 		if idVal != nil && idVal != "" && fieldDef.LinkEntity != nil {
-			linkedEntityPlural := strings.ToLower(*fieldDef.LinkEntity) + "s"
+			linkedEntityPlural := GetTableName(*fieldDef.LinkEntity)
 			camelRecord[fieldName+"Link"] = "/" + linkedEntityPlural + "/" + fmt.Sprintf("%v", idVal)
 		} else {
 			camelRecord[fieldName+"Link"] = nil
@@ -171,7 +171,7 @@ func AddDerivedLookupFields(record, camelRecord map[string]interface{}, lookupFi
 
 		// Generate the links array if we have IDs and linked entity
 		if idsVal != nil && idsVal != "" && idsVal != "[]" && fieldDef.LinkEntity != nil {
-			linkedEntityPlural := strings.ToLower(*fieldDef.LinkEntity) + "s"
+			linkedEntityPlural := GetTableName(*fieldDef.LinkEntity)
 			// Parse the IDs JSON array and create links
 			var ids []string
 			if idsStr, ok := idsVal.(string); ok {
