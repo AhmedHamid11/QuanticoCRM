@@ -46,6 +46,17 @@
 		return getRecordValueUtil(record, fieldName);
 	}
 
+	// Get the display name for the record using the entity's configured displayField
+	function getDisplayName(): string {
+		if (!record) return recordId;
+		const df = entityDef?.displayField || 'name';
+		const val = getRecordValue(df);
+		if (val) return String(val);
+		// Fallback: try 'name' field
+		if (df !== 'name' && record.name) return String(record.name);
+		return recordId;
+	}
+
 	let entityDef = $state<EntityDef | null>(null);
 	let fields = $state<FieldDef[]>([]);
 	let layout = $state<LayoutDataV2 | null>(null);
@@ -202,8 +213,15 @@
 			// Try camelCase versions of the field name for link/name values
 			const linkValue = getRecordValue(`${fieldName}Link`);
 			const nameValue = getRecordValue(`${fieldName}Name`);
-			if (linkValue && nameValue) {
-				return { href: String(linkValue), text: String(nameValue) };
+			const idValue = getRecordValue(`${fieldName}Id`) || value;
+			if (linkValue && (nameValue || idValue)) {
+				return { href: String(linkValue), text: String(nameValue || idValue) };
+			}
+			// Fallback: construct link from linked entity and ID
+			if (idValue && field.linkEntity) {
+				const slug = field.linkEntity.toLowerCase() + 's';
+				const displayText = nameValue ? String(nameValue) : String(idValue);
+				return { href: `/${slug}/${idValue}`, text: displayText };
 			}
 		} else if (field.type === 'linkMultiple') {
 			// Multi-lookup is handled differently - return null here
@@ -269,7 +287,7 @@
 			<nav class="text-sm text-gray-500 mb-2">
 				<a href="/{entitySlug}" class="hover:text-gray-700">{entityDef?.labelPlural || entityName + 's'}</a>
 				<span class="mx-2">/</span>
-				<span class="text-gray-900">{record?.name || recordId}</span>
+				<span class="text-gray-900">{getDisplayName()}</span>
 			</nav>
 			<div class="flex items-center gap-3">
 				{#if entityDef}
@@ -282,7 +300,7 @@
 				{/if}
 				<h1 class="text-2xl font-bold text-gray-900">
 					{#if record}
-						{record.name || recordId}
+						{getDisplayName()}
 					{:else}
 						Loading...
 					{/if}
@@ -431,7 +449,7 @@
 			<ActivitiesStream
 				parentEntity={entityName}
 				parentId={String(record.id)}
-				parentName={String(record.name || recordId)}
+				parentName={getDisplayName()}
 			/>
 		{/if}
 	{/if}

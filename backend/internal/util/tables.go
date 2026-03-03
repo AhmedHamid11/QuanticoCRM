@@ -33,7 +33,8 @@ func EnsureTableExists(ctx context.Context, conn db.DBConn, entityName string, f
 	columns = append(columns, "org_id TEXT NOT NULL") // CRITICAL: Multi-tenant isolation
 
 	for _, field := range fields {
-		if field.Name == "id" || field.Name == "created_at" || field.Name == "modified_at" {
+		snakeFieldName := CamelToSnake(field.Name)
+		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" {
 			continue // Already added or will be added as standard audit columns
 		}
 
@@ -183,7 +184,8 @@ func SyncFieldColumns(ctx context.Context, conn db.DBConn, entityName string, fi
 
 	// Check each field and add missing columns
 	for _, field := range fields {
-		if field.Name == "id" || field.Name == "created_at" || field.Name == "modified_at" {
+		snakeFieldName := CamelToSnake(field.Name)
+		if snakeFieldName == "id" || snakeFieldName == "created_at" || snakeFieldName == "modified_at" {
 			continue
 		}
 

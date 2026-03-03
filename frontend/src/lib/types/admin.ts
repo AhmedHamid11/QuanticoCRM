@@ -50,6 +50,8 @@ export interface EntityDef {
 	isCustomizable: boolean;
 	hasStream: boolean;
 	hasActivities: boolean;
+	displayField: string;
+	searchFields: string;
 	createdAt: string;
 	modifiedAt: string;
 }

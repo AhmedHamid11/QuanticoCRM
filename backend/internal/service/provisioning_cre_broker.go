@@ -560,7 +560,7 @@ func (s *ProvisioningService) ProvisionCREBrokerSampleData(ctx context.Context, 
 		contactID := contactIDs[p.contactName]
 
 		_, err := s.db.ExecContext(ctx, `
-			INSERT INTO properties (id, org_id, name, address_street, address_city, address_state, address_postal_code,
+			INSERT INTO propertys (id, org_id, name, address_street, address_city, address_state, address_postal_code,
 				landlord_id, landlord_id_name, primary_contact_id, primary_contact_id_name,
 				total_sq_ft, available_sq_ft, status, asking_price_per_sq_ft, availability_date,
 				property_type, created_at, modified_at, deleted, custom_fields)
