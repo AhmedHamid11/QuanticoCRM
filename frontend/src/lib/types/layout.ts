@@ -318,7 +318,8 @@ export function createDefaultCard(cardType: SectionCardType, order: number): Sec
 	const card: SectionCardV3 = {
 		id: generateCardId(),
 		cardType,
-		order
+		order,
+		column: 1
 	};
 	if (cardType === 'field') {
 		card.fields = [];

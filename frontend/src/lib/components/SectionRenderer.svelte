@@ -76,17 +76,19 @@
 		{#if !isCollapsed}
 			<div class="grid gap-0" style="grid-template-columns: repeat({section.columns}, minmax(0, 1fr))">
 				{#each sortedCards as card (card.id)}
-					<CardRenderer
-						{card}
-						{fields}
-						{record}
-						{formatValue}
-						{renderLink}
-						{entityName}
-						{recordId}
-						{onRecordUpdate}
-						{relatedListConfigs}
-					/>
+					<div style={section.columns > 1 ? `grid-column: ${card.column ?? 1}` : ''}>
+						<CardRenderer
+							{card}
+							{fields}
+							{record}
+							{formatValue}
+							{renderLink}
+							{entityName}
+							{recordId}
+							{onRecordUpdate}
+							{relatedListConfigs}
+						/>
+					</div>
 				{/each}
 			</div>
 		{/if}

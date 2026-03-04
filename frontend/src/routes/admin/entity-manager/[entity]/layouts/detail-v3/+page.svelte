@@ -34,6 +34,9 @@
 	let draggedTabIndex = $state<number | null>(null);
 	let dragOverTabIndex = $state<number | null>(null);
 
+	// Section card drag state (between columns)
+	let draggedSectionCardId = $state<string | null>(null);
+
 	// Sidebar card drag state
 	let draggedCardIndex = $state<number | null>(null);
 	let dragOverCardIndex = $state<number | null>(null);
@@ -234,6 +237,10 @@
 	function toggleSectionColumns(index: number, columns: 1 | 2 | 3) {
 		mutate((l) => {
 			l.sections[index].columns = columns;
+			// Clamp card columns that exceed the new column count
+			for (const card of l.sections[index].cards ?? []) {
+				if ((card.column ?? 1) > columns) card.column = 1;
+			}
 		});
 	}
 
@@ -252,25 +259,28 @@
 	// Card type selector
 	let showCardTypeSelector = $state(false);
 	let cardTypeSelectorSectionIndex = $state<number>(0);
+	let cardTypeSelectorColumn = $state<number>(1);
 	let relatedListConfigs = $state<RelatedListConfig[]>([]);
 
-	function openAddCard(sectionIndex: number) {
+	function openAddCard(sectionIndex: number, column: number = 1) {
 		cardTypeSelectorSectionIndex = sectionIndex;
+		cardTypeSelectorColumn = column;
 		showCardTypeSelector = true;
 	}
 
 	function selectCardTypeForSection(cardType: SectionCardType) {
 		showCardTypeSelector = false;
-		addCardToSection(cardTypeSelectorSectionIndex, cardType);
+		addCardToSection(cardTypeSelectorSectionIndex, cardType, cardTypeSelectorColumn);
 	}
 
-	function addCardToSection(sectionIndex: number, cardType: SectionCardType) {
+	function addCardToSection(sectionIndex: number, cardType: SectionCardType, column: number = 1) {
 		mutate((l) => {
 			const section = l.sections[sectionIndex];
 			if (!section.cards) section.cards = [];
 			const order = section.cards.length + 1;
 			const card = createDefaultCard(cardType, order);
 			card.label = cardType === 'activity' ? 'Activities' : cardType === 'relatedList' ? 'Related Records' : cardType === 'customPage' ? 'Custom Content' : 'Fields';
+			card.column = column;
 			section.cards = [...section.cards, card];
 		});
 		// Expand the new card
@@ -356,6 +366,46 @@
 	function handleSectionDragEnd() {
 		draggedSectionIndex = null;
 		dragOverSectionIndex = null;
+	}
+
+	// ---- Section card column drag-and-drop ----
+
+	function getCardsForColumn(section: LayoutSectionV2, colNum: number): SectionCardV3[] {
+		return [...(section.cards ?? [])]
+			.filter(c => (c.column ?? 1) === colNum)
+			.sort((a, b) => a.order - b.order);
+	}
+
+	function findCardIndex(sectionIndex: number, cardId: string): number {
+		return (editorLayout?.sections[sectionIndex]?.cards ?? []).findIndex(c => c.id === cardId);
+	}
+
+	function moveCardToColumn(sectionIndex: number, cardId: string, targetCol: number) {
+		mutate((l) => {
+			const card = l.sections[sectionIndex].cards?.find(c => c.id === cardId);
+			if (card) card.column = targetCol;
+		});
+	}
+
+	function handleSectionCardDragStart(e: DragEvent, cardId: string) {
+		draggedSectionCardId = cardId;
+		e.dataTransfer?.setData('text/plain', cardId);
+	}
+
+	function handleColumnDragOver(e: DragEvent) {
+		if (!draggedSectionCardId) return;
+		e.preventDefault();
+	}
+
+	function handleColumnDrop(e: DragEvent, sectionIndex: number, targetCol: number) {
+		e.preventDefault();
+		if (!draggedSectionCardId) return;
+		moveCardToColumn(sectionIndex, draggedSectionCardId, targetCol);
+		draggedSectionCardId = null;
+	}
+
+	function handleSectionCardDragEnd() {
+		draggedSectionCardId = null;
 	}
 
 	// ---- Field operations (within cards) ----
@@ -1292,242 +1342,299 @@
 
 						<!-- Expanded: cards list -->
 						{#if isSectionExpanded}
-							<div class="p-4 space-y-3">
-								{#if (section.cards ?? []).length === 0}
-									<p class="text-sm text-gray-400 italic text-center py-3">
-										No cards in this section. Add a card below.
-									</p>
-								{:else}
-									{#each [...(section.cards ?? [])].sort((a, b) => a.order - b.order) as card, cardIndex (card.id)}
-										{@const badge = getCardTypeBadge(card.cardType)}
-										{@const isCardExpanded = expandedCardIds.has(card.id)}
+							{#snippet cardEditor(card: SectionCardV3, sectionIdx: number, isDraggableColumn: boolean)}
+								{@const cardIdx = findCardIndex(sectionIdx, card.id)}
+								{@const badge = getCardTypeBadge(card.cardType)}
+								{@const isCardExpanded = expandedCardIds.has(card.id)}
 
-										<div class="border border-gray-200 rounded-lg overflow-hidden">
-											<!-- Card header -->
-											<div class="flex items-center gap-2 px-3 py-2 bg-gray-50">
-												<!-- Card type badge -->
-												<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {badge.classes}">
-													{badge.label}
-												</span>
+								<div
+									class="border border-gray-200 rounded-lg overflow-hidden transition-all
+										{draggedSectionCardId === card.id ? 'opacity-50 ring-2 ring-blue-400' : ''}"
+									draggable={isDraggableColumn ? 'true' : undefined}
+									ondragstart={isDraggableColumn ? (e: DragEvent) => handleSectionCardDragStart(e, card.id) : undefined}
+									ondragend={isDraggableColumn ? handleSectionCardDragEnd : undefined}
+								>
+									<!-- Card header -->
+									<div class="flex items-center gap-2 px-3 py-2 bg-gray-50">
+										{#if isDraggableColumn}
+											<div class="flex-shrink-0 cursor-grab text-gray-400" title="Drag to another column">
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+												</svg>
+											</div>
+										{/if}
 
-												<!-- Card label -->
-												<input
-													type="text"
-													value={card.label ?? ''}
-													oninput={(e) => updateCardLabel(index, cardIndex, (e.target as HTMLInputElement).value)}
-													class="flex-1 text-sm text-gray-700 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
-													placeholder="Card label (optional)"
-												/>
+										<!-- Card type badge -->
+										<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {badge.classes}">
+											{badge.label}
+										</span>
 
-												{#if card.cardType === 'field'}
-													<!-- Internal column toggle for field cards -->
-													<div class="flex-shrink-0 flex items-center gap-0.5 border border-gray-200 rounded overflow-hidden">
-														{#each [1, 2] as col}
-															<button
-																type="button"
-																onclick={() => toggleCardColumns(index, cardIndex, col as 1 | 2)}
-																class="px-2 py-0.5 text-xs transition-colors
-																	{col > 1 ? 'border-l border-gray-200' : ''}
-																	{(card.columns ?? 2) === col
-																		? 'bg-blue-600 text-white'
-																		: 'text-gray-500 hover:bg-gray-100'}"
-																title="{col} col internal"
-															>
-																{col}
-															</button>
-														{/each}
-													</div>
+										<!-- Card label -->
+										<input
+											type="text"
+											value={card.label ?? ''}
+											oninput={(e) => updateCardLabel(sectionIdx, cardIdx, (e.target as HTMLInputElement).value)}
+											class="flex-1 text-sm text-gray-700 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
+											placeholder="Card label (optional)"
+										/>
 
-													<span class="text-xs text-gray-400 tabular-nums">
-														{(card.fields ?? []).length} field{(card.fields ?? []).length !== 1 ? 's' : ''}
-													</span>
-												{/if}
-
-												<!-- Expand/collapse card -->
-												<button
-													type="button"
-													onclick={() => toggleCardExpand(card.id)}
-													class="flex-shrink-0 text-gray-400 hover:text-gray-600"
-													title={isCardExpanded ? 'Collapse' : 'Expand'}
-												>
-													<svg
-														class="w-4 h-4 transition-transform {isCardExpanded ? 'rotate-180' : ''}"
-														fill="none"
-														stroke="currentColor"
-														viewBox="0 0 24 24"
+										{#if card.cardType === 'field'}
+											<!-- Internal column toggle for field cards -->
+											<div class="flex-shrink-0 flex items-center gap-0.5 border border-gray-200 rounded overflow-hidden">
+												{#each [1, 2] as col}
+													<button
+														type="button"
+														onclick={() => toggleCardColumns(sectionIdx, cardIdx, col as 1 | 2)}
+														class="px-2 py-0.5 text-xs transition-colors
+															{col > 1 ? 'border-l border-gray-200' : ''}
+															{(card.columns ?? 2) === col
+																? 'bg-blue-600 text-white'
+																: 'text-gray-500 hover:bg-gray-100'}"
+														title="{col} col internal"
 													>
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-													</svg>
-												</button>
-
-												<!-- Delete card -->
-												<button
-													type="button"
-													onclick={() => deleteCard(index, cardIndex)}
-													class="flex-shrink-0 text-gray-400 hover:text-red-500"
-													title="Delete card"
-												>
-													<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-													</svg>
-												</button>
+														{col}
+													</button>
+												{/each}
 											</div>
 
-											<!-- Card config panel (expanded) -->
-											{#if isCardExpanded}
-												{#if card.cardType === 'field'}
-													<!-- Field card: field list + add pills -->
-													<div class="p-3 space-y-2">
-														{#if (card.fields ?? []).length === 0}
-															<p class="text-sm text-gray-400 italic text-center py-2">
-																No fields. Add fields below.
-															</p>
-														{:else}
-															{#each (card.fields ?? []) as field, fieldIndex (field.name)}
-																{@const isFieldDragging = draggedFieldInfo?.sectionIndex === index && draggedFieldInfo?.cardIndex === cardIndex && draggedFieldInfo?.fieldIndex === fieldIndex}
-																{@const isFieldDropTarget = dragOverFieldInfo?.sectionIndex === index && dragOverFieldInfo?.cardIndex === cardIndex && dragOverFieldInfo?.fieldIndex === fieldIndex && draggedFieldInfo?.sectionIndex === index && draggedFieldInfo?.cardIndex === cardIndex && draggedFieldInfo?.fieldIndex !== fieldIndex}
+											<span class="text-xs text-gray-400 tabular-nums">
+												{(card.fields ?? []).length} field{(card.fields ?? []).length !== 1 ? 's' : ''}
+											</span>
+										{/if}
 
-																<div
-																	draggable="true"
-																	ondragstart={() => handleFieldDragStart(index, cardIndex, fieldIndex)}
-																	ondragover={(e) => handleFieldDragOver(e, index, cardIndex, fieldIndex)}
-																	ondragleave={handleFieldDragLeave}
-																	ondrop={(e) => handleFieldDrop(e, index, cardIndex, fieldIndex)}
-																	ondragend={handleFieldDragEnd}
-																	class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded border transition-all
-																		{isFieldDragging ? 'opacity-50 border-blue-300' : 'border-gray-200'}
-																		{isFieldDropTarget ? 'border-blue-500 bg-blue-50' : ''}"
-																>
-																	<div class="flex-shrink-0 cursor-move text-gray-400">
-																		<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-																		</svg>
-																	</div>
-																	<span class="flex-1 text-sm text-gray-800">{getFieldLabel(field.name)}</span>
-																	<span class="text-xs text-gray-400 font-mono">{field.name}</span>
-																	{#if getFieldType(field.name)}
-																		<span class="flex-shrink-0 text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">
-																			{getFieldType(field.name)}
-																		</span>
-																	{/if}
-																	<button
-																		type="button"
-																		onclick={() => removeFieldFromCard(index, cardIndex, fieldIndex)}
-																		class="flex-shrink-0 text-gray-400 hover:text-red-500"
-																		title="Remove field"
-																	>
-																		<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-																		</svg>
-																	</button>
-																</div>
-															{/each}
-														{/if}
+										<!-- Expand/collapse card -->
+										<button
+											type="button"
+											onclick={() => toggleCardExpand(card.id)}
+											class="flex-shrink-0 text-gray-400 hover:text-gray-600"
+											title={isCardExpanded ? 'Collapse' : 'Expand'}
+										>
+											<svg
+												class="w-4 h-4 transition-transform {isCardExpanded ? 'rotate-180' : ''}"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+											</svg>
+										</button>
 
-														<!-- Add field pills -->
-														{#if availableFieldsForCard(index, cardIndex).length > 0}
-														{@const availFields = availableFieldsForCard(index, cardIndex)}
-															<div class="pt-2 border-t border-gray-100">
-																<p class="text-xs text-gray-500 mb-2">Add field:</p>
-																<div class="flex flex-wrap gap-1.5">
-																	{#each availFields as availField (availField.id)}
-																		<button
-																			type="button"
-																			onclick={() => addFieldToCard(index, cardIndex, availField.name)}
-																			class="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
-																		>
-																			+ {availField.label}
-																		</button>
-																	{/each}
-																</div>
-															</div>
-														{/if}
-													</div>
-												{:else if card.cardType === 'relatedList'}
-													<!-- Related list config -->
-													{@const rlConfig = (card.cardConfig ?? { relatedListConfigId: '' }) as RelatedListCardConfig}
-													<div class="px-4 py-3 bg-purple-50">
-														<label class="block text-xs font-medium text-gray-600 mb-1">Related Entity</label>
-														<select
-															class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
-															value={rlConfig.relatedListConfigId}
-															onchange={(e) => {
-																mutate((l) => {
-																	const c = l.sections[index].cards?.[cardIndex];
-																	if (c) c.cardConfig = { relatedListConfigId: (e.target as HTMLSelectElement).value };
-																});
-															}}
+										<!-- Delete card -->
+										<button
+											type="button"
+											onclick={() => deleteCard(sectionIdx, cardIdx)}
+											class="flex-shrink-0 text-gray-400 hover:text-red-500"
+											title="Delete card"
+										>
+											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									</div>
+
+									<!-- Card config panel (expanded) -->
+									{#if isCardExpanded}
+										{#if card.cardType === 'field'}
+											<!-- Field card: field list + add pills -->
+											<div class="p-3 space-y-2">
+												{#if (card.fields ?? []).length === 0}
+													<p class="text-sm text-gray-400 italic text-center py-2">
+														No fields. Add fields below.
+													</p>
+												{:else}
+													{#each (card.fields ?? []) as field, fieldIndex (field.name)}
+														{@const isFieldDragging = draggedFieldInfo?.sectionIndex === sectionIdx && draggedFieldInfo?.cardIndex === cardIdx && draggedFieldInfo?.fieldIndex === fieldIndex}
+														{@const isFieldDropTarget = dragOverFieldInfo?.sectionIndex === sectionIdx && dragOverFieldInfo?.cardIndex === cardIdx && dragOverFieldInfo?.fieldIndex === fieldIndex && draggedFieldInfo?.sectionIndex === sectionIdx && draggedFieldInfo?.cardIndex === cardIdx && draggedFieldInfo?.fieldIndex !== fieldIndex}
+
+														<div
+															draggable="true"
+															ondragstart={() => handleFieldDragStart(sectionIdx, cardIdx, fieldIndex)}
+															ondragover={(e) => handleFieldDragOver(e, sectionIdx, cardIdx, fieldIndex)}
+															ondragleave={handleFieldDragLeave}
+															ondrop={(e) => handleFieldDrop(e, sectionIdx, cardIdx, fieldIndex)}
+															ondragend={handleFieldDragEnd}
+															class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded border transition-all
+																{isFieldDragging ? 'opacity-50 border-blue-300' : 'border-gray-200'}
+																{isFieldDropTarget ? 'border-blue-500 bg-blue-50' : ''}"
 														>
-															<option value="">-- Select related entity --</option>
-															{#each relatedListConfigs.filter(c => c.enabled) as rlc (rlc.id)}
-																<option value={rlc.id}>{rlc.label} ({rlc.relatedEntity})</option>
-															{/each}
-														</select>
-													</div>
-												{:else if card.cardType === 'customPage'}
-													<!-- Custom page config -->
-													{@const cpConfig = (card.cardConfig ?? { mode: 'iframe', url: '', height: 400 }) as CustomPageCardConfig}
-													<div class="px-4 py-3 bg-amber-50 space-y-2">
-														<div class="flex gap-2">
+															<div class="flex-shrink-0 cursor-move text-gray-400">
+																<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+																</svg>
+															</div>
+															<span class="flex-1 text-sm text-gray-800">{getFieldLabel(field.name)}</span>
+															<span class="text-xs text-gray-400 font-mono">{field.name}</span>
+															{#if getFieldType(field.name)}
+																<span class="flex-shrink-0 text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">
+																	{getFieldType(field.name)}
+																</span>
+															{/if}
 															<button
 																type="button"
-																onclick={() => mutate(l => { const c = l.sections[index].cards?.[cardIndex]; if (c) c.cardConfig = { ...cpConfig, mode: 'iframe' }; })}
-																class="px-3 py-1 text-xs rounded {cpConfig.mode === 'iframe' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+																onclick={() => removeFieldFromCard(sectionIdx, cardIdx, fieldIndex)}
+																class="flex-shrink-0 text-gray-400 hover:text-red-500"
+																title="Remove field"
 															>
-																Iframe
-															</button>
-															<button
-																type="button"
-																onclick={() => mutate(l => { const c = l.sections[index].cards?.[cardIndex]; if (c) c.cardConfig = { ...cpConfig, mode: 'html' }; })}
-																class="px-3 py-1 text-xs rounded {cpConfig.mode === 'html' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
-															>
-																HTML
+																<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+																</svg>
 															</button>
 														</div>
-														{#if cpConfig.mode === 'iframe'}
-															<div>
-																<label class="block text-xs font-medium text-gray-600 mb-1">URL</label>
-																<input type="text" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5" placeholder={'https://example.com/embed/{recordId}'}
-																	value={cpConfig.url ?? ''}
-																	oninput={(e) => mutate(l => { const c = l.sections[index].cards?.[cardIndex]; if (c) c.cardConfig = { ...cpConfig, url: (e.target as HTMLInputElement).value }; })}
-																/>
-															</div>
-															<div>
-																<label class="block text-xs font-medium text-gray-600 mb-1">Height (px)</label>
-																<input type="number" class="w-32 text-sm border border-gray-300 rounded px-2 py-1.5" placeholder="400"
-																	value={cpConfig.height ?? 400}
-																	oninput={(e) => mutate(l => { const c = l.sections[index].cards?.[cardIndex]; if (c) c.cardConfig = { ...cpConfig, height: parseInt((e.target as HTMLInputElement).value) || 400 }; })}
-																/>
-															</div>
-														{:else}
-															<div>
-																<label class="block text-xs font-medium text-gray-600 mb-1">HTML Content <span class="text-gray-400">(admin-trusted)</span></label>
-																<textarea class="w-full text-sm border border-gray-300 rounded px-2 py-1.5 font-mono" rows="6" placeholder="<div>Your custom HTML here</div>"
-																	value={cpConfig.content ?? ''}
-																	oninput={(e) => mutate(l => { const c = l.sections[index].cards?.[cardIndex]; if (c) c.cardConfig = { ...cpConfig, content: (e.target as HTMLTextAreaElement).value }; })}
-																></textarea>
-															</div>
-														{/if}
-													</div>
-												{:else if card.cardType === 'activity'}
-													<div class="px-4 py-3 bg-green-50">
-														<p class="text-sm text-green-700">Activity Card — displays tasks, calls, and meetings linked to this record. No additional configuration required.</p>
+													{/each}
+												{/if}
+
+												<!-- Add field pills -->
+												{#if availableFieldsForCard(sectionIdx, cardIdx).length > 0}
+												{@const availFields = availableFieldsForCard(sectionIdx, cardIdx)}
+													<div class="pt-2 border-t border-gray-100">
+														<p class="text-xs text-gray-500 mb-2">Add field:</p>
+														<div class="flex flex-wrap gap-1.5">
+															{#each availFields as availField (availField.id)}
+																<button
+																	type="button"
+																	onclick={() => addFieldToCard(sectionIdx, cardIdx, availField.name)}
+																	class="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+																>
+																	+ {availField.label}
+																</button>
+															{/each}
+														</div>
 													</div>
 												{/if}
-											{/if}
-										</div>
-									{/each}
-								{/if}
+											</div>
+										{:else if card.cardType === 'relatedList'}
+											<!-- Related list config -->
+											{@const rlConfig = (card.cardConfig ?? { relatedListConfigId: '' }) as RelatedListCardConfig}
+											<div class="px-4 py-3 bg-purple-50">
+												<label class="block text-xs font-medium text-gray-600 mb-1">Related Entity</label>
+												<select
+													class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
+													value={rlConfig.relatedListConfigId}
+													onchange={(e) => {
+														mutate((l) => {
+															const c = l.sections[sectionIdx].cards?.[cardIdx];
+															if (c) c.cardConfig = { relatedListConfigId: (e.target as HTMLSelectElement).value };
+														});
+													}}
+												>
+													<option value="">-- Select related entity --</option>
+													{#each relatedListConfigs.filter(c => c.enabled) as rlc (rlc.id)}
+														<option value={rlc.id}>{rlc.label} ({rlc.relatedEntity})</option>
+													{/each}
+												</select>
+											</div>
+										{:else if card.cardType === 'customPage'}
+											<!-- Custom page config -->
+											{@const cpConfig = (card.cardConfig ?? { mode: 'iframe', url: '', height: 400 }) as CustomPageCardConfig}
+											<div class="px-4 py-3 bg-amber-50 space-y-2">
+												<div class="flex gap-2">
+													<button
+														type="button"
+														onclick={() => mutate(l => { const c = l.sections[sectionIdx].cards?.[cardIdx]; if (c) c.cardConfig = { ...cpConfig, mode: 'iframe' }; })}
+														class="px-3 py-1 text-xs rounded {cpConfig.mode === 'iframe' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+													>
+														Iframe
+													</button>
+													<button
+														type="button"
+														onclick={() => mutate(l => { const c = l.sections[sectionIdx].cards?.[cardIdx]; if (c) c.cardConfig = { ...cpConfig, mode: 'html' }; })}
+														class="px-3 py-1 text-xs rounded {cpConfig.mode === 'html' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+													>
+														HTML
+													</button>
+												</div>
+												{#if cpConfig.mode === 'iframe'}
+													<div>
+														<label class="block text-xs font-medium text-gray-600 mb-1">URL</label>
+														<input type="text" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5" placeholder={'https://example.com/embed/{recordId}'}
+															value={cpConfig.url ?? ''}
+															oninput={(e) => mutate(l => { const c = l.sections[sectionIdx].cards?.[cardIdx]; if (c) c.cardConfig = { ...cpConfig, url: (e.target as HTMLInputElement).value }; })}
+														/>
+													</div>
+													<div>
+														<label class="block text-xs font-medium text-gray-600 mb-1">Height (px)</label>
+														<input type="number" class="w-32 text-sm border border-gray-300 rounded px-2 py-1.5" placeholder="400"
+															value={cpConfig.height ?? 400}
+															oninput={(e) => mutate(l => { const c = l.sections[sectionIdx].cards?.[cardIdx]; if (c) c.cardConfig = { ...cpConfig, height: parseInt((e.target as HTMLInputElement).value) || 400 }; })}
+														/>
+													</div>
+												{:else}
+													<div>
+														<label class="block text-xs font-medium text-gray-600 mb-1">HTML Content <span class="text-gray-400">(admin-trusted)</span></label>
+														<textarea class="w-full text-sm border border-gray-300 rounded px-2 py-1.5 font-mono" rows="6" placeholder="<div>Your custom HTML here</div>"
+															value={cpConfig.content ?? ''}
+															oninput={(e) => mutate(l => { const c = l.sections[sectionIdx].cards?.[cardIdx]; if (c) c.cardConfig = { ...cpConfig, content: (e.target as HTMLTextAreaElement).value }; })}
+														></textarea>
+													</div>
+												{/if}
+											</div>
+										{:else if card.cardType === 'activity'}
+											<div class="px-4 py-3 bg-green-50">
+												<p class="text-sm text-green-700">Activity Card — displays tasks, calls, and meetings linked to this record. No additional configuration required.</p>
+											</div>
+										{/if}
+									{/if}
+								</div>
+							{/snippet}
 
-								<!-- Add Card button -->
-								<button
-									type="button"
-									onclick={() => openAddCard(index)}
-									class="w-full px-3 py-2 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-xs font-medium"
-								>
-									+ Add Card
-								</button>
-							</div>
+							{#if section.columns > 1}
+								<!-- Multi-column view: cards arranged in columns with drag-and-drop -->
+								<div class="p-4">
+									<div class="grid gap-3" style="grid-template-columns: repeat({section.columns}, minmax(0, 1fr))">
+										{#each Array.from({ length: section.columns }, (_, i) => i + 1) as colNum}
+											{@const colCards = getCardsForColumn(section, colNum)}
+											<div
+												class="space-y-2 p-2 rounded-lg border-2 border-dashed min-h-[80px] transition-colors
+													{draggedSectionCardId ? 'border-blue-300 bg-blue-50/30' : 'border-gray-200'}"
+												ondragover={(e) => handleColumnDragOver(e)}
+												ondrop={(e) => handleColumnDrop(e, index, colNum)}
+											>
+												<div class="text-xs font-medium text-gray-400 text-center pb-1 border-b border-gray-100">
+													Column {colNum}
+												</div>
+												{#if colCards.length === 0}
+													<p class="text-xs text-gray-300 italic text-center py-4">
+														Drop cards here
+													</p>
+												{:else}
+													{#each colCards as card (card.id)}
+														{@render cardEditor(card, index, true)}
+													{/each}
+												{/if}
+												<button
+													type="button"
+													onclick={() => openAddCard(index, colNum)}
+													class="w-full px-2 py-1.5 border-2 border-dashed border-gray-300 text-gray-400 rounded hover:border-blue-400 hover:text-blue-600 transition-colors text-xs"
+												>
+													+ Add
+												</button>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{:else}
+								<!-- Single column: flat card list (original behavior) -->
+								<div class="p-4 space-y-3">
+									{#if (section.cards ?? []).length === 0}
+										<p class="text-sm text-gray-400 italic text-center py-3">
+											No cards in this section. Add a card below.
+										</p>
+									{:else}
+										{#each [...(section.cards ?? [])].sort((a, b) => a.order - b.order) as card (card.id)}
+											{@render cardEditor(card, index, false)}
+										{/each}
+									{/if}
+
+									<!-- Add Card button -->
+									<button
+										type="button"
+										onclick={() => openAddCard(index)}
+										class="w-full px-3 py-2 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-xs font-medium"
+									>
+										+ Add Card
+									</button>
+								</div>
+							{/if}
 						{/if}
 					</div>
 				{/each}
