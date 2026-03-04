@@ -51,6 +51,10 @@
 	// Which cards within sections are expanded
 	let expandedCardIds = $state<Set<string>>(new Set());
 
+	// Field picker dropdown state
+	let fieldPickerCardId = $state<string | null>(null);
+	let fieldPickerSearch = $state('');
+
 	// Panel collapse state
 	let tabsPanelCollapsed = $state(false);
 	let headerPanelCollapsed = $state(false);
@@ -95,13 +99,19 @@
 		}
 	}
 
+	function handleDocumentClick() {
+		if (fieldPickerCardId) closeFieldPicker();
+	}
+
 	onMount(() => {
 		window.addEventListener('beforeunload', handleBeforeUnload);
+		document.addEventListener('click', handleDocumentClick);
 		loadData();
 	});
 
 	onDestroy(() => {
 		window.removeEventListener('beforeunload', handleBeforeUnload);
+		document.removeEventListener('click', handleDocumentClick);
 	});
 
 	// ---- Data loading ----
@@ -310,6 +320,21 @@
 			const card = l.sections[sectionIndex].cards?.[cardIndex];
 			if (card) card.label = label;
 		});
+	}
+
+	function toggleFieldPicker(cardId: string) {
+		if (fieldPickerCardId === cardId) {
+			fieldPickerCardId = null;
+			fieldPickerSearch = '';
+		} else {
+			fieldPickerCardId = cardId;
+			fieldPickerSearch = '';
+		}
+	}
+
+	function closeFieldPicker() {
+		fieldPickerCardId = null;
+		fieldPickerSearch = '';
 	}
 
 	function toggleCardExpand(cardId: string) {
@@ -1400,6 +1425,60 @@
 											<span class="text-xs text-gray-400 tabular-nums">
 												{(card.fields ?? []).length} field{(card.fields ?? []).length !== 1 ? 's' : ''}
 											</span>
+
+											<!-- Add field button + dropdown -->
+											{@const pickerAvailFields = availableFieldsForCard(sectionIdx, cardIdx)}
+											{#if pickerAvailFields.length > 0}
+												<div class="relative flex-shrink-0">
+													<button
+														type="button"
+														onclick={(e) => { e.stopPropagation(); toggleFieldPicker(card.id); }}
+														class="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded transition-colors
+															{fieldPickerCardId === card.id
+																? 'bg-blue-600 text-white'
+																: 'bg-blue-50 text-blue-700 hover:bg-blue-100'}"
+														title="Add field to this card"
+													>
+														<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+														</svg>
+														Field
+													</button>
+													{#if fieldPickerCardId === card.id}
+														<div
+															class="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg w-64"
+															onclick={(e) => e.stopPropagation()}
+														>
+															<div class="p-2 border-b border-gray-100">
+																<input
+																	type="text"
+																	placeholder="Search fields..."
+																	bind:value={fieldPickerSearch}
+																	class="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+																/>
+															</div>
+															<div class="max-h-48 overflow-y-auto p-1">
+																{#each pickerAvailFields.filter(f =>
+																	!fieldPickerSearch ||
+																	f.label.toLowerCase().includes(fieldPickerSearch.toLowerCase()) ||
+																	f.name.toLowerCase().includes(fieldPickerSearch.toLowerCase())
+																) as f (f.id)}
+																	<button
+																		type="button"
+																		onclick={() => { addFieldToCard(sectionIdx, cardIdx, f.name); closeFieldPicker(); }}
+																		class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-blue-50 transition-colors flex items-center justify-between gap-2"
+																	>
+																		<span class="text-gray-800 truncate">{f.label}</span>
+																		<span class="text-gray-400 font-mono text-[10px] flex-shrink-0">{f.type}</span>
+																	</button>
+																{:else}
+																	<p class="text-xs text-gray-400 text-center py-2">No matching fields</p>
+																{/each}
+															</div>
+														</div>
+													{/if}
+												</div>
+											{/if}
 										{/if}
 
 										<!-- Expand/collapse card -->
