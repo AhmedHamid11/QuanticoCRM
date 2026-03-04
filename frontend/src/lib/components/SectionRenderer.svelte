@@ -307,21 +307,35 @@
 									/>
 								</div>
 							{:else}
-								<!-- Regular field -->
-								<div class="grid grid-cols-3 gap-4">
+								<!-- Regular field with inline edit support -->
+								{@const editable = isInlineEditable(field, fieldLayout.name)}
+								{@const isFlashing = flashSuccessField === fieldLayout.name}
+								<div class="grid grid-cols-3 gap-4 rounded px-1 -mx-1 transition-colors duration-700 {isFlashing ? 'bg-green-50 ring-1 ring-green-200' : ''}">
 									<dt class="text-sm font-medium text-gray-500">{field.label}</dt>
 									<dd class="col-span-2 text-sm text-gray-900">
-										{#if renderLink}
-											{@const linkInfo = renderLink(field.name, value)}
-											{#if linkInfo}
-												<a href={linkInfo.href} class="text-blue-600 hover:underline">
-													{linkInfo.text}
-												</a>
-											{:else}
-												{formatValue(field.name, value)}
-											{/if}
+										{#if editingField === fieldLayout.name}
+											<InlineFieldEditor
+												{field}
+												value={editingValue}
+												oncommit={(newVal) => commitEdit(fieldLayout.name, newVal)}
+												oncancel={cancelEdit}
+											/>
+										{:else if field.type === 'bool' && editable && entityName && recordId}
+											<FieldDisplay
+												{field}
+												{value}
+												{renderLink}
+												isEditable={true}
+												onclick={() => toggleBool(fieldLayout.name, value)}
+											/>
 										{:else}
-											{formatValue(field.name, value)}
+											<FieldDisplay
+												{field}
+												{value}
+												{renderLink}
+												isEditable={editable && !!entityName && !!recordId}
+												onclick={() => startEdit(fieldLayout.name, value, field)}
+											/>
 										{/if}
 									</dd>
 								</div>
