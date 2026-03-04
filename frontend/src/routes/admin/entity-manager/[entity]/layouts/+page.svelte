@@ -78,6 +78,24 @@
 				</a>
 			{/each}
 
+			<!-- V3 Detail Layout Editor - new card-based layout editor -->
+			<a
+				href="/admin/entity-manager/{entityName}/layouts/detail-v3"
+				class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 border-blue-500"
+			>
+				<div class="flex items-start">
+					<div class="flex-shrink-0">
+						<svg class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+						</svg>
+					</div>
+					<div class="ml-4">
+						<h3 class="text-lg font-medium text-gray-900">V3 Detail Layout</h3>
+						<p class="mt-1 text-sm text-gray-500">Visual editor with tabs, sidebar cards, and header fields</p>
+					</div>
+				</div>
+			</a>
+
 			<!-- Related Lists - special layout type -->
 			<a
 				href="/admin/entity-manager/{entityName}/related-lists"
