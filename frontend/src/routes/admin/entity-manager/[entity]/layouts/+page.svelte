@@ -12,7 +12,6 @@
 
 	const layoutTypes = [
 		{ id: 'list', name: 'List', description: 'Columns shown in the list/table view', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
-		{ id: 'detail', name: 'Detail', description: 'Fields shown on the record detail page', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
 		{ id: 'detailSmall', name: 'Quick View', description: 'Compact view shown in modals and popovers', icon: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' },
 		{ id: 'filters', name: 'Filters', description: 'Fields available in the search/filter panel', icon: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z' },
 		{ id: 'massUpdate', name: 'Mass Update', description: 'Fields available for bulk editing', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
@@ -78,7 +77,6 @@
 				</a>
 			{/each}
 
-			<!-- V3 Detail Layout Editor - new card-based layout editor -->
 			<a
 				href="/admin/entity-manager/{entityName}/layouts/detail-v3"
 				class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 border-blue-500"
@@ -90,8 +88,8 @@
 						</svg>
 					</div>
 					<div class="ml-4">
-						<h3 class="text-lg font-medium text-gray-900">V3 Detail Layout</h3>
-						<p class="mt-1 text-sm text-gray-500">Visual editor with tabs, sidebar cards, and header fields</p>
+						<h3 class="text-lg font-medium text-gray-900">Layout Editor</h3>
+						<p class="mt-1 text-sm text-gray-500">Configure the detail page layout with tabs, sections, sidebar, and header fields</p>
 					</div>
 				</div>
 			</a>
