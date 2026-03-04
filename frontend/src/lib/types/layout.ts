@@ -42,6 +42,27 @@ export interface LayoutFieldV2 {
 	visibility: VisibilityRule;
 }
 
+// Section card types
+export type SectionCardType = 'field' | 'activity' | 'relatedList' | 'customPage';
+
+// Card-specific configuration interfaces
+export interface ActivityCardConfig {
+	// No extra config — entity + id come from parent component props
+}
+
+export interface RelatedListCardConfig {
+	relatedListConfigId: string; // FK into entity's related_list_configs
+}
+
+export interface CustomPageCardConfig {
+	mode: 'iframe' | 'html';
+	url?: string; // for iframe mode — supports {{recordId}}, {{entityName}}, {{fieldName}} templates
+	height?: number; // for iframe mode, default 400
+	content?: string; // for html mode
+}
+
+export type SectionCardConfig = ActivityCardConfig | RelatedListCardConfig | CustomPageCardConfig | null;
+
 export interface LayoutSectionV2 {
 	id: string;
 	label: string;
@@ -51,6 +72,8 @@ export interface LayoutSectionV2 {
 	columns: 1 | 2 | 3;
 	visibility: VisibilityRule;
 	fields: LayoutFieldV2[];
+	cardType?: SectionCardType; // NEW — defaults to 'field' when absent
+	cardConfig?: SectionCardConfig; // NEW — type-specific configuration
 }
 
 export interface LayoutDataV2 {
@@ -281,7 +304,10 @@ export function getVisibleSections(
 			...section,
 			fields: section.fields.filter((field) => evaluateVisibility(field.visibility, record))
 		}))
-		.filter((section) => section.fields.length > 0)
+		.filter((section) => {
+			if (!section.cardType || section.cardType === 'field') return section.fields.length > 0;
+			return true; // activity, relatedList, customPage cards have no fields array
+		})
 		.sort((a, b) => a.order - b.order);
 }
 
@@ -299,7 +325,10 @@ export function getSectionsForTab(
 			...s,
 			fields: s.fields.filter((f) => evaluateVisibility(f.visibility, record))
 		}))
-		.filter((s) => s.fields.length > 0)
+		.filter((s) => {
+			if (!s.cardType || s.cardType === 'field') return s.fields.length > 0;
+			return true; // non-field cards are always shown (they have no fields)
+		})
 		.sort((a, b) => a.order - b.order);
 }
 
