@@ -1,14 +1,17 @@
 <script lang="ts">
 	import type { FieldDef, TextBlockVariant } from '$lib/types/admin';
-	import type { LayoutSectionV2 } from '$lib/types/layout';
+	import type { LayoutSectionV2, RelatedListCardConfig, CustomPageCardConfig } from '$lib/types/layout';
 	import { evaluateVisibility } from '$lib/types/layout';
 	import { fieldNameToKey, getRecordValue } from '$lib/utils/fieldMapping';
 	import { put, get, del } from '$lib/utils/api';
 	import StreamField from './StreamField.svelte';
 	import FieldDisplay from './FieldDisplay.svelte';
 	import InlineFieldEditor from './InlineFieldEditor.svelte';
+	import ActivityCard from './ActivityCard.svelte';
+	import RelatedList from './RelatedList.svelte';
 	import { isInlineEditable } from '$lib/utils/fieldFormatters';
 	import { toast } from '$lib/stores/toast.svelte';
+	import type { RelatedListConfig } from '$lib/types/related-list';
 
 	interface Props {
 		section: LayoutSectionV2;
@@ -19,9 +22,10 @@
 		entityName?: string;
 		recordId?: string;
 		onRecordUpdate?: (updatedRecord: Record<string, unknown>) => void;
+		relatedListConfigs?: RelatedListConfig[];
 	}
 
-	let { section, fields, record, formatValue, renderLink, entityName, recordId, onRecordUpdate }: Props = $props();
+	let { section, fields, record, formatValue, renderLink, entityName, recordId, onRecordUpdate, relatedListConfigs }: Props = $props();
 
 	// Track collapsed state (starts with section default)
 	let isCollapsed = $state(section.collapsed);
@@ -233,7 +237,7 @@
 	}
 </script>
 
-{#if isSectionVisible && visibleFields.length > 0}
+{#if isSectionVisible && (section.cardType && section.cardType !== 'field' ? true : visibleFields.length > 0)}
 	<div class="bg-white shadow rounded-lg overflow-hidden">
 		<!-- Section Header -->
 		<div
@@ -260,90 +264,132 @@
 
 		<!-- Section Content -->
 		{#if !isCollapsed}
-			<div class="p-6">
-				<dl
-					class="grid gap-x-8 gap-y-4"
-					style="grid-template-columns: repeat({section.columns}, minmax(0, 1fr))"
-				>
-					{#each visibleFields as fieldLayout (fieldLayout.name)}
-						{@const field = getFieldDef(fieldLayout.name)}
-						{@const value = getFieldValue(fieldLayout.name)}
-						{#if field}
-							{#if field.type === 'textBlock'}
-								<!-- Text Block - styled message display -->
-								<div class="col-span-full">
-									<div class="rounded-md border p-4 {getTextBlockClasses(field.variant)}">
-										<div class="flex">
-											<div class="flex-shrink-0">
-												<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-													<path stroke-linecap="round" stroke-linejoin="round" d={getTextBlockIcon(field.variant)} />
-												</svg>
-											</div>
-											<div class="ml-3">
-												{#if field.label}
-													<h3 class="text-sm font-medium">{field.label}</h3>
-												{/if}
-												{#if field.content}
-													<div class="text-sm {field.label ? 'mt-1' : ''}">
-														{interpolateContent(field.content, record)}
-													</div>
-												{/if}
+			{#if section.cardType === 'activity'}
+				<!-- Activity Card -->
+				{#if entityName && recordId}
+					<ActivityCard {entityName} {recordId} />
+				{:else}
+					<div class="p-6 text-sm text-gray-400">Activity card requires a saved record.</div>
+				{/if}
+			{:else if section.cardType === 'relatedList'}
+				<!-- Related List Card -->
+				{@const rlConfig = relatedListConfigs?.find(c => c.id === (section.cardConfig as RelatedListCardConfig)?.relatedListConfigId)}
+				{#if rlConfig && entityName && recordId}
+					<div class="p-4">
+						<RelatedList config={rlConfig} parentEntity={entityName} parentId={recordId} />
+					</div>
+				{:else}
+					<div class="p-6 text-sm text-gray-400">Related list not configured or record not saved.</div>
+				{/if}
+			{:else if section.cardType === 'customPage'}
+				<!-- Custom Page Card (iframe or HTML) -->
+				{@const cpConfig = section.cardConfig as CustomPageCardConfig}
+				{#if cpConfig?.mode === 'iframe' && cpConfig.url}
+					{@const interpolationContext = { ...record, recordId: recordId ?? '', entityName: entityName ?? '' }}
+					{@const interpolatedUrl = interpolateContent(cpConfig.url, interpolationContext)}
+					<div class="p-0">
+						<iframe
+							src={interpolatedUrl}
+							style="width: 100%; height: {cpConfig.height ?? 400}px; border: 0;"
+							sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+							title={section.label}
+							loading="lazy"
+						></iframe>
+					</div>
+				{:else if cpConfig?.mode === 'html' && cpConfig.content}
+					<div class="p-4">
+						{@html cpConfig.content}
+					</div>
+				{:else}
+					<div class="p-6 text-sm text-gray-400">Custom page not configured.</div>
+				{/if}
+			{:else}
+				<!-- Default: Field Card (existing field grid — unchanged) -->
+				<div class="p-6">
+					<dl
+						class="grid gap-x-8 gap-y-4"
+						style="grid-template-columns: repeat({section.columns}, minmax(0, 1fr))"
+					>
+						{#each visibleFields as fieldLayout (fieldLayout.name)}
+							{@const field = getFieldDef(fieldLayout.name)}
+							{@const value = getFieldValue(fieldLayout.name)}
+							{#if field}
+								{#if field.type === 'textBlock'}
+									<!-- Text Block - styled message display -->
+									<div class="col-span-full">
+										<div class="rounded-md border p-4 {getTextBlockClasses(field.variant)}">
+											<div class="flex">
+												<div class="flex-shrink-0">
+													<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+														<path stroke-linecap="round" stroke-linejoin="round" d={getTextBlockIcon(field.variant)} />
+													</svg>
+												</div>
+												<div class="ml-3">
+													{#if field.label}
+														<h3 class="text-sm font-medium">{field.label}</h3>
+													{/if}
+													{#if field.content}
+														<div class="text-sm {field.label ? 'mt-1' : ''}">
+															{interpolateContent(field.content, record)}
+														</div>
+													{/if}
+												</div>
 											</div>
 										</div>
 									</div>
-								</div>
-							{:else if field.type === 'stream'}
-								<!-- Stream field - with inline entry support -->
-								{@const logValue = getFieldValue(fieldLayout.name + 'Log')}
-								{@const logStr = logValue ? String(logValue) : ''}
-								<div class="col-span-full">
-									<StreamField
-										label={field.label}
-										entry=""
-										log={logStr}
-										readonly={true}
-										onsubmit={createStreamSubmitHandler(field.name)}
-										ondelete={createStreamDeleteHandler(field.name)}
-									/>
-								</div>
-							{:else}
-								<!-- Regular field with inline edit support -->
-								{@const editable = isInlineEditable(field, fieldLayout.name)}
-								{@const isFlashing = flashSuccessField === fieldLayout.name}
-								<div class="grid grid-cols-3 gap-4 rounded px-1 -mx-1 transition-colors duration-700 {isFlashing ? 'bg-green-50 ring-1 ring-green-200' : ''}">
-									<dt class="text-sm font-medium text-gray-500">{field.label}</dt>
-									<dd class="col-span-2 text-sm text-gray-900">
-										{#if editingField === fieldLayout.name}
-											<InlineFieldEditor
-												{field}
-												value={editingValue}
-												oncommit={(newVal) => commitEdit(fieldLayout.name, newVal)}
-												oncancel={cancelEdit}
-											/>
-										{:else if field.type === 'bool' && editable && entityName && recordId}
-											<FieldDisplay
-												{field}
-												{value}
-												{renderLink}
-												isEditable={true}
-												onclick={() => toggleBool(fieldLayout.name, value)}
-											/>
-										{:else}
-											<FieldDisplay
-												{field}
-												{value}
-												{renderLink}
-												isEditable={editable && !!entityName && !!recordId}
-												onclick={() => startEdit(fieldLayout.name, value, field)}
-											/>
-										{/if}
-									</dd>
-								</div>
+								{:else if field.type === 'stream'}
+									<!-- Stream field - with inline entry support -->
+									{@const logValue = getFieldValue(fieldLayout.name + 'Log')}
+									{@const logStr = logValue ? String(logValue) : ''}
+									<div class="col-span-full">
+										<StreamField
+											label={field.label}
+											entry=""
+											log={logStr}
+											readonly={true}
+											onsubmit={createStreamSubmitHandler(field.name)}
+											ondelete={createStreamDeleteHandler(field.name)}
+										/>
+									</div>
+								{:else}
+									<!-- Regular field with inline edit support -->
+									{@const editable = isInlineEditable(field, fieldLayout.name)}
+									{@const isFlashing = flashSuccessField === fieldLayout.name}
+									<div class="grid grid-cols-3 gap-4 rounded px-1 -mx-1 transition-colors duration-700 {isFlashing ? 'bg-green-50 ring-1 ring-green-200' : ''}">
+										<dt class="text-sm font-medium text-gray-500">{field.label}</dt>
+										<dd class="col-span-2 text-sm text-gray-900">
+											{#if editingField === fieldLayout.name}
+												<InlineFieldEditor
+													{field}
+													value={editingValue}
+													oncommit={(newVal) => commitEdit(fieldLayout.name, newVal)}
+													oncancel={cancelEdit}
+												/>
+											{:else if field.type === 'bool' && editable && entityName && recordId}
+												<FieldDisplay
+													{field}
+													{value}
+													{renderLink}
+													isEditable={true}
+													onclick={() => toggleBool(fieldLayout.name, value)}
+												/>
+											{:else}
+												<FieldDisplay
+													{field}
+													{value}
+													{renderLink}
+													isEditable={editable && !!entityName && !!recordId}
+													onclick={() => startEdit(fieldLayout.name, value, field)}
+												/>
+											{/if}
+										</dd>
+									</div>
+								{/if}
 							{/if}
-						{/if}
-					{/each}
-				</dl>
-			</div>
+						{/each}
+					</dl>
+				</div>
+			{/if}
 		{/if}
 	</div>
 {/if}

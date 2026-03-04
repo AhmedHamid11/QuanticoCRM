@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { LayoutDataV3 } from '$lib/types/layout';
+	import type { LayoutDataV3, RelatedListCardConfig } from '$lib/types/layout';
 	import { getSectionsForTab } from '$lib/types/layout';
 	import type { FieldDef } from '$lib/types/admin';
 	import type { RelatedListConfig } from '$lib/types/related-list';
@@ -37,8 +37,17 @@
 		children
 	}: Props = $props();
 
+	// Collect relatedListConfigIds used in section cards (for deduplication)
+	let usedInSectionCards = $derived(
+		layout.sections
+			.filter(s => s.cardType === 'relatedList' && s.cardConfig)
+			.map(s => (s.cardConfig as RelatedListCardConfig).relatedListConfigId)
+	);
+
 	let enabledRelatedLists = $derived(
-		relatedListConfigs.filter((c) => c.enabled).sort((a, b) => a.sortOrder - b.sortOrder)
+		relatedListConfigs
+			.filter((c) => c.enabled && !usedInSectionCards.includes(c.id))
+			.sort((a, b) => a.sortOrder - b.sortOrder)
 	);
 
 	let tabs = $derived(
@@ -105,6 +114,7 @@
 					{entityName}
 					{recordId}
 					{onRecordUpdate}
+					{relatedListConfigs}
 				/>
 			{/each}
 			{#if activeSections.length === 0}
