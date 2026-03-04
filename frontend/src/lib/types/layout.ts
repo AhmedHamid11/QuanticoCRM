@@ -72,6 +72,7 @@ export interface SectionCardV3 {
 	fields?: LayoutFieldV2[];
 	cardConfig?: SectionCardConfig;
 	columns?: 1 | 2 | 3; // internal field grid columns for field cards
+	column?: number; // which section grid column this card sits in (1-indexed, default 1)
 }
 
 export interface LayoutSectionV2 {

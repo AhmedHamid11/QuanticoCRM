@@ -60,6 +60,7 @@ type SectionCardV3 struct {
 	Fields     []LayoutFieldV2 `json:"fields,omitempty"`
 	CardConfig json.RawMessage `json:"cardConfig,omitempty"`
 	Columns    int             `json:"columns,omitempty"` // internal field grid columns for field cards
+	Column     int             `json:"column,omitempty"`  // which section grid column this card sits in (1-indexed)
 }
 
 // LayoutSectionV2 represents a section in the layout
