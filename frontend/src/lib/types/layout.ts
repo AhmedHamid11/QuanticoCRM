@@ -110,6 +110,10 @@ export interface LayoutTabV3 {
 	sectionIds: string[];
 }
 
+/**
+ * @deprecated Old sidebar card format with flat string[] fields.
+ * Kept for migration reference only. LayoutSidebarV3.cards now uses SectionCardV3[].
+ */
 export interface LayoutSidebarCardV3 {
 	id: string;
 	label: string;
@@ -118,7 +122,7 @@ export interface LayoutSidebarCardV3 {
 }
 
 export interface LayoutSidebarV3 {
-	cards: LayoutSidebarCardV3[];
+	cards: SectionCardV3[];
 }
 
 export interface LayoutHeaderV3 {
@@ -372,11 +376,43 @@ export function migrateSectionToCards(section: LayoutSectionV2): LayoutSectionV2
 	};
 }
 
+// Migrate old sidebar cards (flat fields:string[]) to SectionCardV3 with cardType:'field'
+function migrateSidebarCards(cards: SectionCardV3[]): SectionCardV3[] {
+	if (!cards || cards.length === 0) return cards;
+	return cards.map((card) => {
+		// Detect old shape: no cardType and fields is string[] (flat names, not LayoutFieldV2 objects)
+		const rawCard = card as unknown as Record<string, unknown>;
+		if (
+			!card.cardType &&
+			Array.isArray(rawCard['fields']) &&
+			(rawCard['fields'] as unknown[]).length > 0 &&
+			typeof (rawCard['fields'] as unknown[])[0] === 'string'
+		) {
+			// Convert old LayoutSidebarCardV3 to SectionCardV3
+			const oldFields = rawCard['fields'] as string[];
+			return {
+				id: card.id,
+				cardType: 'field' as const,
+				order: card.order,
+				label: (rawCard['label'] as string) ?? '',
+				columns: 1, // sidebar is narrow — single column
+				fields: oldFields.map((name) => ({ name, visibility: { type: 'always' as const } }))
+			} satisfies SectionCardV3;
+		}
+		// Already a SectionCardV3 — leave as-is
+		return card;
+	});
+}
+
 // Migrate all sections in a V3 layout to multi-card format
 export function migrateLayoutV3(layout: LayoutDataV3): LayoutDataV3 {
 	return {
 		...layout,
-		sections: layout.sections.map(migrateSectionToCards)
+		sections: layout.sections.map(migrateSectionToCards),
+		sidebar: {
+			...layout.sidebar,
+			cards: migrateSidebarCards(layout.sidebar?.cards ?? [])
+		}
 	};
 }
 

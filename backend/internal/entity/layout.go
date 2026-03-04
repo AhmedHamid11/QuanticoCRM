@@ -92,7 +92,8 @@ type LayoutTabV3 struct {
 	SectionIDs []string `json:"sectionIds"`
 }
 
-// LayoutSidebarCardV3 represents a card in the right sidebar
+// LayoutSidebarCardV3 represents the old sidebar card format (flat string[] fields).
+// DEPRECATED: kept for migration reference only. LayoutSidebarV3.Cards now uses []SectionCardV3.
 type LayoutSidebarCardV3 struct {
 	ID     string   `json:"id"`
 	Label  string   `json:"label"`
@@ -102,7 +103,7 @@ type LayoutSidebarCardV3 struct {
 
 // LayoutSidebarV3 holds the sidebar configuration
 type LayoutSidebarV3 struct {
-	Cards []LayoutSidebarCardV3 `json:"cards"`
+	Cards []SectionCardV3 `json:"cards"`
 }
 
 // LayoutHeaderV3 holds the header strip configuration (4-6 key fields)
@@ -199,7 +200,7 @@ func ConvertV2ToV3(v2 *LayoutDataV2) *LayoutDataV3 {
 				SectionIDs: sectionIDs,
 			},
 		},
-		Sidebar:    LayoutSidebarV3{Cards: []LayoutSidebarCardV3{}},
+		Sidebar:    LayoutSidebarV3{Cards: []SectionCardV3{}},
 		Header:     LayoutHeaderV3{Fields: []string{}},
 		Conditions: nil,
 	}
