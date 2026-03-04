@@ -839,14 +839,14 @@
 			<span class="mx-2">/</span>
 			<a href="/admin/entity-manager/{entityName}/layouts" class="hover:text-gray-700">Layouts</a>
 			<span class="mx-2">/</span>
-			<span class="text-gray-900">V3 Detail Editor</span>
+			<span class="text-gray-900">Layout Editor</span>
 		</nav>
 
 		<!-- Top bar -->
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-2xl font-bold text-gray-900">
-					{entity?.label || entityName} — V3 Detail Layout Editor
+					{entity?.label || entityName} — Layout Editor
 				</h1>
 				<p class="text-sm text-gray-500 mt-1">
 					Configure tabs, header fields, sidebar cards, and sections with multiple cards. Save when done.
