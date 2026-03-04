@@ -5,7 +5,7 @@
 	import { get, put } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
-	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutV3Response } from '$lib/types/layout';
+	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutSidebarCardV3, LayoutV3Response } from '$lib/types/layout';
 	import { createDefaultVisibility, createDefaultField } from '$lib/types/layout';
 
 	let entityName = $derived($page.params.entity);
@@ -29,8 +29,28 @@
 	let draggedFieldInfo = $state<{ sectionIndex: number; fieldIndex: number } | null>(null);
 	let dragOverFieldInfo = $state<{ sectionIndex: number; fieldIndex: number } | null>(null);
 
+	// Tab drag state
+	let draggedTabIndex = $state<number | null>(null);
+	let dragOverTabIndex = $state<number | null>(null);
+
+	// Sidebar card drag state
+	let draggedCardIndex = $state<number | null>(null);
+	let dragOverCardIndex = $state<number | null>(null);
+
+	// Header field drag state
+	let draggedHeaderFieldIndex = $state<number | null>(null);
+	let dragOverHeaderFieldIndex = $state<number | null>(null);
+
 	// UI state — which sections have their field list expanded
 	let expandedSections = $state<Set<string>>(new Set());
+
+	// Panel collapse state (all expanded by default)
+	let tabsPanelCollapsed = $state(false);
+	let headerPanelCollapsed = $state(false);
+	let sidebarPanelCollapsed = $state(false);
+
+	// Sidebar card expanded state
+	let expandedCards = $state<Set<string>>(new Set());
 
 	// Track all used field names across all sections
 	let usedFieldNames = $derived(() => {
@@ -46,6 +66,14 @@
 
 	// Fields not assigned to any section
 	let unassignedFields = $derived(fields.filter((f) => !usedFieldNames().has(f.name)));
+
+	// Sections not assigned to any tab
+	let unassignedSections = $derived(() => {
+		if (!editorLayout) return [];
+		return editorLayout.sections.filter(
+			(s) => !editorLayout!.tabs.some((t) => t.sectionIds.includes(s.id))
+		);
+	});
 
 	// Navigation guard — must be called at component initialization, not inside onMount
 	beforeNavigate(({ cancel }) => {
@@ -88,6 +116,8 @@
 
 			// Start with all sections expanded
 			expandedSections = new Set(editorLayout.sections.map((s) => s.id));
+			// Start with all sidebar cards collapsed
+			expandedCards = new Set();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load layout';
 		} finally {
@@ -299,6 +329,277 @@
 		dragOverFieldInfo = null;
 	}
 
+	// ---- Tab operations ----
+
+	function addTab() {
+		if (!editorLayout) return;
+		const maxOrder = editorLayout.tabs.length > 0
+			? Math.max(...editorLayout.tabs.map((t) => t.order))
+			: 0;
+		const newTab: LayoutTabV3 = {
+			id: 'tab_' + Math.random().toString(36).substr(2, 9),
+			label: 'New Tab',
+			order: maxOrder + 1,
+			sectionIds: []
+		};
+		mutate((l) => {
+			l.tabs = [...l.tabs, newTab];
+		});
+	}
+
+	function deleteTab(tabId: string) {
+		if (!editorLayout) return;
+		const tab = editorLayout.tabs.find((t) => t.id === tabId);
+		if (!tab) return;
+
+		const sectionCount = tab.sectionIds.length;
+		const confirmMsg = sectionCount > 0
+			? `Delete tab "${tab.label}"? Its ${sectionCount} section${sectionCount !== 1 ? 's' : ''} will become unassigned.`
+			: `Delete tab "${tab.label}"?`;
+
+		if (!confirm(confirmMsg)) return;
+
+		mutate((l) => {
+			l.tabs = l.tabs.filter((t) => t.id !== tabId);
+			// Renumber order
+			l.tabs.sort((a, b) => a.order - b.order).forEach((t, i) => { t.order = i + 1; });
+		});
+	}
+
+	function updateTabLabel(tabId: string, label: string) {
+		mutate((l) => {
+			const tab = l.tabs.find((t) => t.id === tabId);
+			if (tab) tab.label = label;
+		});
+	}
+
+	function moveSectionToTab(sectionId: string, targetTabId: string) {
+		mutate((l) => {
+			// Remove sectionId from ALL tabs first (critical invariant)
+			for (const tab of l.tabs) {
+				tab.sectionIds = tab.sectionIds.filter((id) => id !== sectionId);
+			}
+			// Add to target tab if one is specified
+			if (targetTabId) {
+				const target = l.tabs.find((t) => t.id === targetTabId);
+				if (target) {
+					target.sectionIds = [...target.sectionIds, sectionId];
+				}
+			}
+		});
+	}
+
+	function getSectionTabId(sectionId: string): string {
+		if (!editorLayout) return '';
+		const tab = editorLayout.tabs.find((t) => t.sectionIds.includes(sectionId));
+		return tab ? tab.id : '';
+	}
+
+	// ---- Tab drag-and-drop ----
+
+	function handleTabDragStart(index: number) {
+		draggedTabIndex = index;
+	}
+
+	function handleTabDragOver(e: DragEvent, index: number) {
+		e.preventDefault();
+		dragOverTabIndex = index;
+	}
+
+	function handleTabDragLeave() {
+		dragOverTabIndex = null;
+	}
+
+	function handleTabDrop(e: DragEvent, dropIndex: number) {
+		e.preventDefault();
+		if (draggedTabIndex === null || draggedTabIndex === dropIndex || !editorLayout) {
+			draggedTabIndex = null;
+			dragOverTabIndex = null;
+			return;
+		}
+
+		const tabs = [...editorLayout.tabs].sort((a, b) => a.order - b.order);
+		const [dragged] = tabs.splice(draggedTabIndex, 1);
+		tabs.splice(dropIndex, 0, dragged);
+		// Renumber order after reorder
+		tabs.forEach((t, i) => { t.order = i + 1; });
+
+		mutate((l) => { l.tabs = tabs; });
+
+		draggedTabIndex = null;
+		dragOverTabIndex = null;
+	}
+
+	function handleTabDragEnd() {
+		draggedTabIndex = null;
+		dragOverTabIndex = null;
+	}
+
+	// ---- Header field operations ----
+
+	function addHeaderField(fieldName: string) {
+		mutate((l) => {
+			if (!l.header.fields.includes(fieldName)) {
+				l.header.fields = [...l.header.fields, fieldName];
+			}
+		});
+	}
+
+	function removeHeaderField(fieldName: string) {
+		mutate((l) => {
+			l.header.fields = l.header.fields.filter((f) => f !== fieldName);
+		});
+	}
+
+	// ---- Header field drag-and-drop ----
+
+	function handleHeaderFieldDragStart(index: number) {
+		draggedHeaderFieldIndex = index;
+	}
+
+	function handleHeaderFieldDragOver(e: DragEvent, index: number) {
+		e.preventDefault();
+		dragOverHeaderFieldIndex = index;
+	}
+
+	function handleHeaderFieldDragLeave() {
+		dragOverHeaderFieldIndex = null;
+	}
+
+	function handleHeaderFieldDrop(e: DragEvent, dropIndex: number) {
+		e.preventDefault();
+		if (draggedHeaderFieldIndex === null || draggedHeaderFieldIndex === dropIndex || !editorLayout) {
+			draggedHeaderFieldIndex = null;
+			dragOverHeaderFieldIndex = null;
+			return;
+		}
+
+		const headerFields = [...editorLayout.header.fields];
+		const [dragged] = headerFields.splice(draggedHeaderFieldIndex, 1);
+		headerFields.splice(dropIndex, 0, dragged);
+
+		mutate((l) => { l.header.fields = headerFields; });
+
+		draggedHeaderFieldIndex = null;
+		dragOverHeaderFieldIndex = null;
+	}
+
+	function handleHeaderFieldDragEnd() {
+		draggedHeaderFieldIndex = null;
+		dragOverHeaderFieldIndex = null;
+	}
+
+	// ---- Sidebar card operations ----
+
+	function addSidebarCard() {
+		if (!editorLayout) return;
+		const maxOrder = editorLayout.sidebar.cards.length > 0
+			? Math.max(...editorLayout.sidebar.cards.map((c) => c.order))
+			: 0;
+		const newCard: LayoutSidebarCardV3 = {
+			id: 'card_' + Math.random().toString(36).substr(2, 9),
+			label: 'New Card',
+			order: maxOrder + 1,
+			fields: []
+		};
+		mutate((l) => {
+			l.sidebar.cards = [...l.sidebar.cards, newCard];
+		});
+		expandedCards = new Set([...expandedCards, newCard.id]);
+	}
+
+	function deleteSidebarCard(cardId: string) {
+		if (!editorLayout) return;
+		const card = editorLayout.sidebar.cards.find((c) => c.id === cardId);
+		if (!card) return;
+
+		if (!confirm(`Delete card "${card.label}"?`)) return;
+
+		mutate((l) => {
+			l.sidebar.cards = l.sidebar.cards.filter((c) => c.id !== cardId);
+			// Renumber order
+			l.sidebar.cards.sort((a, b) => a.order - b.order).forEach((c, i) => { c.order = i + 1; });
+		});
+		const next = new Set(expandedCards);
+		next.delete(cardId);
+		expandedCards = next;
+	}
+
+	function updateCardLabel(cardId: string, label: string) {
+		mutate((l) => {
+			const card = l.sidebar.cards.find((c) => c.id === cardId);
+			if (card) card.label = label;
+		});
+	}
+
+	function addFieldToCard(cardId: string, fieldName: string) {
+		mutate((l) => {
+			const card = l.sidebar.cards.find((c) => c.id === cardId);
+			if (card && !card.fields.includes(fieldName)) {
+				card.fields = [...card.fields, fieldName];
+			}
+		});
+	}
+
+	function removeFieldFromCard(cardId: string, fieldName: string) {
+		mutate((l) => {
+			const card = l.sidebar.cards.find((c) => c.id === cardId);
+			if (card) {
+				card.fields = card.fields.filter((f) => f !== fieldName);
+			}
+		});
+	}
+
+	function toggleCardExpand(cardId: string) {
+		const next = new Set(expandedCards);
+		if (next.has(cardId)) {
+			next.delete(cardId);
+		} else {
+			next.add(cardId);
+		}
+		expandedCards = next;
+	}
+
+	// ---- Sidebar card drag-and-drop ----
+
+	function handleCardDragStart(index: number) {
+		draggedCardIndex = index;
+	}
+
+	function handleCardDragOver(e: DragEvent, index: number) {
+		e.preventDefault();
+		dragOverCardIndex = index;
+	}
+
+	function handleCardDragLeave() {
+		dragOverCardIndex = null;
+	}
+
+	function handleCardDrop(e: DragEvent, dropIndex: number) {
+		e.preventDefault();
+		if (draggedCardIndex === null || draggedCardIndex === dropIndex || !editorLayout) {
+			draggedCardIndex = null;
+			dragOverCardIndex = null;
+			return;
+		}
+
+		const cards = [...editorLayout.sidebar.cards].sort((a, b) => a.order - b.order);
+		const [dragged] = cards.splice(draggedCardIndex, 1);
+		cards.splice(dropIndex, 0, dragged);
+		// Renumber order
+		cards.forEach((c, i) => { c.order = i + 1; });
+
+		mutate((l) => { l.sidebar.cards = cards; });
+
+		draggedCardIndex = null;
+		dragOverCardIndex = null;
+	}
+
+	function handleCardDragEnd() {
+		draggedCardIndex = null;
+		dragOverCardIndex = null;
+	}
+
 	// ---- Helpers ----
 
 	function getFieldLabel(fieldName: string): string {
@@ -312,6 +613,20 @@
 	// Available fields for a specific section (not yet used anywhere)
 	function availableFieldsForSection(sectionIndex: number): FieldDef[] {
 		return fields.filter((f) => !usedFieldNames().has(f.name));
+	}
+
+	// Fields available to add to header (all fields — header can show any field)
+	function availableHeaderFields(): FieldDef[] {
+		if (!editorLayout) return [];
+		return fields.filter((f) => !editorLayout!.header.fields.includes(f.name));
+	}
+
+	// Fields available to add to a sidebar card (all fields — sidebar can show any field)
+	function availableCardFields(cardId: string): FieldDef[] {
+		if (!editorLayout) return [];
+		const card = editorLayout.sidebar.cards.find((c) => c.id === cardId);
+		if (!card) return [];
+		return fields.filter((f) => !card.fields.includes(f.name));
 	}
 </script>
 
@@ -337,7 +652,7 @@
 					{entity?.label || entityName} — V3 Detail Layout Editor
 				</h1>
 				<p class="text-sm text-gray-500 mt-1">
-					Drag sections to reorder. Toggle column count per section. Save when done.
+					Configure tabs, header fields, sidebar cards, and sections. Save when done.
 				</p>
 			</div>
 			<div class="flex items-center gap-3">
@@ -369,200 +684,624 @@
 	{:else if error}
 		<div class="text-center py-12 text-red-500">{error}</div>
 	{:else if editorLayout}
-		<!-- Info banner -->
-		<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-			<strong>V3 Layout Editor:</strong> Drag the grip handle to reorder sections. Toggle 1 or 2 columns per section. Expand a section to reorder its fields or add/remove fields.
-		</div>
 
-		<!-- Sections list -->
-		<div class="space-y-3">
-			{#each [...editorLayout.sections].sort((a, b) => a.order - b.order) as section, index (section.id)}
-				{@const isExpanded = expandedSections.has(section.id)}
-				{@const isDraggingThis = draggedSectionIndex === index}
-				{@const isDragTarget = dragOverSectionIndex === index && draggedSectionIndex !== index}
-				{@const sectionAvailableFields = availableFieldsForSection(index)}
-
-				<div
-					draggable="true"
-					ondragstart={() => handleSectionDragStart(index)}
-					ondragover={(e) => handleSectionDragOver(e, index)}
-					ondragleave={handleSectionDragLeave}
-					ondrop={(e) => handleSectionDrop(e, index)}
-					ondragend={handleSectionDragEnd}
-					class="bg-white shadow rounded-lg border transition-all duration-150
-						{isDraggingThis ? 'opacity-50 border-blue-300' : 'border-gray-200'}
-						{isDragTarget ? 'border-blue-500 bg-blue-50' : ''}"
+		<!-- =========================================================== -->
+		<!-- TABS PANEL                                                   -->
+		<!-- =========================================================== -->
+		<div class="bg-white shadow rounded-lg border border-gray-200">
+			<!-- Panel header -->
+			<div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						onclick={() => (tabsPanelCollapsed = !tabsPanelCollapsed)}
+						class="text-gray-400 hover:text-gray-600"
+						title={tabsPanelCollapsed ? 'Expand' : 'Collapse'}
+					>
+						<svg
+							class="w-5 h-5 transition-transform {tabsPanelCollapsed ? '-rotate-90' : ''}"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+						</svg>
+					</button>
+					<h2 class="text-sm font-semibold text-gray-900">Tabs</h2>
+					<span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+						{editorLayout.tabs.length} tab{editorLayout.tabs.length !== 1 ? 's' : ''}
+					</span>
+				</div>
+				<button
+					type="button"
+					onclick={addTab}
+					class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
 				>
-					<!-- Section header -->
-					<div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-						<!-- Drag handle -->
-						<div class="flex-shrink-0 cursor-move text-gray-400 hover:text-gray-600">
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-							</svg>
-						</div>
+					+ Add Tab
+				</button>
+			</div>
 
-						<!-- Section label input -->
-						<input
-							type="text"
-							value={section.label}
-							oninput={(e) => updateSectionLabel(index, (e.target as HTMLInputElement).value)}
-							class="flex-1 text-sm font-medium text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
-							placeholder="Section name"
-						/>
+			{#if !tabsPanelCollapsed}
+				<div class="p-4 space-y-2">
+					{#if editorLayout.tabs.length === 0}
+						<p class="text-sm text-gray-400 italic text-center py-3">
+							No tabs defined. Add a tab to organize your sections.
+						</p>
+					{:else}
+						{#each [...editorLayout.tabs].sort((a, b) => a.order - b.order) as tab, tabIndex (tab.id)}
+							{@const isTabDragging = draggedTabIndex === tabIndex}
+							{@const isTabDropTarget = dragOverTabIndex === tabIndex && draggedTabIndex !== tabIndex}
 
-						<!-- Column toggle -->
-						<div class="flex-shrink-0 flex items-center gap-1 border border-gray-200 rounded-md overflow-hidden">
-							<button
-								type="button"
-								onclick={() => toggleColumns(index, 1)}
-								class="px-2.5 py-1 text-xs font-medium transition-colors
-									{section.columns === 1
-										? 'bg-blue-600 text-white'
-										: 'text-gray-600 hover:bg-gray-100'}"
-								title="Single column"
+							<div
+								draggable="true"
+								ondragstart={() => handleTabDragStart(tabIndex)}
+								ondragover={(e) => handleTabDragOver(e, tabIndex)}
+								ondragleave={handleTabDragLeave}
+								ondrop={(e) => handleTabDrop(e, tabIndex)}
+								ondragend={handleTabDragEnd}
+								class="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded border transition-all
+									{isTabDragging ? 'opacity-50 border-blue-300' : 'border-gray-200'}
+									{isTabDropTarget ? 'border-blue-500 bg-blue-50' : ''}"
 							>
-								1 col
-							</button>
-							<button
-								type="button"
-								onclick={() => toggleColumns(index, 2)}
-								class="px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200
-									{section.columns === 2 || section.columns === 3
-										? 'bg-blue-600 text-white'
-										: 'text-gray-600 hover:bg-gray-100'}"
-								title="Two columns"
-							>
-								2 col
-							</button>
-						</div>
-
-						<!-- Field count badge -->
-						<span class="flex-shrink-0 text-xs text-gray-400 tabular-nums">
-							{section.fields.length} field{section.fields.length !== 1 ? 's' : ''}
-						</span>
-
-						<!-- Expand/collapse toggle -->
-						<button
-							type="button"
-							onclick={() => toggleSectionExpand(section.id)}
-							class="flex-shrink-0 text-gray-400 hover:text-gray-600"
-							title={isExpanded ? 'Collapse section' : 'Expand section'}
-						>
-							<svg
-								class="w-5 h-5 transition-transform {isExpanded ? 'rotate-180' : ''}"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-							</svg>
-						</button>
-
-						<!-- Delete section -->
-						<button
-							type="button"
-							onclick={() => deleteSection(index)}
-							class="flex-shrink-0 text-gray-400 hover:text-red-500"
-							title="Delete section"
-						>
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-							</svg>
-						</button>
-					</div>
-
-					<!-- Expanded: field list + add field -->
-					{#if isExpanded}
-						<div class="p-4 space-y-2">
-							{#if section.fields.length === 0}
-								<p class="text-sm text-gray-400 italic text-center py-3">
-									No fields in this section. Add fields below.
-								</p>
-							{:else}
-								<!-- Field rows with drag-and-drop -->
-								{#each section.fields as field, fieldIndex (field.name)}
-									{@const isFieldDragging = draggedFieldInfo?.sectionIndex === index && draggedFieldInfo?.fieldIndex === fieldIndex}
-									{@const isFieldDropTarget = dragOverFieldInfo?.sectionIndex === index && dragOverFieldInfo?.fieldIndex === fieldIndex && draggedFieldInfo?.sectionIndex === index && draggedFieldInfo?.fieldIndex !== fieldIndex}
-
-									<div
-										draggable="true"
-										ondragstart={() => handleFieldDragStart(index, fieldIndex)}
-										ondragover={(e) => handleFieldDragOver(e, index, fieldIndex)}
-										ondragleave={handleFieldDragLeave}
-										ondrop={(e) => handleFieldDrop(e, index, fieldIndex)}
-										ondragend={handleFieldDragEnd}
-										class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded border transition-all
-											{isFieldDragging ? 'opacity-50 border-blue-300' : 'border-gray-200'}
-											{isFieldDropTarget ? 'border-blue-500 bg-blue-50' : ''}"
-									>
-										<!-- Field drag handle -->
-										<div class="flex-shrink-0 cursor-move text-gray-400">
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-											</svg>
-										</div>
-
-										<!-- Field label -->
-										<span class="flex-1 text-sm text-gray-800">{getFieldLabel(field.name)}</span>
-
-										<!-- Field name (api name) -->
-										<span class="text-xs text-gray-400 font-mono">{field.name}</span>
-
-										<!-- Field type badge -->
-										{#if getFieldType(field.name)}
-											<span class="flex-shrink-0 text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">
-												{getFieldType(field.name)}
-											</span>
-										{/if}
-
-										<!-- Remove field -->
-										<button
-											type="button"
-											onclick={() => removeFieldFromSection(index, fieldIndex)}
-											class="flex-shrink-0 text-gray-400 hover:text-red-500"
-											title="Remove field from section"
-										>
-											<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-											</svg>
-										</button>
-									</div>
-								{/each}
-							{/if}
-
-							<!-- Add field pills -->
-							{#if sectionAvailableFields.length > 0}
-								<div class="pt-2 border-t border-gray-100">
-									<p class="text-xs text-gray-500 mb-2">Add field:</p>
-									<div class="flex flex-wrap gap-1.5">
-										{#each sectionAvailableFields as availField (availField.id)}
-											<button
-												type="button"
-												onclick={() => addFieldToSection(index, availField.name)}
-												class="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
-											>
-												+ {availField.label}
-											</button>
-										{/each}
-									</div>
+								<!-- Drag handle -->
+								<div class="flex-shrink-0 cursor-move text-gray-400 hover:text-gray-600">
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+									</svg>
 								</div>
-							{/if}
-						</div>
+
+								<!-- Tab label input -->
+								<input
+									type="text"
+									value={tab.label}
+									oninput={(e) => updateTabLabel(tab.id, (e.target as HTMLInputElement).value)}
+									class="flex-1 text-sm font-medium text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
+									placeholder="Tab name"
+								/>
+
+								<!-- Section count badge -->
+								<span class="flex-shrink-0 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+									{tab.sectionIds.length} section{tab.sectionIds.length !== 1 ? 's' : ''}
+								</span>
+
+								<!-- Delete tab -->
+								<button
+									type="button"
+									onclick={() => deleteTab(tab.id)}
+									class="flex-shrink-0 text-gray-400 hover:text-red-500"
+									title="Delete tab"
+								>
+									<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								</button>
+							</div>
+						{/each}
 					{/if}
 				</div>
-			{/each}
+			{/if}
 		</div>
 
-		<!-- Add section button -->
+		<!-- Unassigned sections warning -->
+		{#if unassignedSections().length > 0}
+			<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+				<h3 class="text-sm font-medium text-yellow-800 mb-2">
+					{unassignedSections().length} section{unassignedSections().length !== 1 ? 's' : ''} not assigned to any tab:
+				</h3>
+				<div class="flex flex-wrap gap-2">
+					{#each unassignedSections() as section (section.id)}
+						<span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded">
+							{section.label}
+						</span>
+					{/each}
+				</div>
+				<p class="mt-2 text-xs text-yellow-700">
+					Unassigned sections won't appear on any tab. Use the tab dropdown on each section to assign it.
+				</p>
+			</div>
+		{/if}
+
+		<!-- =========================================================== -->
+		<!-- HEADER FIELDS PANEL                                          -->
+		<!-- =========================================================== -->
+		<div class="bg-white shadow rounded-lg border border-gray-200">
+			<!-- Panel header -->
+			<div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
+				<button
+					type="button"
+					onclick={() => (headerPanelCollapsed = !headerPanelCollapsed)}
+					class="text-gray-400 hover:text-gray-600"
+					title={headerPanelCollapsed ? 'Expand' : 'Collapse'}
+				>
+					<svg
+						class="w-5 h-5 transition-transform {headerPanelCollapsed ? '-rotate-90' : ''}"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+				<div>
+					<h2 class="text-sm font-semibold text-gray-900">Header Fields</h2>
+					<p class="text-xs text-gray-500">Key fields displayed above tabs on the record page</p>
+				</div>
+			</div>
+
+			{#if !headerPanelCollapsed}
+				<div class="p-4">
+					<div class="grid grid-cols-2 gap-4">
+						<!-- Available fields -->
+						<div>
+							<h3 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Available Fields</h3>
+							<div class="space-y-1 max-h-60 overflow-y-auto">
+								{#if availableHeaderFields().length === 0}
+									<p class="text-xs text-gray-400 italic py-2">All fields added to header</p>
+								{:else}
+									{#each availableHeaderFields() as field (field.name)}
+										<div class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50">
+											<span class="flex-1 text-sm text-gray-800">{field.label}</span>
+											{#if field.type}
+												<span class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{field.type}</span>
+											{/if}
+											<button
+												type="button"
+												onclick={() => addHeaderField(field.name)}
+												class="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+											>
+												Add &gt;
+											</button>
+										</div>
+									{/each}
+								{/if}
+							</div>
+						</div>
+
+						<!-- Selected fields -->
+						<div>
+							<h3 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+								Selected Fields ({editorLayout.header.fields.length})
+							</h3>
+							<div class="space-y-1 max-h-60 overflow-y-auto">
+								{#if editorLayout.header.fields.length === 0}
+									<p class="text-xs text-gray-400 italic py-2">No header fields selected</p>
+								{:else}
+									{#each editorLayout.header.fields as fieldName, hfIndex (fieldName)}
+										{@const isHFDragging = draggedHeaderFieldIndex === hfIndex}
+										{@const isHFDropTarget = dragOverHeaderFieldIndex === hfIndex && draggedHeaderFieldIndex !== hfIndex}
+
+										<div
+											draggable="true"
+											ondragstart={() => handleHeaderFieldDragStart(hfIndex)}
+											ondragover={(e) => handleHeaderFieldDragOver(e, hfIndex)}
+											ondragleave={handleHeaderFieldDragLeave}
+											ondrop={(e) => handleHeaderFieldDrop(e, hfIndex)}
+											ondragend={handleHeaderFieldDragEnd}
+											class="flex items-center gap-2 px-2 py-1.5 rounded border transition-all
+												{isHFDragging ? 'opacity-50 border-blue-300 bg-blue-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}
+												{isHFDropTarget ? 'border-blue-500 bg-blue-50' : ''}"
+										>
+											<!-- Drag handle -->
+											<div class="flex-shrink-0 cursor-move text-gray-300 hover:text-gray-500">
+												<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+												</svg>
+											</div>
+											<span class="flex-1 text-sm text-gray-800">{getFieldLabel(fieldName)}</span>
+											{#if getFieldType(fieldName)}
+												<span class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{getFieldType(fieldName)}</span>
+											{/if}
+											<button
+												type="button"
+												onclick={() => removeHeaderField(fieldName)}
+												class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-red-100 hover:text-red-700 transition-colors"
+											>
+												&lt; Remove
+											</button>
+										</div>
+									{/each}
+								{/if}
+							</div>
+						</div>
+					</div>
+				</div>
+			{/if}
+		</div>
+
+		<!-- =========================================================== -->
+		<!-- SIDEBAR CARDS PANEL                                          -->
+		<!-- =========================================================== -->
+		<div class="bg-white shadow rounded-lg border border-gray-200">
+			<!-- Panel header -->
+			<div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+				<div class="flex items-center gap-2">
+					<button
+						type="button"
+						onclick={() => (sidebarPanelCollapsed = !sidebarPanelCollapsed)}
+						class="text-gray-400 hover:text-gray-600"
+						title={sidebarPanelCollapsed ? 'Expand' : 'Collapse'}
+					>
+						<svg
+							class="w-5 h-5 transition-transform {sidebarPanelCollapsed ? '-rotate-90' : ''}"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+						</svg>
+					</button>
+					<div>
+						<h2 class="text-sm font-semibold text-gray-900">Sidebar Cards</h2>
+						<p class="text-xs text-gray-500">Info cards shown in the right sidebar on the record page</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					onclick={addSidebarCard}
+					class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+				>
+					+ Add Card
+				</button>
+			</div>
+
+			{#if !sidebarPanelCollapsed}
+				<div class="p-4 space-y-2">
+					{#if editorLayout.sidebar.cards.length === 0}
+						<p class="text-sm text-gray-400 italic text-center py-3">
+							No sidebar cards. Add a card to display fields in the sidebar.
+						</p>
+					{:else}
+						{#each [...editorLayout.sidebar.cards].sort((a, b) => a.order - b.order) as card, cardIndex (card.id)}
+							{@const isCardDragging = draggedCardIndex === cardIndex}
+							{@const isCardDropTarget = dragOverCardIndex === cardIndex && draggedCardIndex !== cardIndex}
+							{@const isCardExpanded = expandedCards.has(card.id)}
+
+							<div
+								class="border rounded-lg transition-all
+									{isCardDragging ? 'opacity-50 border-blue-300' : 'border-gray-200'}
+									{isCardDropTarget ? 'border-blue-500' : ''}"
+							>
+								<!-- Card header row -->
+								<div
+									draggable="true"
+									ondragstart={() => handleCardDragStart(cardIndex)}
+									ondragover={(e) => handleCardDragOver(e, cardIndex)}
+									ondragleave={handleCardDragLeave}
+									ondrop={(e) => handleCardDrop(e, cardIndex)}
+									ondragend={handleCardDragEnd}
+									class="flex items-center gap-3 px-3 py-2 {isCardExpanded ? 'border-b border-gray-100' : ''}"
+								>
+									<!-- Drag handle -->
+									<div class="flex-shrink-0 cursor-move text-gray-400 hover:text-gray-600">
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+										</svg>
+									</div>
+
+									<!-- Card label input -->
+									<input
+										type="text"
+										value={card.label}
+										oninput={(e) => updateCardLabel(card.id, (e.target as HTMLInputElement).value)}
+										class="flex-1 text-sm font-medium text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
+										placeholder="Card name"
+									/>
+
+									<!-- Field count badge -->
+									<span class="flex-shrink-0 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+										{card.fields.length} field{card.fields.length !== 1 ? 's' : ''}
+									</span>
+
+									<!-- Expand/collapse toggle -->
+									<button
+										type="button"
+										onclick={() => toggleCardExpand(card.id)}
+										class="flex-shrink-0 text-gray-400 hover:text-gray-600"
+										title={isCardExpanded ? 'Collapse card' : 'Expand card'}
+									>
+										<svg
+											class="w-4 h-4 transition-transform {isCardExpanded ? 'rotate-180' : ''}"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+										</svg>
+									</button>
+
+									<!-- Delete card -->
+									<button
+										type="button"
+										onclick={() => deleteSidebarCard(card.id)}
+										class="flex-shrink-0 text-gray-400 hover:text-red-500"
+										title="Delete card"
+									>
+										<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+										</svg>
+									</button>
+								</div>
+
+								<!-- Expanded: field picker for this card -->
+								{#if isCardExpanded}
+									<div class="p-3">
+										<div class="grid grid-cols-2 gap-4">
+											<!-- Available fields -->
+											<div>
+												<h4 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Available Fields</h4>
+												<div class="space-y-1 max-h-48 overflow-y-auto">
+													{#if availableCardFields(card.id).length === 0}
+														<p class="text-xs text-gray-400 italic py-2">All fields added to card</p>
+													{:else}
+														{#each availableCardFields(card.id) as field (field.name)}
+															<div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50">
+																<span class="flex-1 text-xs text-gray-800">{field.label}</span>
+																{#if field.type}
+																	<span class="text-xs px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{field.type}</span>
+																{/if}
+																<button
+																	type="button"
+																	onclick={() => addFieldToCard(card.id, field.name)}
+																	class="text-xs px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+																>
+																	Add &gt;
+																</button>
+															</div>
+														{/each}
+													{/if}
+												</div>
+											</div>
+
+											<!-- Selected fields -->
+											<div>
+												<h4 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+													Selected ({card.fields.length})
+												</h4>
+												<div class="space-y-1 max-h-48 overflow-y-auto">
+													{#if card.fields.length === 0}
+														<p class="text-xs text-gray-400 italic py-2">No fields in this card</p>
+													{:else}
+														{#each card.fields as fieldName (fieldName)}
+															<div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50">
+																<span class="flex-1 text-xs text-gray-800">{getFieldLabel(fieldName)}</span>
+																{#if getFieldType(fieldName)}
+																	<span class="text-xs px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{getFieldType(fieldName)}</span>
+																{/if}
+																<button
+																	type="button"
+																	onclick={() => removeFieldFromCard(card.id, fieldName)}
+																	class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-red-100 hover:text-red-700 transition-colors"
+																>
+																	Remove
+																</button>
+															</div>
+														{/each}
+													{/if}
+												</div>
+											</div>
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/each}
+					{/if}
+				</div>
+			{/if}
+		</div>
+
+		<!-- =========================================================== -->
+		<!-- SECTIONS LIST                                                -->
+		<!-- =========================================================== -->
 		<div>
-			<button
-				type="button"
-				onclick={addSection}
-				class="w-full px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium"
-			>
-				+ Add Section
-			</button>
+			<div class="flex items-center justify-between mb-3">
+				<h2 class="text-sm font-semibold text-gray-900">Sections</h2>
+				<p class="text-xs text-gray-500">Drag to reorder. Use dropdown to assign to a tab.</p>
+			</div>
+
+			<div class="space-y-3">
+				{#each [...editorLayout.sections].sort((a, b) => a.order - b.order) as section, index (section.id)}
+					{@const isExpanded = expandedSections.has(section.id)}
+					{@const isDraggingThis = draggedSectionIndex === index}
+					{@const isDragTarget = dragOverSectionIndex === index && draggedSectionIndex !== index}
+					{@const sectionAvailableFields = availableFieldsForSection(index)}
+
+					<div
+						draggable="true"
+						ondragstart={() => handleSectionDragStart(index)}
+						ondragover={(e) => handleSectionDragOver(e, index)}
+						ondragleave={handleSectionDragLeave}
+						ondrop={(e) => handleSectionDrop(e, index)}
+						ondragend={handleSectionDragEnd}
+						class="bg-white shadow rounded-lg border transition-all duration-150
+							{isDraggingThis ? 'opacity-50 border-blue-300' : 'border-gray-200'}
+							{isDragTarget ? 'border-blue-500 bg-blue-50' : ''}"
+					>
+						<!-- Section header -->
+						<div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+							<!-- Drag handle -->
+							<div class="flex-shrink-0 cursor-move text-gray-400 hover:text-gray-600">
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+								</svg>
+							</div>
+
+							<!-- Section label input -->
+							<input
+								type="text"
+								value={section.label}
+								oninput={(e) => updateSectionLabel(index, (e.target as HTMLInputElement).value)}
+								class="flex-1 text-sm font-medium text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
+								placeholder="Section name"
+							/>
+
+							<!-- Tab assignment dropdown -->
+							{#if editorLayout.tabs.length > 0}
+								<select
+									value={getSectionTabId(section.id)}
+									onchange={(e) => moveSectionToTab(section.id, (e.target as HTMLSelectElement).value)}
+									class="flex-shrink-0 text-xs border border-gray-200 rounded px-2 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+									title="Assign to tab"
+								>
+									<option value="">Unassigned</option>
+									{#each [...editorLayout.tabs].sort((a, b) => a.order - b.order) as tab (tab.id)}
+										<option value={tab.id}>{tab.label}</option>
+									{/each}
+								</select>
+							{/if}
+
+							<!-- Column toggle -->
+							<div class="flex-shrink-0 flex items-center gap-1 border border-gray-200 rounded-md overflow-hidden">
+								<button
+									type="button"
+									onclick={() => toggleColumns(index, 1)}
+									class="px-2.5 py-1 text-xs font-medium transition-colors
+										{section.columns === 1
+											? 'bg-blue-600 text-white'
+											: 'text-gray-600 hover:bg-gray-100'}"
+									title="Single column"
+								>
+									1 col
+								</button>
+								<button
+									type="button"
+									onclick={() => toggleColumns(index, 2)}
+									class="px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200
+										{section.columns === 2 || section.columns === 3
+											? 'bg-blue-600 text-white'
+											: 'text-gray-600 hover:bg-gray-100'}"
+									title="Two columns"
+								>
+									2 col
+								</button>
+							</div>
+
+							<!-- Field count badge -->
+							<span class="flex-shrink-0 text-xs text-gray-400 tabular-nums">
+								{section.fields.length} field{section.fields.length !== 1 ? 's' : ''}
+							</span>
+
+							<!-- Expand/collapse toggle -->
+							<button
+								type="button"
+								onclick={() => toggleSectionExpand(section.id)}
+								class="flex-shrink-0 text-gray-400 hover:text-gray-600"
+								title={isExpanded ? 'Collapse section' : 'Expand section'}
+							>
+								<svg
+									class="w-5 h-5 transition-transform {isExpanded ? 'rotate-180' : ''}"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+								</svg>
+							</button>
+
+							<!-- Delete section -->
+							<button
+								type="button"
+								onclick={() => deleteSection(index)}
+								class="flex-shrink-0 text-gray-400 hover:text-red-500"
+								title="Delete section"
+							>
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+								</svg>
+							</button>
+						</div>
+
+						<!-- Expanded: field list + add field -->
+						{#if isExpanded}
+							<div class="p-4 space-y-2">
+								{#if section.fields.length === 0}
+									<p class="text-sm text-gray-400 italic text-center py-3">
+										No fields in this section. Add fields below.
+									</p>
+								{:else}
+									<!-- Field rows with drag-and-drop -->
+									{#each section.fields as field, fieldIndex (field.name)}
+										{@const isFieldDragging = draggedFieldInfo?.sectionIndex === index && draggedFieldInfo?.fieldIndex === fieldIndex}
+										{@const isFieldDropTarget = dragOverFieldInfo?.sectionIndex === index && dragOverFieldInfo?.fieldIndex === fieldIndex && draggedFieldInfo?.sectionIndex === index && draggedFieldInfo?.fieldIndex !== fieldIndex}
+
+										<div
+											draggable="true"
+											ondragstart={() => handleFieldDragStart(index, fieldIndex)}
+											ondragover={(e) => handleFieldDragOver(e, index, fieldIndex)}
+											ondragleave={handleFieldDragLeave}
+											ondrop={(e) => handleFieldDrop(e, index, fieldIndex)}
+											ondragend={handleFieldDragEnd}
+											class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded border transition-all
+												{isFieldDragging ? 'opacity-50 border-blue-300' : 'border-gray-200'}
+												{isFieldDropTarget ? 'border-blue-500 bg-blue-50' : ''}"
+										>
+											<!-- Field drag handle -->
+											<div class="flex-shrink-0 cursor-move text-gray-400">
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+												</svg>
+											</div>
+
+											<!-- Field label -->
+											<span class="flex-1 text-sm text-gray-800">{getFieldLabel(field.name)}</span>
+
+											<!-- Field name (api name) -->
+											<span class="text-xs text-gray-400 font-mono">{field.name}</span>
+
+											<!-- Field type badge -->
+											{#if getFieldType(field.name)}
+												<span class="flex-shrink-0 text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">
+													{getFieldType(field.name)}
+												</span>
+											{/if}
+
+											<!-- Remove field -->
+											<button
+												type="button"
+												onclick={() => removeFieldFromSection(index, fieldIndex)}
+												class="flex-shrink-0 text-gray-400 hover:text-red-500"
+												title="Remove field from section"
+											>
+												<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+												</svg>
+											</button>
+										</div>
+									{/each}
+								{/if}
+
+								<!-- Add field pills -->
+								{#if sectionAvailableFields.length > 0}
+									<div class="pt-2 border-t border-gray-100">
+										<p class="text-xs text-gray-500 mb-2">Add field:</p>
+										<div class="flex flex-wrap gap-1.5">
+											{#each sectionAvailableFields as availField (availField.id)}
+												<button
+													type="button"
+													onclick={() => addFieldToSection(index, availField.name)}
+													class="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+												>
+													+ {availField.label}
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+
+			<!-- Add section button -->
+			<div class="mt-3">
+				<button
+					type="button"
+					onclick={addSection}
+					class="w-full px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium"
+				>
+					+ Add Section
+				</button>
+			</div>
 		</div>
 
 		<!-- Unassigned fields warning -->
