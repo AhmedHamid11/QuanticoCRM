@@ -5,6 +5,10 @@
 	import { fieldNameToKey, getRecordValue } from '$lib/utils/fieldMapping';
 	import { put, get, del } from '$lib/utils/api';
 	import StreamField from './StreamField.svelte';
+	import FieldDisplay from './FieldDisplay.svelte';
+	import InlineFieldEditor from './InlineFieldEditor.svelte';
+	import { isInlineEditable } from '$lib/utils/fieldFormatters';
+	import { toast } from '$lib/stores/toast.svelte';
 
 	interface Props {
 		section: LayoutSectionV2;
@@ -21,6 +25,12 @@
 
 	// Track collapsed state (starts with section default)
 	let isCollapsed = $state(section.collapsed);
+
+	// Inline edit state — only one field edits at a time
+	let editingField = $state<string | null>(null);
+	let editingValue = $state<unknown>(null);
+	let savedValue = $state<unknown>(null); // backup for revert on failure
+	let flashSuccessField = $state<string | null>(null); // for green flash
 
 	// Determine if section should be visible based on record data
 	let isSectionVisible = $derived(evaluateVisibility(section.visibility, record));
@@ -43,6 +53,95 @@
 		if (section.collapsible) {
 			isCollapsed = !isCollapsed;
 		}
+	}
+
+	function startEdit(fieldName: string, currentValue: unknown, field: FieldDef) {
+		if (!isInlineEditable(field, fieldName)) return;
+		if (!entityName || !recordId) return;
+		editingField = fieldName;
+		editingValue = currentValue;
+		savedValue = currentValue;
+	}
+
+	async function commitEdit(fieldName: string, newValue: unknown) {
+		if (editingField !== fieldName) return;
+		if (!entityName || !recordId) return;
+
+		editingField = null;
+
+		// Skip save if value unchanged
+		if (newValue === savedValue) return;
+
+		// Build the PUT payload using camelCase key
+		const key = fieldNameToKey(fieldName);
+		const updateData: Record<string, unknown> = { [key]: newValue };
+
+		try {
+			await put<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`,
+				updateData
+			);
+
+			// Refetch full record to get server-computed values (modifiedAt, etc.)
+			const fullRecord = await get<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`
+			);
+
+			if (onRecordUpdate) {
+				onRecordUpdate(fullRecord);
+			}
+
+			// Show success flash
+			flashSuccessField = fieldName;
+			setTimeout(() => { flashSuccessField = null; }, 800);
+		} catch (e) {
+			// Revert: refetch the full record to restore old value
+			try {
+				const fullRecord = await get<Record<string, unknown>>(
+					`/entities/${entityName}/records/${recordId}`
+				);
+				if (onRecordUpdate) {
+					onRecordUpdate(fullRecord);
+				}
+			} catch {
+				// If refetch also fails, just leave it
+			}
+			toast.error(e instanceof Error ? e.message : 'Save failed');
+		}
+	}
+
+	function cancelEdit() {
+		editingField = null;
+		editingValue = null;
+	}
+
+	// Special handler for boolean toggle (save immediately, no edit mode)
+	async function toggleBool(fieldName: string, currentValue: unknown) {
+		if (!entityName || !recordId) return;
+		const newValue = !toBoolValue(currentValue);
+		const key = fieldNameToKey(fieldName);
+
+		try {
+			await put<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`,
+				{ [key]: newValue }
+			);
+			const fullRecord = await get<Record<string, unknown>>(
+				`/entities/${entityName}/records/${recordId}`
+			);
+			if (onRecordUpdate) onRecordUpdate(fullRecord);
+			flashSuccessField = fieldName;
+			setTimeout(() => { flashSuccessField = null; }, 800);
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Save failed');
+		}
+	}
+
+	function toBoolValue(v: unknown): boolean {
+		if (typeof v === 'boolean') return v;
+		if (typeof v === 'number') return v !== 0;
+		if (typeof v === 'string') return v === 'true' || v === '1' || v === 'yes';
+		return false;
 	}
 
 	// Interpolate {{fieldName}} placeholders in text with record values
