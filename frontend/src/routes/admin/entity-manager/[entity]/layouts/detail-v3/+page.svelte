@@ -170,7 +170,7 @@
 			saving = true;
 
 			// Normalize: clear deprecated fields, only use cards
-			const toSave = structuredClone(editorLayout);
+			const toSave = JSON.parse(JSON.stringify($state.snapshot(editorLayout))) as LayoutDataV3;
 			for (const section of toSave.sections) {
 				// Clear deprecated single-card fields
 				delete (section as unknown as Record<string, unknown>).cardType;
