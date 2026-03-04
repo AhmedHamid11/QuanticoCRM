@@ -30,6 +30,16 @@
 		[...(section.cards ?? [])].sort((a, b) => a.order - b.order)
 	);
 
+	// Group cards by column for multi-column rendering
+	let columnGroups = $derived(() => {
+		const cols = section.columns ?? 1;
+		const groups: typeof sortedCards[] = [];
+		for (let i = 1; i <= cols; i++) {
+			groups.push(sortedCards.filter(c => (c.column ?? 1) === i));
+		}
+		return groups;
+	});
+
 	// Check if section has any visible cards
 	let hasVisibleCards = $derived(() => {
 		if (sortedCards.length === 0) return false;
@@ -72,25 +82,45 @@
 			{/if}
 		</div>
 
-		<!-- Section Content: CSS grid of cards -->
+		<!-- Section Content -->
 		{#if !isCollapsed}
-			<div class="grid gap-0" style="grid-template-columns: repeat({section.columns}, minmax(0, 1fr))">
+			{#if section.columns > 1}
+				<!-- Multi-column: group cards into column containers -->
+				<div class="grid items-start" style="grid-template-columns: repeat({section.columns}, minmax(0, 1fr))">
+					{#each columnGroups() as colCards, colIdx}
+						<div>
+							{#each colCards as card (card.id)}
+								<CardRenderer
+									{card}
+									{fields}
+									{record}
+									{formatValue}
+									{renderLink}
+									{entityName}
+									{recordId}
+									{onRecordUpdate}
+									{relatedListConfigs}
+								/>
+							{/each}
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<!-- Single column: render cards sequentially -->
 				{#each sortedCards as card (card.id)}
-					<div style={section.columns > 1 ? `grid-column: ${card.column ?? 1}` : ''}>
-						<CardRenderer
-							{card}
-							{fields}
-							{record}
-							{formatValue}
-							{renderLink}
-							{entityName}
-							{recordId}
-							{onRecordUpdate}
-							{relatedListConfigs}
-						/>
-					</div>
+					<CardRenderer
+						{card}
+						{fields}
+						{record}
+						{formatValue}
+						{renderLink}
+						{entityName}
+						{recordId}
+						{onRecordUpdate}
+						{relatedListConfigs}
+					/>
 				{/each}
-			</div>
+			{/if}
 		{/if}
 	</div>
 {/if}
