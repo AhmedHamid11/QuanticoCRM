@@ -1,5 +1,7 @@
 package entity
 
+import "encoding/json"
+
 // LayoutVersion represents the layout data format version
 type LayoutVersion int
 
@@ -7,6 +9,14 @@ const (
 	LayoutVersionV1 LayoutVersion = 1 // Flat array of field names
 	LayoutVersionV2 LayoutVersion = 2 // Sections with visibility rules
 	LayoutVersionV3 LayoutVersion = 3 // Tabbed layout with sidebar and header
+)
+
+// Section card type constants
+const (
+	CardTypeField       = "field"
+	CardTypeActivity    = "activity"
+	CardTypeRelatedList = "relatedList"
+	CardTypeCustomPage  = "customPage"
 )
 
 // VisibilityType represents how visibility is determined
@@ -47,10 +57,12 @@ type LayoutSectionV2 struct {
 	Label       string          `json:"label"`
 	Order       int             `json:"order"`
 	Collapsible bool            `json:"collapsible"`
-	Collapsed   bool            `json:"collapsed"` // Default collapsed state
-	Columns     int             `json:"columns"`   // 1, 2, or 3
+	Collapsed   bool            `json:"collapsed"`        // Default collapsed state
+	Columns     int             `json:"columns"`          // 1, 2, or 3
 	Visibility  VisibilityRule  `json:"visibility"`
 	Fields      []LayoutFieldV2 `json:"fields"`
+	CardType    string          `json:"cardType,omitempty"`   // "field" | "activity" | "relatedList" | "customPage"; defaults to "field" when absent
+	CardConfig  json.RawMessage `json:"cardConfig,omitempty"` // Type-specific config; decoded by frontend after reading cardType
 }
 
 // LayoutDataV2 represents the v2 layout data structure
