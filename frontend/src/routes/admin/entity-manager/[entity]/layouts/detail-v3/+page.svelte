@@ -5,8 +5,9 @@
 	import { get, put } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
-	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutSidebarCardV3, LayoutV3Response } from '$lib/types/layout';
+	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutSidebarCardV3, LayoutV3Response, SectionCardType, RelatedListCardConfig, CustomPageCardConfig } from '$lib/types/layout';
 	import { createDefaultVisibility, createDefaultField } from '$lib/types/layout';
+	import type { RelatedListConfig } from '$lib/types/related-list';
 
 	let entityName = $derived($page.params.entity);
 
@@ -118,6 +119,13 @@
 			expandedSections = new Set(editorLayout.sections.map((s) => s.id));
 			// Start with all sidebar cards collapsed
 			expandedCards = new Set();
+
+			// Fetch related list configs for RelatedListCard dropdown
+			try {
+				relatedListConfigs = await get<RelatedListConfig[]>(`/admin/entities/${entityName}/related-lists`);
+			} catch {
+				relatedListConfigs = [];
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load layout';
 		} finally {
@@ -161,22 +169,63 @@
 		return prefix + '_' + Math.random().toString(36).substr(2, 9);
 	}
 
-	function addSection() {
+	function openAddSection() {
+		cardTypeSelectorTarget = 'new';
+		showCardTypeSelector = true;
+	}
+
+	function selectCardType(cardType: SectionCardType) {
+		showCardTypeSelector = false;
+		if (cardTypeSelectorTarget === 'new') {
+			addSectionWithType(cardType);
+		} else {
+			changeSectionCardType(cardTypeSelectorTarget, cardType);
+		}
+	}
+
+	function addSectionWithType(cardType: SectionCardType) {
 		if (!editorLayout) return;
 		const newSection: LayoutSectionV2 = {
 			id: generateId('section'),
-			label: 'New Section',
+			label: cardType === 'activity' ? 'Activities' : cardType === 'relatedList' ? 'Related Records' : cardType === 'customPage' ? 'Custom Content' : 'New Section',
 			order: editorLayout.sections.length + 1,
 			collapsible: true,
 			collapsed: false,
 			columns: 2,
 			visibility: createDefaultVisibility(),
-			fields: []
+			fields: [],
+			cardType,
+			cardConfig: cardType === 'activity' ? {} : cardType === 'relatedList' ? { relatedListConfigId: '' } : cardType === 'customPage' ? { mode: 'iframe' as const, url: '', height: 400 } : null
 		};
 		mutate((l) => {
 			l.sections = [...l.sections, newSection];
 		});
 		expandedSections = new Set([...expandedSections, newSection.id]);
+	}
+
+	function changeSectionCardType(sectionIndex: number, newType: SectionCardType) {
+		mutate((l) => {
+			const section = l.sections[sectionIndex];
+			section.cardType = newType;
+			// Clear previous config when switching types
+			if (newType === 'field') {
+				section.cardConfig = undefined;
+			} else if (newType === 'activity') {
+				section.cardConfig = {};
+				section.fields = [];
+			} else if (newType === 'relatedList') {
+				section.cardConfig = { relatedListConfigId: '' };
+				section.fields = [];
+			} else if (newType === 'customPage') {
+				section.cardConfig = { mode: 'iframe' as const, url: '', height: 400 };
+				section.fields = [];
+			}
+		});
+	}
+
+	function openChangeCardType(sectionIndex: number) {
+		cardTypeSelectorTarget = sectionIndex;
+		showCardTypeSelector = true;
 	}
 
 	function deleteSection(index: number) {
@@ -205,7 +254,7 @@
 		});
 	}
 
-	function toggleColumns(index: number, columns: 1 | 2) {
+	function toggleColumns(index: number, columns: 1 | 2 | 3) {
 		mutate((l) => {
 			l.sections[index].columns = columns;
 		});
@@ -620,6 +669,11 @@
 		if (!editorLayout) return [];
 		return fields.filter((f) => !editorLayout!.header.fields.includes(f.name));
 	}
+
+	// Card type selector state
+	let relatedListConfigs = $state<RelatedListConfig[]>([]);
+	let showCardTypeSelector = $state(false);
+	let cardTypeSelectorTarget = $state<'new' | number>('new');
 
 	// Fields available to add to a sidebar card (all fields — sidebar can show any field)
 	function availableCardFields(cardId: string): FieldDef[] {
@@ -1149,36 +1203,62 @@
 								</select>
 							{/if}
 
-							<!-- Column toggle -->
-							<div class="flex-shrink-0 flex items-center gap-1 border border-gray-200 rounded-md overflow-hidden">
-								<button
-									type="button"
-									onclick={() => toggleColumns(index, 1)}
-									class="px-2.5 py-1 text-xs font-medium transition-colors
-										{section.columns === 1
-											? 'bg-blue-600 text-white'
-											: 'text-gray-600 hover:bg-gray-100'}"
-									title="Single column"
-								>
-									1 col
-								</button>
-								<button
-									type="button"
-									onclick={() => toggleColumns(index, 2)}
-									class="px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200
-										{section.columns === 2 || section.columns === 3
-											? 'bg-blue-600 text-white'
-											: 'text-gray-600 hover:bg-gray-100'}"
-									title="Two columns"
-								>
-									2 col
-								</button>
-							</div>
+							<!-- Card type badge (for non-field cards) -->
+							{#if section.cardType && section.cardType !== 'field'}
+								<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {
+									section.cardType === 'activity' ? 'bg-green-100 text-green-700' :
+									section.cardType === 'relatedList' ? 'bg-purple-100 text-purple-700' :
+									'bg-amber-100 text-amber-700'
+								}">
+									{section.cardType === 'activity' ? 'Activity' : section.cardType === 'relatedList' ? 'Related List' : 'Custom Page'}
+								</span>
+							{/if}
 
-							<!-- Field count badge -->
-							<span class="flex-shrink-0 text-xs text-gray-400 tabular-nums">
-								{section.fields.length} field{section.fields.length !== 1 ? 's' : ''}
-							</span>
+							<!-- Column toggle (field cards only) -->
+							{#if !section.cardType || section.cardType === 'field'}
+								<div class="flex-shrink-0 flex items-center gap-1 border border-gray-200 rounded-md overflow-hidden">
+									<button
+										type="button"
+										onclick={() => toggleColumns(index, 1)}
+										class="px-2.5 py-1 text-xs font-medium transition-colors
+											{section.columns === 1
+												? 'bg-blue-600 text-white'
+												: 'text-gray-600 hover:bg-gray-100'}"
+										title="Single column"
+									>
+										1 col
+									</button>
+									<button
+										type="button"
+										onclick={() => toggleColumns(index, 2)}
+										class="px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200
+											{section.columns === 2
+												? 'bg-blue-600 text-white'
+												: 'text-gray-600 hover:bg-gray-100'}"
+										title="Two columns"
+									>
+										2 col
+									</button>
+									<button
+										type="button"
+										onclick={() => toggleColumns(index, 3)}
+										class="px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200
+											{section.columns === 3
+												? 'bg-blue-600 text-white'
+												: 'text-gray-600 hover:bg-gray-100'}"
+										title="Three columns"
+									>
+										3 col
+									</button>
+								</div>
+							{/if}
+
+							<!-- Field count badge (field cards only) -->
+							{#if !section.cardType || section.cardType === 'field'}
+								<span class="flex-shrink-0 text-xs text-gray-400 tabular-nums">
+									{section.fields.length} field{section.fields.length !== 1 ? 's' : ''}
+								</span>
+							{/if}
 
 							<!-- Expand/collapse toggle -->
 							<button
@@ -1197,6 +1277,16 @@
 								</svg>
 							</button>
 
+							<!-- Change card type -->
+							<button
+								type="button"
+								onclick={() => openChangeCardType(index)}
+								class="flex-shrink-0 text-xs text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100"
+								title="Change card type"
+							>
+								Change Type
+							</button>
+
 							<!-- Delete section -->
 							<button
 								type="button"
@@ -1210,8 +1300,84 @@
 							</button>
 						</div>
 
-						<!-- Expanded: field list + add field -->
-						{#if isExpanded}
+						<!-- Type-specific config panels (non-field cards) -->
+						{#if isExpanded && section.cardType === 'relatedList'}
+							{@const rlConfig = (section.cardConfig ?? { relatedListConfigId: '' }) as RelatedListCardConfig}
+							<div class="px-4 py-3 bg-purple-50 border-b border-purple-100">
+								<label class="block text-xs font-medium text-gray-600 mb-1">Related Entity</label>
+								<select
+									class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
+									value={rlConfig.relatedListConfigId}
+									onchange={(e) => {
+										mutate((l) => {
+											const cfg = l.sections[index].cardConfig as RelatedListCardConfig;
+											if (cfg) cfg.relatedListConfigId = (e.target as HTMLSelectElement).value;
+											else l.sections[index].cardConfig = { relatedListConfigId: (e.target as HTMLSelectElement).value };
+										});
+									}}
+								>
+									<option value="">-- Select related entity --</option>
+									{#each relatedListConfigs.filter(c => c.enabled) as rlc (rlc.id)}
+										<option value={rlc.id}>{rlc.label} ({rlc.relatedEntity})</option>
+									{/each}
+								</select>
+							</div>
+						{/if}
+
+						{#if isExpanded && section.cardType === 'customPage'}
+							{@const cpConfig = (section.cardConfig ?? { mode: 'iframe', url: '', height: 400 }) as CustomPageCardConfig}
+							<div class="px-4 py-3 bg-amber-50 border-b border-amber-100 space-y-2">
+								<div class="flex gap-2">
+									<button
+										type="button"
+										onclick={() => mutate(l => { (l.sections[index].cardConfig as CustomPageCardConfig).mode = 'iframe'; })}
+										class="px-3 py-1 text-xs rounded {cpConfig.mode === 'iframe' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+									>
+										Iframe
+									</button>
+									<button
+										type="button"
+										onclick={() => mutate(l => { (l.sections[index].cardConfig as CustomPageCardConfig).mode = 'html'; })}
+										class="px-3 py-1 text-xs rounded {cpConfig.mode === 'html' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+									>
+										HTML
+									</button>
+								</div>
+								{#if cpConfig.mode === 'iframe'}
+									<div>
+										<label class="block text-xs font-medium text-gray-600 mb-1">URL</label>
+										<input type="text" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5" placeholder={'https://example.com/embed/{recordId}'}
+											value={cpConfig.url ?? ''}
+											oninput={(e) => mutate(l => { (l.sections[index].cardConfig as CustomPageCardConfig).url = (e.target as HTMLInputElement).value; })}
+										/>
+									</div>
+									<div>
+										<label class="block text-xs font-medium text-gray-600 mb-1">Height (px)</label>
+										<input type="number" class="w-32 text-sm border border-gray-300 rounded px-2 py-1.5" placeholder="400"
+											value={cpConfig.height ?? 400}
+											oninput={(e) => mutate(l => { (l.sections[index].cardConfig as CustomPageCardConfig).height = parseInt((e.target as HTMLInputElement).value) || 400; })}
+										/>
+									</div>
+								{:else}
+									<div>
+										<label class="block text-xs font-medium text-gray-600 mb-1">HTML Content <span class="text-gray-400">(admin-trusted)</span></label>
+										<textarea class="w-full text-sm border border-gray-300 rounded px-2 py-1.5 font-mono" rows="6" placeholder="<div>Your custom HTML here</div>"
+											value={cpConfig.content ?? ''}
+											oninput={(e) => mutate(l => { (l.sections[index].cardConfig as CustomPageCardConfig).content = (e.target as HTMLTextAreaElement).value; })}
+										></textarea>
+									</div>
+								{/if}
+							</div>
+						{/if}
+
+						{#if isExpanded && section.cardType === 'activity'}
+							<div class="px-4 py-3 bg-green-50 border-b border-green-100">
+								<p class="text-sm text-green-700">Activity Card — displays tasks, calls, and meetings linked to this record. No additional configuration required.</p>
+							</div>
+						{/if}
+
+						<!-- Expanded: field list + add field (field cards only) -->
+						{#if isExpanded && (!section.cardType || section.cardType === 'field')}
 							<div class="p-4 space-y-2">
 								{#if section.fields.length === 0}
 									<p class="text-sm text-gray-400 italic text-center py-3">
@@ -1296,7 +1462,7 @@
 			<div class="mt-3">
 				<button
 					type="button"
-					onclick={addSection}
+					onclick={openAddSection}
 					class="w-full px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium"
 				>
 					+ Add Section
@@ -1322,5 +1488,67 @@
 				</p>
 			</div>
 		{/if}
+	{/if}
+
+	<!-- Card Type Selector Modal -->
+	{#if showCardTypeSelector}
+		<div
+			class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+			onclick={() => (showCardTypeSelector = false)}
+			onkeydown={(e) => e.key === 'Escape' && (showCardTypeSelector = false)}
+			role="dialog"
+			tabindex="-1"
+		>
+			<div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg" onclick={(e) => e.stopPropagation()}>
+				<h3 class="text-lg font-semibold text-gray-900 mb-4">
+					{cardTypeSelectorTarget === 'new' ? 'Add Section' : 'Change Card Type'}
+				</h3>
+				<div class="grid grid-cols-2 gap-3">
+					<!-- Field Card -->
+					<button onclick={() => selectCardType('field')} class="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors text-center">
+						<div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+							<svg class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+							</svg>
+						</div>
+						<span class="text-sm font-medium text-gray-900">Field Card</span>
+						<span class="text-xs text-gray-500">Display record fields</span>
+					</button>
+					<!-- Activity Card -->
+					<button onclick={() => selectCardType('activity')} class="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-colors text-center">
+						<div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+							<svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+						</div>
+						<span class="text-sm font-medium text-gray-900">Activity Card</span>
+						<span class="text-xs text-gray-500">Tasks, calls &amp; meetings</span>
+					</button>
+					<!-- Related List Card -->
+					<button onclick={() => selectCardType('relatedList')} class="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-colors text-center">
+						<div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+							<svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+							</svg>
+						</div>
+						<span class="text-sm font-medium text-gray-900">Related List</span>
+						<span class="text-xs text-gray-500">Inline related records</span>
+					</button>
+					<!-- Custom Page Card -->
+					<button onclick={() => selectCardType('customPage')} class="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-gray-200 hover:border-amber-500 hover:bg-amber-50 transition-colors text-center">
+						<div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+							<svg class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+							</svg>
+						</div>
+						<span class="text-sm font-medium text-gray-900">Custom Page</span>
+						<span class="text-xs text-gray-500">Iframe or HTML embed</span>
+					</button>
+				</div>
+				<button onclick={() => (showCardTypeSelector = false)} class="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-700">
+					Cancel
+				</button>
+			</div>
+		</div>
 	{/if}
 </div>
