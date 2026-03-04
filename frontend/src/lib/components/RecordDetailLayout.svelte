@@ -137,6 +137,10 @@
 				{record}
 				{formatValue}
 				{renderLink}
+				{entityName}
+				{recordId}
+				{onRecordUpdate}
+				{relatedListConfigs}
 			/>
 		</div>
 	{/if}

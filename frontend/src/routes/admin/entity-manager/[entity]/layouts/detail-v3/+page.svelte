@@ -5,7 +5,7 @@
 	import { get, put } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
-	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutSidebarCardV3, LayoutV3Response, SectionCardType, SectionCardV3, RelatedListCardConfig, CustomPageCardConfig } from '$lib/types/layout';
+	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutV3Response, SectionCardType, SectionCardV3, RelatedListCardConfig, CustomPageCardConfig } from '$lib/types/layout';
 	import { createDefaultVisibility, createDefaultField, createDefaultCard, migrateSectionToCards } from '$lib/types/layout';
 	import type { RelatedListConfig } from '$lib/types/related-list';
 
@@ -270,17 +270,23 @@
 	let showCardTypeSelector = $state(false);
 	let cardTypeSelectorSectionIndex = $state<number>(0);
 	let cardTypeSelectorColumn = $state<number>(1);
+	let cardTypeSelectorTarget = $state<'section' | 'sidebar'>('section');
 	let relatedListConfigs = $state<RelatedListConfig[]>([]);
 
 	function openAddCard(sectionIndex: number, column: number = 1) {
 		cardTypeSelectorSectionIndex = sectionIndex;
 		cardTypeSelectorColumn = column;
+		cardTypeSelectorTarget = 'section';
 		showCardTypeSelector = true;
 	}
 
 	function selectCardTypeForSection(cardType: SectionCardType) {
 		showCardTypeSelector = false;
-		addCardToSection(cardTypeSelectorSectionIndex, cardType, cardTypeSelectorColumn);
+		if (cardTypeSelectorTarget === 'sidebar') {
+			addSidebarCardOfType(cardType);
+		} else {
+			addCardToSection(cardTypeSelectorSectionIndex, cardType, cardTypeSelectorColumn);
+		}
 	}
 
 	function addCardToSection(sectionIndex: number, cardType: SectionCardType, column: number = 1) {
@@ -670,16 +676,20 @@
 	// ---- Sidebar card operations ----
 
 	function addSidebarCard() {
+		// Open the card type selector modal for sidebar
+		cardTypeSelectorTarget = 'sidebar';
+		showCardTypeSelector = true;
+	}
+
+	function addSidebarCardOfType(cardType: SectionCardType) {
 		if (!editorLayout) return;
 		const maxOrder = editorLayout.sidebar.cards.length > 0
 			? Math.max(...editorLayout.sidebar.cards.map((c) => c.order))
 			: 0;
-		const newCard: LayoutSidebarCardV3 = {
-			id: 'card_' + Math.random().toString(36).substr(2, 9),
-			label: 'New Card',
-			order: maxOrder + 1,
-			fields: []
-		};
+		const newCard = createDefaultCard(cardType, maxOrder + 1);
+		newCard.label = cardType === 'activity' ? 'Activities' : cardType === 'relatedList' ? 'Related Records' : cardType === 'customPage' ? 'Custom Content' : 'Fields';
+		// Sidebar cards are single-column (narrow sidebar)
+		if (cardType === 'field') newCard.columns = 1;
 		mutate((l) => {
 			l.sidebar.cards = [...l.sidebar.cards, newCard];
 		});
@@ -712,8 +722,11 @@
 	function addFieldToSidebarCard(cardId: string, fieldName: string) {
 		mutate((l) => {
 			const card = l.sidebar.cards.find((c) => c.id === cardId);
-			if (card && !card.fields.includes(fieldName)) {
-				card.fields = [...card.fields, fieldName];
+			if (card) {
+				if (!card.fields) card.fields = [];
+				if (!card.fields.some((f) => f.name === fieldName)) {
+					card.fields = [...card.fields, { name: fieldName, visibility: { type: 'always' } }];
+				}
 			}
 		});
 	}
@@ -722,7 +735,7 @@
 		mutate((l) => {
 			const card = l.sidebar.cards.find((c) => c.id === cardId);
 			if (card) {
-				card.fields = card.fields.filter((f) => f !== fieldName);
+				card.fields = (card.fields ?? []).filter((f) => f.name !== fieldName);
 			}
 		});
 	}
@@ -799,8 +812,9 @@
 	function availableSidebarCardFields(cardId: string): FieldDef[] {
 		if (!editorLayout) return [];
 		const card = editorLayout.sidebar.cards.find((c) => c.id === cardId);
-		if (!card) return [];
-		return fields.filter((f) => !card.fields.includes(f.name));
+		if (!card || card.cardType !== 'field') return [];
+		const cardFieldNames = (card.fields ?? []).map((f) => f.name);
+		return fields.filter((f) => !cardFieldNames.includes(f.name));
 	}
 
 	function getCardTypeBadge(cardType: SectionCardType): { label: string; classes: string } {
@@ -1128,6 +1142,7 @@
 							{@const isCardDragging = draggedCardIndex === cardIndex}
 							{@const isCardDropTarget = dragOverCardIndex === cardIndex && draggedCardIndex !== cardIndex}
 							{@const isCardExpanded = expandedCards.has(card.id)}
+							{@const sideBadge = getCardTypeBadge(card.cardType)}
 
 							<div
 								class="border rounded-lg transition-all
@@ -1151,15 +1166,21 @@
 
 									<input
 										type="text"
-										value={card.label}
+										value={card.label ?? ''}
 										oninput={(e) => updateSidebarCardLabel(card.id, (e.target as HTMLInputElement).value)}
 										class="flex-1 text-sm font-medium text-gray-900 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5"
 										placeholder="Card name"
 									/>
 
-									<span class="flex-shrink-0 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-										{card.fields.length} field{card.fields.length !== 1 ? 's' : ''}
+									<span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full {sideBadge.classes}">
+										{sideBadge.label}
 									</span>
+
+									{#if card.cardType === 'field'}
+										<span class="flex-shrink-0 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+											{(card.fields ?? []).length} field{(card.fields ?? []).length !== 1 ? 's' : ''}
+										</span>
+									{/if}
 
 									<button
 										type="button"
@@ -1191,59 +1212,129 @@
 
 								{#if isCardExpanded}
 									<div class="p-3">
-										<div class="grid grid-cols-2 gap-4">
-											<div>
-												<h4 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Available Fields</h4>
-												<div class="space-y-1 max-h-48 overflow-y-auto">
-													{#if availableSidebarCardFields(card.id).length === 0}
-														<p class="text-xs text-gray-400 italic py-2">All fields added to card</p>
-													{:else}
-														{#each availableSidebarCardFields(card.id) as field (field.name)}
-															<div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50">
-																<span class="flex-1 text-xs text-gray-800">{field.label}</span>
-																{#if field.type}
-																	<span class="text-xs px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{field.type}</span>
-																{/if}
-																<button
-																	type="button"
-																	onclick={() => addFieldToSidebarCard(card.id, field.name)}
-																	class="text-xs px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-																>
-																	Add &gt;
-																</button>
-															</div>
-														{/each}
-													{/if}
+										{#if card.cardType === 'field'}
+											<div class="grid grid-cols-2 gap-4">
+												<div>
+													<h4 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Available Fields</h4>
+													<div class="space-y-1 max-h-48 overflow-y-auto">
+														{#if availableSidebarCardFields(card.id).length === 0}
+															<p class="text-xs text-gray-400 italic py-2">All fields added to card</p>
+														{:else}
+															{#each availableSidebarCardFields(card.id) as field (field.name)}
+																<div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50">
+																	<span class="flex-1 text-xs text-gray-800">{field.label}</span>
+																	{#if field.type}
+																		<span class="text-xs px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{field.type}</span>
+																	{/if}
+																	<button
+																		type="button"
+																		onclick={() => addFieldToSidebarCard(card.id, field.name)}
+																		class="text-xs px-1.5 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+																	>
+																		Add &gt;
+																	</button>
+																</div>
+															{/each}
+														{/if}
+													</div>
 												</div>
-											</div>
 
-											<div>
-												<h4 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-													Selected ({card.fields.length})
-												</h4>
-												<div class="space-y-1 max-h-48 overflow-y-auto">
-													{#if card.fields.length === 0}
-														<p class="text-xs text-gray-400 italic py-2">No fields in this card</p>
-													{:else}
-														{#each card.fields as fieldName (fieldName)}
-															<div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50">
-																<span class="flex-1 text-xs text-gray-800">{getFieldLabel(fieldName)}</span>
-																{#if getFieldType(fieldName)}
-																	<span class="text-xs px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{getFieldType(fieldName)}</span>
-																{/if}
-																<button
-																	type="button"
-																	onclick={() => removeFieldFromSidebarCard(card.id, fieldName)}
-																	class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-red-100 hover:text-red-700 transition-colors"
-																>
-																	Remove
-																</button>
-															</div>
-														{/each}
-													{/if}
+												<div>
+													<h4 class="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+														Selected ({(card.fields ?? []).length})
+													</h4>
+													<div class="space-y-1 max-h-48 overflow-y-auto">
+														{#if (card.fields ?? []).length === 0}
+															<p class="text-xs text-gray-400 italic py-2">No fields in this card</p>
+														{:else}
+															{#each (card.fields ?? []) as fieldLayout (fieldLayout.name)}
+																<div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50">
+																	<span class="flex-1 text-xs text-gray-800">{getFieldLabel(fieldLayout.name)}</span>
+																	{#if getFieldType(fieldLayout.name)}
+																		<span class="text-xs px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{getFieldType(fieldLayout.name)}</span>
+																	{/if}
+																	<button
+																		type="button"
+																		onclick={() => removeFieldFromSidebarCard(card.id, fieldLayout.name)}
+																		class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-red-100 hover:text-red-700 transition-colors"
+																	>
+																		Remove
+																	</button>
+																</div>
+															{/each}
+														{/if}
+													</div>
 												</div>
 											</div>
-										</div>
+										{:else if card.cardType === 'activity'}
+											<div class="px-4 py-3 bg-green-50">
+												<p class="text-sm text-green-700">Activity Card — displays tasks, calls, and meetings linked to this record. No additional configuration required.</p>
+											</div>
+										{:else if card.cardType === 'relatedList'}
+											{@const rlConfig = (card.cardConfig ?? { relatedListConfigId: '' }) as RelatedListCardConfig}
+											<div class="px-4 py-3 bg-purple-50">
+												<label class="block text-xs font-medium text-gray-600 mb-1">Related Entity</label>
+												<select
+													class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
+													value={rlConfig.relatedListConfigId}
+													onchange={(e) => {
+														mutate((l) => {
+															const c = l.sidebar.cards.find(sc => sc.id === card.id);
+															if (c) c.cardConfig = { relatedListConfigId: (e.target as HTMLSelectElement).value };
+														});
+													}}
+												>
+													<option value="">-- Select related entity --</option>
+													{#each relatedListConfigs.filter(c => c.enabled) as rlc (rlc.id)}
+														<option value={rlc.id}>{rlc.label} ({rlc.relatedEntity})</option>
+													{/each}
+												</select>
+											</div>
+										{:else if card.cardType === 'customPage'}
+											{@const cpConfig = (card.cardConfig ?? { mode: 'iframe', url: '', height: 400 }) as CustomPageCardConfig}
+											<div class="px-4 py-3 bg-amber-50 space-y-2">
+												<div class="flex gap-2">
+													<button
+														type="button"
+														onclick={() => mutate(l => { const c = l.sidebar.cards.find(sc => sc.id === card.id); if (c) c.cardConfig = { ...cpConfig, mode: 'iframe' }; })}
+														class="px-3 py-1 text-xs rounded {cpConfig.mode === 'iframe' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+													>
+														Iframe
+													</button>
+													<button
+														type="button"
+														onclick={() => mutate(l => { const c = l.sidebar.cards.find(sc => sc.id === card.id); if (c) c.cardConfig = { ...cpConfig, mode: 'html' }; })}
+														class="px-3 py-1 text-xs rounded {cpConfig.mode === 'html' ? 'bg-amber-200 text-amber-800' : 'bg-white text-gray-600 border border-gray-300'}"
+													>
+														HTML
+													</button>
+												</div>
+												{#if cpConfig.mode === 'iframe'}
+													<div>
+														<label class="block text-xs font-medium text-gray-600 mb-1">URL</label>
+														<input type="text" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5" placeholder={'https://example.com/embed/{recordId}'}
+															value={cpConfig.url ?? ''}
+															oninput={(e) => mutate(l => { const c = l.sidebar.cards.find(sc => sc.id === card.id); if (c) c.cardConfig = { ...cpConfig, url: (e.target as HTMLInputElement).value }; })}
+														/>
+													</div>
+													<div>
+														<label class="block text-xs font-medium text-gray-600 mb-1">Height (px)</label>
+														<input type="number" class="w-32 text-sm border border-gray-300 rounded px-2 py-1.5" placeholder="400"
+															value={cpConfig.height ?? 400}
+															oninput={(e) => mutate(l => { const c = l.sidebar.cards.find(sc => sc.id === card.id); if (c) c.cardConfig = { ...cpConfig, height: parseInt((e.target as HTMLInputElement).value) || 400 }; })}
+														/>
+													</div>
+												{:else}
+													<div>
+														<label class="block text-xs font-medium text-gray-600 mb-1">HTML Content <span class="text-gray-400">(admin-trusted)</span></label>
+														<textarea class="w-full text-sm border border-gray-300 rounded px-2 py-1.5 font-mono" rows="6" placeholder="<div>Your custom HTML here</div>"
+															value={cpConfig.content ?? ''}
+															oninput={(e) => mutate(l => { const c = l.sidebar.cards.find(sc => sc.id === card.id); if (c) c.cardConfig = { ...cpConfig, content: (e.target as HTMLTextAreaElement).value }; })}
+														></textarea>
+													</div>
+												{/if}
+											</div>
+										{/if}
 									</div>
 								{/if}
 							</div>
