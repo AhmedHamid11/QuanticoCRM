@@ -63,6 +63,17 @@ export interface CustomPageCardConfig {
 
 export type SectionCardConfig = ActivityCardConfig | RelatedListCardConfig | CustomPageCardConfig | null;
 
+// Individual card within a multi-card section container
+export interface SectionCardV3 {
+	id: string;
+	cardType: SectionCardType;
+	order: number;
+	label?: string;
+	fields?: LayoutFieldV2[];
+	cardConfig?: SectionCardConfig;
+	columns?: 1 | 2 | 3; // internal field grid columns for field cards
+}
+
 export interface LayoutSectionV2 {
 	id: string;
 	label: string;
@@ -72,8 +83,9 @@ export interface LayoutSectionV2 {
 	columns: 1 | 2 | 3;
 	visibility: VisibilityRule;
 	fields: LayoutFieldV2[];
-	cardType?: SectionCardType; // NEW — defaults to 'field' when absent
-	cardConfig?: SectionCardConfig; // NEW — type-specific configuration
+	cardType?: SectionCardType; // DEPRECATED: use cards[].cardType
+	cardConfig?: SectionCardConfig; // DEPRECATED: use cards[].cardConfig
+	cards?: SectionCardV3[]; // Multi-card container
 }
 
 export interface LayoutDataV2 {
@@ -293,20 +305,115 @@ function toNumber(v: unknown): number {
 	return 0;
 }
 
-// Get all visible sections with visible fields based on record data
+// --- Multi-card migration helpers ---
+
+let cardIdCounter = 0;
+function generateCardId(): string {
+	return 'card_' + Date.now().toString(36) + '_' + (cardIdCounter++).toString(36);
+}
+
+// Create a default card with type-appropriate defaults
+export function createDefaultCard(cardType: SectionCardType, order: number): SectionCardV3 {
+	const card: SectionCardV3 = {
+		id: generateCardId(),
+		cardType,
+		order
+	};
+	if (cardType === 'field') {
+		card.fields = [];
+		card.columns = 2;
+	} else if (cardType === 'activity') {
+		card.cardConfig = {};
+	} else if (cardType === 'relatedList') {
+		card.cardConfig = { relatedListConfigId: '' };
+	} else if (cardType === 'customPage') {
+		card.cardConfig = { mode: 'iframe', url: '', height: 400 };
+	}
+	return card;
+}
+
+// Convert old single-card section to multi-card format
+export function migrateSectionToCards(section: LayoutSectionV2): LayoutSectionV2 {
+	// Already migrated
+	if (section.cards && section.cards.length > 0) return section;
+
+	const cards: SectionCardV3[] = [];
+	const effectiveType = section.cardType || 'field';
+
+	if (effectiveType === 'field') {
+		// Old field section → single field card with the section's fields
+		if (section.fields && section.fields.length > 0) {
+			cards.push({
+				id: generateCardId(),
+				cardType: 'field',
+				order: 1,
+				fields: [...section.fields],
+				columns: section.columns || 2
+			});
+		}
+	} else {
+		// Non-field card type → wrap in a card
+		cards.push({
+			id: generateCardId(),
+			cardType: effectiveType,
+			order: 1,
+			cardConfig: section.cardConfig ?? undefined
+		});
+	}
+
+	return {
+		...section,
+		cards,
+		// For multi-card sections, columns controls the section grid (how cards flow)
+		// Default to 1 so migrated sections render identically (full-width single card)
+		columns: effectiveType === 'field' ? 1 : section.columns
+	};
+}
+
+// Migrate all sections in a V3 layout to multi-card format
+export function migrateLayoutV3(layout: LayoutDataV3): LayoutDataV3 {
+	return {
+		...layout,
+		sections: layout.sections.map(migrateSectionToCards)
+	};
+}
+
+// Check if a card has visible content
+function isCardVisible(card: SectionCardV3, record: Record<string, unknown>): boolean {
+	if (card.cardType !== 'field') return true;
+	if (!card.fields || card.fields.length === 0) return false;
+	return card.fields.some((f) => evaluateVisibility(f.visibility, record));
+}
+
+// Filter visible fields within cards
+function filterCardFields(card: SectionCardV3, record: Record<string, unknown>): SectionCardV3 {
+	if (card.cardType !== 'field' || !card.fields) return card;
+	return {
+		...card,
+		fields: card.fields.filter((f) => evaluateVisibility(f.visibility, record))
+	};
+}
+
+// Get all visible sections with visible cards based on record data
 export function getVisibleSections(
 	layout: LayoutDataV2,
 	record: Record<string, unknown>
 ): LayoutSectionV2[] {
 	return layout.sections
+		.map(migrateSectionToCards)
 		.filter((section) => evaluateVisibility(section.visibility, record))
 		.map((section) => ({
 			...section,
-			fields: section.fields.filter((field) => evaluateVisibility(field.visibility, record))
+			fields: section.fields.filter((field) => evaluateVisibility(field.visibility, record)),
+			cards: (section.cards ?? []).map((c) => filterCardFields(c, record))
 		}))
 		.filter((section) => {
+			// Section visible if any card has content
+			const cards = section.cards ?? [];
+			if (cards.length > 0) return cards.some((c) => isCardVisible(c, record));
+			// Fallback for legacy: check fields directly
 			if (!section.cardType || section.cardType === 'field') return section.fields.length > 0;
-			return true; // activity, relatedList, customPage cards have no fields array
+			return true;
 		})
 		.sort((a, b) => a.order - b.order);
 }
@@ -320,21 +427,41 @@ export function getSectionsForTab(
 	const tab = layout.tabs.find((t) => t.id === tabId);
 	if (!tab) return [];
 	return layout.sections
+		.map(migrateSectionToCards)
 		.filter((s) => tab.sectionIds.includes(s.id) && evaluateVisibility(s.visibility, record))
 		.map((s) => ({
 			...s,
-			fields: s.fields.filter((f) => evaluateVisibility(f.visibility, record))
+			fields: s.fields.filter((f) => evaluateVisibility(f.visibility, record)),
+			cards: (s.cards ?? []).map((c) => filterCardFields(c, record))
 		}))
 		.filter((s) => {
+			const cards = s.cards ?? [];
+			if (cards.length > 0) return cards.some((c) => isCardVisible(c, record));
 			if (!s.cardType || s.cardType === 'field') return s.fields.length > 0;
-			return true; // non-field cards are always shown (they have no fields)
+			return true;
 		})
 		.sort((a, b) => a.order - b.order);
 }
 
-// Get all field names from a layout
+// Get all field names from a layout (scans cards arrays)
 export function getAllFieldNames(layout: LayoutDataV2): string[] {
-	return layout.sections.flatMap((section) => section.fields.map((field) => field.name));
+	const names: string[] = [];
+	for (const section of layout.sections) {
+		// Scan cards array
+		if (section.cards) {
+			for (const card of section.cards) {
+				if (card.fields) {
+					for (const f of card.fields) names.push(f.name);
+				}
+			}
+		}
+		// Also scan legacy fields for backward compat
+		for (const field of section.fields) {
+			names.push(field.name);
+		}
+	}
+	// Deduplicate
+	return [...new Set(names)];
 }
 
 // Operator labels for UI

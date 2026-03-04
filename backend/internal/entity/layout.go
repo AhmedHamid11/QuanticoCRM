@@ -51,6 +51,17 @@ type LayoutFieldV2 struct {
 	Visibility VisibilityRule `json:"visibility"`
 }
 
+// SectionCardV3 represents an individual card within a section container
+type SectionCardV3 struct {
+	ID         string          `json:"id"`
+	CardType   string          `json:"cardType"`
+	Order      int             `json:"order"`
+	Label      string          `json:"label,omitempty"`
+	Fields     []LayoutFieldV2 `json:"fields,omitempty"`
+	CardConfig json.RawMessage `json:"cardConfig,omitempty"`
+	Columns    int             `json:"columns,omitempty"` // internal field grid columns for field cards
+}
+
 // LayoutSectionV2 represents a section in the layout
 type LayoutSectionV2 struct {
 	ID          string          `json:"id"`
@@ -61,8 +72,9 @@ type LayoutSectionV2 struct {
 	Columns     int             `json:"columns"`          // 1, 2, or 3
 	Visibility  VisibilityRule  `json:"visibility"`
 	Fields      []LayoutFieldV2 `json:"fields"`
-	CardType    string          `json:"cardType,omitempty"`   // "field" | "activity" | "relatedList" | "customPage"; defaults to "field" when absent
-	CardConfig  json.RawMessage `json:"cardConfig,omitempty"` // Type-specific config; decoded by frontend after reading cardType
+	CardType    string          `json:"cardType,omitempty"`   // DEPRECATED: use Cards[].CardType instead
+	CardConfig  json.RawMessage `json:"cardConfig,omitempty"` // DEPRECATED: use Cards[].CardConfig instead
+	Cards       []SectionCardV3 `json:"cards,omitempty"`      // Multi-card container: each card renders independently in the section grid
 }
 
 // LayoutDataV2 represents the v2 layout data structure

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { LayoutDataV3, RelatedListCardConfig } from '$lib/types/layout';
-	import { getSectionsForTab } from '$lib/types/layout';
+	import { getSectionsForTab, migrateLayoutV3 } from '$lib/types/layout';
 	import type { FieldDef } from '$lib/types/admin';
 	import type { RelatedListConfig } from '$lib/types/related-list';
 	import SectionRenderer from './SectionRenderer.svelte';
@@ -25,7 +25,7 @@
 	}
 
 	let {
-		layout,
+		layout: rawLayout,
 		fields,
 		record,
 		entityName,
@@ -37,11 +37,16 @@
 		children
 	}: Props = $props();
 
+	// Migrate layout to multi-card format transparently
+	let layout = $derived(migrateLayoutV3(rawLayout));
+
 	// Collect relatedListConfigIds used in section cards (for deduplication)
 	let usedInSectionCards = $derived(
-		layout.sections
-			.filter(s => s.cardType === 'relatedList' && s.cardConfig)
-			.map(s => (s.cardConfig as RelatedListCardConfig).relatedListConfigId)
+		layout.sections.flatMap(s =>
+			(s.cards ?? [])
+				.filter(c => c.cardType === 'relatedList' && c.cardConfig)
+				.map(c => (c.cardConfig as RelatedListCardConfig).relatedListConfigId)
+		)
 	);
 
 	let enabledRelatedLists = $derived(
