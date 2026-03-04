@@ -98,7 +98,7 @@
 <TabBar {tabs} {activeTabId} onTabChange={switchTab} />
 
 <!-- Main 2-column grid -->
-<div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+<div class="grid grid-cols-1 items-start gap-6 {hasSidebar ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : ''}">
 	<!-- Main content area -->
 	<div class="space-y-4">
 		{#if activeTabId === 'related'}
