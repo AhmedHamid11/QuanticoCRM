@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { beforeNavigate } from '$app/navigation';
-	import { get, put } from '$lib/utils/api';
+	import { get, put, patch } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
 	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutV3Response, SectionCardType, SectionCardV3, RelatedListCardConfig, CustomPageCardConfig } from '$lib/types/layout';
@@ -1289,6 +1289,24 @@
 														<option value={rlc.id}>{rlc.label} ({rlc.relatedEntity})</option>
 													{/each}
 												</select>
+												{#if rlConfig.relatedListConfigId}
+													{@const matchedRlc = relatedListConfigs.find(c => c.id === rlConfig.relatedListConfigId)}
+													{#if matchedRlc}
+														<label class="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer">
+															<input
+																type="checkbox"
+																checked={matchedRlc.editInList}
+																onchange={async () => {
+																	const updated = !matchedRlc.editInList;
+																	await patch(`/entities/${entityName}/related-list-configs/${matchedRlc.id}`, { editInList: updated });
+																	matchedRlc.editInList = updated;
+																}}
+																class="rounded border-gray-300"
+															/>
+															Inline editable
+														</label>
+													{/if}
+												{/if}
 											</div>
 										{:else if card.cardType === 'customPage'}
 											{@const cpConfig = (card.cardConfig ?? { mode: 'iframe', url: '', height: 400 }) as CustomPageCardConfig}
@@ -1692,6 +1710,24 @@
 														<option value={rlc.id}>{rlc.label} ({rlc.relatedEntity})</option>
 													{/each}
 												</select>
+												{#if rlConfig.relatedListConfigId}
+													{@const matchedRlc = relatedListConfigs.find(c => c.id === rlConfig.relatedListConfigId)}
+													{#if matchedRlc}
+														<label class="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer">
+															<input
+																type="checkbox"
+																checked={matchedRlc.editInList}
+																onchange={async () => {
+																	const updated = !matchedRlc.editInList;
+																	await patch(`/entities/${entityName}/related-list-configs/${matchedRlc.id}`, { editInList: updated });
+																	matchedRlc.editInList = updated;
+																}}
+																class="rounded border-gray-300"
+															/>
+															Inline editable
+														</label>
+													{/if}
+												{/if}
 											</div>
 										{:else if card.cardType === 'customPage'}
 											<!-- Custom page config -->
