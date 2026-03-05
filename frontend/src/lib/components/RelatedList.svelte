@@ -98,17 +98,12 @@
 			inlineError = null;
 			lookupNames = {};
 			// Pre-fill the lookup field
-			// The handler expects {fieldName}Id format for lookup fields
-			// If lookupField already ends with "Id", use it as-is, otherwise append "Id"
+			// The backend generic entity handler expects the exact field name from metadata
+			// config.lookupField is already the correct key (e.g., "accountId", "parentId")
 			if (config.relatedEntity === 'Task') {
 				newRecord = { parentType: parentEntity, parentId: parentId };
 			} else {
-				// For lookup fields, the API expects {fieldName}Id format
-				// e.g., for field "accountId", send "accountIdId" (weird but that's how it works)
-				const idKey = config.lookupField.endsWith('Id')
-					? config.lookupField + 'Id'  // accountId -> accountIdId
-					: config.lookupField + 'Id'; // account -> accountId
-				newRecord = { [idKey]: parentId };
+				newRecord = { [config.lookupField]: parentId };
 			}
 		} else {
 			// Default: navigate to create page with pre-filled lookup
