@@ -89,28 +89,11 @@
 					</div>
 					<div class="ml-4">
 						<h3 class="text-lg font-medium text-gray-900">Layout Editor</h3>
-						<p class="mt-1 text-sm text-gray-500">Configure the detail page layout with tabs, sections, sidebar, and header fields</p>
+						<p class="mt-1 text-sm text-gray-500">Configure the detail page layout with tabs, sections, related lists, sidebar, and header fields</p>
 					</div>
 				</div>
 			</a>
 
-			<!-- Related Lists - special layout type -->
-			<a
-				href="/admin/entity-manager/{entityName}/related-lists"
-				class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 border-orange-500"
-			>
-				<div class="flex items-start">
-					<div class="flex-shrink-0">
-						<svg class="h-8 w-8 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-						</svg>
-					</div>
-					<div class="ml-4">
-						<h3 class="text-lg font-medium text-gray-900">Related Lists</h3>
-						<p class="mt-1 text-sm text-gray-500">Configure which related records appear on the detail page</p>
-					</div>
-				</div>
-			</a>
 		</div>
 
 		<!-- Available Fields Reference -->

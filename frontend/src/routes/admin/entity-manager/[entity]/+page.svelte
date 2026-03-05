@@ -193,10 +193,10 @@
 					<div class="ml-4">
 						<h3 class="text-lg font-medium text-gray-900">Layouts</h3>
 						<p class="mt-1 text-sm text-gray-500">
-							Customize list view columns, detail form layout, related lists, and filter panels.
+							Customize list view columns, detail form layout, and filter panels.
 						</p>
 						<p class="mt-2 text-sm text-purple-600 font-medium">
-							List, Detail, Related Lists, Filters
+							List, Detail, Layout Editor, Filters
 						</p>
 					</div>
 				</div>
