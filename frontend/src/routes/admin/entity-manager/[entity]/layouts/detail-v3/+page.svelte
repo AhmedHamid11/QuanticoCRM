@@ -143,7 +143,7 @@
 
 			// Fetch related list configs
 			try {
-				relatedListConfigs = await get<RelatedListConfig[]>(`/admin/entities/${entityName}/related-lists`);
+				relatedListConfigs = await get<RelatedListConfig[]>(`/entities/${entityName}/related-list-configs`);
 			} catch {
 				relatedListConfigs = [];
 			}
