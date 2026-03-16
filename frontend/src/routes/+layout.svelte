@@ -10,6 +10,24 @@
 
 	let { children } = $props();
 
+	// Grain texture canvas
+	let grainCanvas = $state<HTMLCanvasElement | null>(null);
+
+	function drawGrain() {
+		if (!grainCanvas) return;
+		const ctx = grainCanvas.getContext('2d');
+		if (!ctx) return;
+		grainCanvas.width = window.innerWidth;
+		grainCanvas.height = window.innerHeight;
+		const img = ctx.createImageData(grainCanvas.width, grainCanvas.height);
+		const d = img.data;
+		for (let i = 0; i < d.length; i += 4) {
+			const v = Math.random() * 255;
+			d[i] = v; d[i+1] = v; d[i+2] = v; d[i+3] = 60;
+		}
+		ctx.putImageData(img, 0, 0);
+	}
+
 	// User menu state
 	let showUserMenu = $state(false);
 	let showOrgSwitcher = $state(false);
@@ -25,9 +43,12 @@
 		$page.url.pathname.startsWith('/book/')
 	);
 
-	// Initialize auth on mount
+	// Initialize auth on mount + grain texture
 	onMount(() => {
 		initAuth();
+		drawGrain();
+		window.addEventListener('resize', drawGrain);
+		return () => window.removeEventListener('resize', drawGrain);
 	});
 
 	// Load navigation when authenticated (and reload when org changes)
@@ -175,6 +196,7 @@
 	</div>
 {:else if auth.isAuthenticated}
 	<div class="crm-gradient-bg" style="--crm-accent-color: {accentColor}">
+		<canvas class="crm-grain" bind:this={grainCanvas}></canvas>
 		<!-- Impersonation banner -->
 		{#if auth.isImpersonation}
 			<div class="bg-amber-500 text-white px-4 py-2 text-center text-sm">
@@ -332,7 +354,7 @@
 			</div>
 		</nav>
 
-		<main class="w-full px-6 lg:px-8 py-6">
+		<main class="relative z-[1] w-full px-6 lg:px-8 py-6">
 			<div class="crm-card p-6">
 				{@render children()}
 			</div>
