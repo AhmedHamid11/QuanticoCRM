@@ -43,12 +43,18 @@
 		$page.url.pathname.startsWith('/book/')
 	);
 
-	// Initialize auth on mount + grain texture
+	// Initialize auth on mount
 	onMount(() => {
 		initAuth();
-		drawGrain();
-		window.addEventListener('resize', drawGrain);
-		return () => window.removeEventListener('resize', drawGrain);
+	});
+
+	// Draw grain when canvas becomes available (after auth resolves)
+	$effect(() => {
+		if (grainCanvas) {
+			drawGrain();
+			window.addEventListener('resize', drawGrain);
+			return () => window.removeEventListener('resize', drawGrain);
+		}
 	});
 
 	// Load navigation when authenticated (and reload when org changes)
