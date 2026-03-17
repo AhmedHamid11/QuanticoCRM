@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { get, post } from '$lib/utils/api';
+	import { get, post, patch } from '$lib/utils/api';
 	import { getNavigationTabs } from '$lib/stores/navigation.svelte';
 	import { TableSkeleton, ErrorDisplay } from '$lib/components/ui';
 	import { toast } from '$lib/stores/toast.svelte';
@@ -24,11 +24,18 @@
 	let sortField = $state(config.defaultSort || 'createdAt');
 	let sortDir = $state<'asc' | 'desc'>(config.defaultSortDir || 'desc');
 
-	// Inline editing state
+	// Inline creation state
 	let isAddingInline = $state(false);
 	let newRecord = $state<Record<string, unknown>>({});
 	let saving = $state(false);
 	let inlineError = $state<string | null>(null);
+
+	// Inline row editing state
+	let editingRowId = $state<string | null>(null);
+	let editingRowData = $state<Record<string, unknown>>({});
+	let originalRowData = $state<Record<string, unknown>>({});
+	let savingRow = $state(false);
+	let rowSaveSuccess = $state<string | null>(null);
 
 	// Field definitions for inline editing
 	let fieldDefs = $state<FieldDef[]>([]);
@@ -163,6 +170,122 @@
 
 	function updateNewRecordField(field: string, value: unknown) {
 		newRecord = { ...newRecord, [field]: value };
+	}
+
+	function updateEditingField(field: string, value: unknown) {
+		editingRowData = { ...editingRowData, [field]: value };
+	}
+
+	async function startEditing(record: Record<string, unknown>) {
+		// If another row is being edited, cancel it first
+		if (editingRowId !== null) {
+			cancelEditingRow();
+		}
+
+		// Load field definitions if not already loaded
+		await loadFieldDefs();
+
+		// Build editingRowData from current record values
+		const rowData: Record<string, unknown> = {};
+		for (const fieldConfig of config.displayFields) {
+			const key = findRecordKey(record, fieldConfig.field);
+			if (key !== null) {
+				rowData[fieldConfig.field] = record[key];
+			} else {
+				rowData[fieldConfig.field] = '';
+			}
+		}
+
+		// Pre-populate lookupNames from existing *Name fields in the record
+		const newLookupNames: Record<string, string> = {};
+		for (const fieldConfig of config.displayFields) {
+			const fieldDef = getFieldDef(fieldConfig.field);
+			if (fieldDef?.type === 'link') {
+				const nameKey = findRecordKey(record, `${fieldConfig.field}Name`);
+				if (nameKey !== null && record[nameKey]) {
+					newLookupNames[fieldConfig.field] = String(record[nameKey]);
+				}
+			}
+		}
+		lookupNames = { ...lookupNames, ...newLookupNames };
+
+		editingRowData = rowData;
+		originalRowData = { ...rowData };
+		editingRowId = record.id as string;
+	}
+
+	async function saveEditedRow() {
+		if (!editingRowId || !data) return;
+
+		savingRow = true;
+
+		// Optimistically update the record in data.records
+		const recordIndex = data.records.findIndex(r => (r.id as string) === editingRowId);
+		if (recordIndex !== -1) {
+			const updatedRecords = [...data.records];
+			const existingRecord = updatedRecords[recordIndex] as Record<string, unknown>;
+			const updatedRecord = { ...existingRecord };
+
+			// Apply editingRowData values to the record
+			for (const [field, value] of Object.entries(editingRowData)) {
+				const key = findRecordKey(existingRecord, field);
+				if (key !== null) {
+					updatedRecord[key] = value;
+				} else {
+					updatedRecord[field] = value;
+				}
+			}
+			updatedRecords[recordIndex] = updatedRecord;
+			data = { ...data, records: updatedRecords };
+		}
+
+		const savedRowId = editingRowId;
+
+		try {
+			await patch(`/entities/${config.relatedEntity}/records/${editingRowId}`, editingRowData);
+
+			// Success: clear edit state and show green flash
+			editingRowId = null;
+			editingRowData = {};
+			originalRowData = {};
+			rowSaveSuccess = savedRowId;
+			toast.success('Record updated successfully');
+
+			// Clear green flash after 1.5s
+			setTimeout(() => {
+				rowSaveSuccess = null;
+			}, 1500);
+		} catch (e) {
+			// Failure: revert to original values
+			if (data && recordIndex !== -1) {
+				const revertedRecords = [...data.records];
+				const existingRecord = revertedRecords[recordIndex] as Record<string, unknown>;
+				const revertedRecord = { ...existingRecord };
+
+				for (const [field, value] of Object.entries(originalRowData)) {
+					const key = findRecordKey(existingRecord, field);
+					if (key !== null) {
+						revertedRecord[key] = value;
+					} else {
+						revertedRecord[field] = value;
+					}
+				}
+				revertedRecords[recordIndex] = revertedRecord;
+				data = { ...data, records: revertedRecords };
+			}
+
+			const errorMsg = e instanceof Error ? e.message : 'Failed to update record';
+			toast.error(errorMsg);
+			// Keep row in edit mode so user can retry or cancel
+		} finally {
+			savingRow = false;
+		}
+	}
+
+	function cancelEditingRow() {
+		editingRowId = null;
+		editingRowData = {};
+		originalRowData = {};
 	}
 
 	// Load field definitions for the related entity (for inline editing)
@@ -374,7 +497,7 @@
 								</div>
 							</th>
 						{/each}
-						{#if isAddingInline}
+						{#if isAddingInline || editingRowId !== null}
 							<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
 								Actions
 							</th>
@@ -473,15 +596,114 @@
 					{/if}
 					{#each data!.records as record}
 						<tr
-							class="hover:bg-gray-50 cursor-pointer"
-							onclick={() => navigateToRecord(record.id as string)}
+							class="hover:bg-gray-50 {editingRowId === (record.id as string) ? 'bg-yellow-50 ring-1 ring-inset ring-yellow-200' : ''} {rowSaveSuccess === (record.id as string) ? 'bg-green-50 transition-colors duration-1000' : ''} {editingRowId !== (record.id as string) ? 'cursor-pointer' : ''}"
+							onclick={() => { if (editingRowId !== (record.id as string)) navigateToRecord(record.id as string); }}
+							onkeydown={(e) => {
+								if (editingRowId === (record.id as string)) {
+									if (e.key === 'Enter') { e.preventDefault(); saveEditedRow(); }
+									if (e.key === 'Escape') cancelEditingRow();
+								}
+							}}
 						>
 							{#each config.displayFields as fieldConfig}
-								<td class="px-4 py-3 text-sm text-gray-900">
-									{getDisplayValue(record, fieldConfig)}
-								</td>
+								{#if editingRowId === (record.id as string)}
+									<!-- EDIT MODE: render field-type-aware input -->
+									{@const fieldDef = getFieldDef(fieldConfig.field)}
+									<td class="px-4 py-2" onclick={(e) => e.stopPropagation()}>
+										{#if fieldDef?.type === 'link' && fieldDef.linkEntity}
+											<!-- Lookup field -->
+											<LookupField
+												entity={fieldDef.linkEntity}
+												value={editingRowData[`${fieldConfig.field}Id`] as string | null || editingRowData[fieldConfig.field] as string | null}
+												valueName={lookupNames[fieldConfig.field] || ''}
+												label=""
+												required={fieldDef.isRequired}
+												onchange={(id, name) => {
+													editingRowData = {
+														...editingRowData,
+														[`${fieldConfig.field}Id`]: id,
+														[`${fieldConfig.field}Name`]: name,
+														[fieldConfig.field]: id
+													};
+													lookupNames = { ...lookupNames, [fieldConfig.field]: name };
+												}}
+											/>
+										{:else if fieldDef?.type === 'enum' && fieldDef.options}
+											<!-- Picklist/Enum field -->
+											<select
+												class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+												value={(editingRowData[fieldConfig.field] as string) || ''}
+												onchange={(e) => updateEditingField(fieldConfig.field, (e.target as HTMLSelectElement).value)}
+												disabled={savingRow}
+											>
+												<option value="">Select...</option>
+												{#each getEnumOptions(fieldDef) as option}
+													<option value={option}>{option}</option>
+												{/each}
+											</select>
+										{:else if fieldDef?.type === 'bool'}
+											<!-- Boolean/Checkbox field -->
+											<input
+												type="checkbox"
+												class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+												checked={!!editingRowData[fieldConfig.field]}
+												onchange={(e) => updateEditingField(fieldConfig.field, (e.target as HTMLInputElement).checked)}
+												disabled={savingRow}
+											/>
+										{:else if fieldDef?.type === 'text'}
+											<!-- Text area field (keep compact for inline) -->
+											<input
+												type="text"
+												class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+												placeholder={fieldConfig.label || fieldConfig.field}
+												value={(editingRowData[fieldConfig.field] as string) || ''}
+												oninput={(e) => updateEditingField(fieldConfig.field, (e.target as HTMLInputElement).value)}
+												disabled={savingRow}
+											/>
+										{:else}
+											<!-- Default: use appropriate input type -->
+											<input
+												type={fieldDef ? getInputType(fieldDef) : 'text'}
+												class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+												placeholder={fieldConfig.label || fieldConfig.field}
+												value={(editingRowData[fieldConfig.field] as string) || ''}
+												oninput={(e) => updateEditingField(fieldConfig.field, (e.target as HTMLInputElement).value)}
+												disabled={savingRow}
+												step={fieldDef?.type === 'float' || fieldDef?.type === 'currency' ? '0.01' : undefined}
+											/>
+										{/if}
+									</td>
+								{:else}
+									<!-- VIEW MODE: clickable cell -->
+									<td
+										class="px-4 py-3 text-sm text-gray-900 {config.editInList ? 'hover:bg-blue-50 hover:cursor-cell' : ''}"
+										onclick={(e) => { if (config.editInList) { e.stopPropagation(); startEditing(record as Record<string, unknown>); } }}
+									>
+										{getDisplayValue(record, fieldConfig)}
+									</td>
+								{/if}
 							{/each}
-							{#if isAddingInline}
+							<!-- Actions column: save/cancel when editing, empty cell when add-inline active -->
+							{#if editingRowId === (record.id as string)}
+								<td class="px-4 py-2 whitespace-nowrap" onclick={(e) => e.stopPropagation()}>
+									<div class="flex gap-2">
+										<button
+											onclick={saveEditedRow}
+											disabled={savingRow}
+											class="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+										>
+											{savingRow ? 'Saving...' : 'Save'}
+										</button>
+										<button
+											onclick={cancelEditingRow}
+											disabled={savingRow}
+											class="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+										>
+											Cancel
+										</button>
+									</div>
+								</td>
+							{:else if editingRowId !== null || isAddingInline}
 								<td></td>
 							{/if}
 						</tr>
