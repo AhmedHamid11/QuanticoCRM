@@ -58,11 +58,11 @@
 </script>
 
 {#if isSectionVisible && hasVisibleCards()}
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<!-- Section Header -->
 		<div
-			class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between {section.collapsible
-				? 'cursor-pointer hover:bg-gray-100'
+			class="px-6 py-4 bg-gray-50/80 border-b border-gray-200/60 flex items-center justify-between {section.collapsible
+				? 'cursor-pointer hover:bg-gray-100/80'
 				: ''}"
 			onclick={toggleCollapse}
 			onkeypress={(e) => e.key === 'Enter' && toggleCollapse()}
