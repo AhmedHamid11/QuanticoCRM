@@ -7,7 +7,7 @@
 	import type { EntityDef, FieldDef } from '$lib/types/admin';
 	import type { LayoutDataV3, LayoutSectionV2, LayoutFieldV2, LayoutTabV3, LayoutV3Response, SectionCardType, SectionCardV3, RelatedListCardConfig, CustomPageCardConfig } from '$lib/types/layout';
 	import { createDefaultVisibility, createDefaultField, createDefaultCard, migrateSectionToCards } from '$lib/types/layout';
-	import type { RelatedListConfig } from '$lib/types/related-list';
+	import type { RelatedListConfig, FieldConfig } from '$lib/types/related-list';
 
 	let entityName = $derived($page.params.entity);
 
@@ -826,6 +826,43 @@
 			default: return { label: 'Fields', classes: 'bg-blue-100 text-blue-700' };
 		}
 	}
+
+	// ---- Related entity field picker ----
+
+	const SYSTEM_FIELDS = new Set(['id', 'createdAt', 'modifiedAt', 'createdById', 'modifiedById', 'orgId', 'deletedAt']);
+
+	let relatedEntityFields = $state<Record<string, FieldDef[]>>({});
+
+	async function loadRelatedEntityFields(relatedEntity: string) {
+		if (relatedEntityFields[relatedEntity]) return;
+		try {
+			const fetched = await get<FieldDef[]>(`/entities/${relatedEntity}/fields`);
+			relatedEntityFields = { ...relatedEntityFields, [relatedEntity]: fetched };
+		} catch {
+			// ignore — field picker will stay empty
+		}
+	}
+
+	async function toggleDisplayField(rlc: RelatedListConfig, field: FieldDef) {
+		const existingIndex = rlc.displayFields.findIndex((df) => df.field === field.name);
+		let updatedFields: FieldConfig[];
+		if (existingIndex >= 0) {
+			if (rlc.displayFields.length <= 1) {
+				toast.error('At least one display field is required');
+				return;
+			}
+			updatedFields = rlc.displayFields
+				.filter((_, i) => i !== existingIndex)
+				.map((f, i) => ({ ...f, position: i }));
+		} else {
+			updatedFields = [
+				...rlc.displayFields,
+				{ field: field.name, label: field.label || field.name, position: rlc.displayFields.length }
+			];
+		}
+		await patch(`/entities/${entityName}/related-list-configs/${rlc.id}`, { displayFields: updatedFields });
+		rlc.displayFields = updatedFields;
+	}
 </script>
 
 <div class="space-y-6">
@@ -1294,6 +1331,7 @@
 												{#if rlConfig.relatedListConfigId}
 													{@const matchedRlc = relatedListConfigs.find(c => c.id === rlConfig.relatedListConfigId)}
 													{#if matchedRlc}
+														{loadRelatedEntityFields(matchedRlc.relatedEntity)}
 														<label class="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer">
 															<input
 																type="checkbox"
@@ -1307,6 +1345,26 @@
 															/>
 															Inline editable
 														</label>
+														{#if relatedEntityFields[matchedRlc.relatedEntity]?.length}
+															<div class="mt-3">
+																<label class="block text-xs font-medium text-gray-600 mb-1">Display Columns</label>
+																<div class="max-h-48 overflow-y-auto border border-gray-200 rounded p-2 space-y-1 bg-white">
+																	{#each relatedEntityFields[matchedRlc.relatedEntity].filter(f => !SYSTEM_FIELDS.has(f.name)) as field (field.name)}
+																		{@const isSelected = matchedRlc.displayFields.some(df => df.field === field.name)}
+																		<label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+																			<input
+																				type="checkbox"
+																				checked={isSelected}
+																				onchange={() => toggleDisplayField(matchedRlc, field)}
+																				class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+																			/>
+																			{field.label || field.name}
+																			<span class="text-gray-400 ml-auto">{field.type}</span>
+																		</label>
+																	{/each}
+																</div>
+															</div>
+														{/if}
 													{/if}
 												{/if}
 											</div>
@@ -1715,6 +1773,7 @@
 												{#if rlConfig.relatedListConfigId}
 													{@const matchedRlc = relatedListConfigs.find(c => c.id === rlConfig.relatedListConfigId)}
 													{#if matchedRlc}
+														{loadRelatedEntityFields(matchedRlc.relatedEntity)}
 														<label class="flex items-center gap-2 mt-2 text-xs text-gray-600 cursor-pointer">
 															<input
 																type="checkbox"
@@ -1728,6 +1787,26 @@
 															/>
 															Inline editable
 														</label>
+														{#if relatedEntityFields[matchedRlc.relatedEntity]?.length}
+															<div class="mt-3">
+																<label class="block text-xs font-medium text-gray-600 mb-1">Display Columns</label>
+																<div class="max-h-48 overflow-y-auto border border-gray-200 rounded p-2 space-y-1 bg-white">
+																	{#each relatedEntityFields[matchedRlc.relatedEntity].filter(f => !SYSTEM_FIELDS.has(f.name)) as field (field.name)}
+																		{@const isSelected = matchedRlc.displayFields.some(df => df.field === field.name)}
+																		<label class="flex items-center gap-2 text-xs text-gray-700 cursor-pointer hover:bg-gray-50 px-1 py-0.5 rounded">
+																			<input
+																				type="checkbox"
+																				checked={isSelected}
+																				onchange={() => toggleDisplayField(matchedRlc, field)}
+																				class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+																			/>
+																			{field.label || field.name}
+																			<span class="text-gray-400 ml-auto">{field.type}</span>
+																		</label>
+																	{/each}
+																</div>
+															</div>
+														{/if}
 													{/if}
 												{/if}
 											</div>
