@@ -194,7 +194,7 @@
 	{@render children()}
 {:else if auth.isLoading}
 	<!-- Loading state -->
-	<div class="min-h-screen flex items-center justify-center bg-gray-50">
+	<div class="min-h-screen flex items-center justify-center" style="background: #d6d0c8;">
 		<div class="text-center">
 			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
 			<p class="mt-4 text-gray-600">Loading...</p>
