@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -702,17 +703,43 @@ func (r *MetadataRepo) GetLayout(ctx context.Context, orgID, entityName, layoutT
 	return &l, nil
 }
 
-// OrgHasMetadata checks if an organization has any metadata provisioned
-// Returns true if the org has at least one entity and one layout
+// OrgHasMetadata checks if an organization has all required default entities provisioned.
+// Returns true only if the org has all 5 default entities (Account, Contact, Task, Quote,
+// QuoteLineItem) AND at least one layout.
 func (r *MetadataRepo) OrgHasMetadata(ctx context.Context, orgID string) (bool, error) {
-	// Check if org has at least one entity (e.g., Account)
-	var entityCount int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM entity_defs WHERE org_id = ?", orgID).Scan(&entityCount)
+	requiredEntities := []string{"Account", "Contact", "Task", "Quote", "QuoteLineItem"}
+
+	// Check which of the 5 required default entities exist for this org
+	rows, err := r.db.QueryContext(ctx,
+		"SELECT name FROM entity_defs WHERE org_id = ? AND name IN ('Account','Contact','Task','Quote','QuoteLineItem')",
+		orgID,
+	)
 	if err != nil {
-		return false, fmt.Errorf("failed to check entity count: %w", err)
+		return false, fmt.Errorf("failed to check default entities: %w", err)
+	}
+	defer rows.Close()
+
+	found := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return false, fmt.Errorf("failed to scan entity name: %w", err)
+		}
+		found[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("error iterating entity rows: %w", err)
 	}
 
-	if entityCount == 0 {
+	// If any required default entities are missing, log and return false
+	if len(found) < len(requiredEntities) {
+		var missing []string
+		for _, name := range requiredEntities {
+			if !found[name] {
+				missing = append(missing, name)
+			}
+		}
+		log.Printf("[MetadataCheck] Org %s missing default entities: %v", orgID, missing)
 		return false, nil
 	}
 
