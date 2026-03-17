@@ -734,7 +734,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each records as record (record.id)}
 						<tr class="hover:bg-gray-50">
 							{#each displayFields as field, i}

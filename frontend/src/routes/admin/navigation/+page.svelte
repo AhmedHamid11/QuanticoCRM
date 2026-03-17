@@ -192,7 +192,7 @@
 			<p class="mt-2 text-gray-500">Loading...</p>
 		</div>
 	{:else}
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="px-4 py-3 bg-gray-50 border-b text-sm text-gray-500">
 				Drag and drop to reorder tabs
 			</div>

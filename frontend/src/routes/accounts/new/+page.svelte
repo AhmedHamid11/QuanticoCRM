@@ -153,7 +153,7 @@
 	{:else}
 		<!-- Form -->
 		<form onsubmit={handleSubmit} class="space-y-6">
-			<div class="bg-white shadow rounded-lg overflow-hidden">
+			<div class="crm-card overflow-hidden">
 				<div class="px-6 py-4 border-b border-gray-200">
 					<h2 class="text-lg font-medium text-gray-900">Account Information</h2>
 				</div>

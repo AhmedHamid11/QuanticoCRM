@@ -876,7 +876,7 @@
 								</th>
 							</tr>
 						</thead>
-						<tbody class="bg-white divide-y divide-gray-200">
+						<tbody class="divide-y divide-gray-200">
 							{#each editedSourceFields as field, index (index)}
 								<tr class="hover:bg-gray-50">
 									<td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -1289,7 +1289,7 @@
 												<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase w-16">Status</th>
 											</tr>
 										</thead>
-										<tbody class="bg-white divide-y divide-gray-200">
+										<tbody class="divide-y divide-gray-200">
 											{#each csvColumnMapping as col}
 												<tr>
 													<td class="px-4 py-2 text-sm font-medium text-gray-900">{col.csvColumn}</td>
@@ -1447,7 +1447,7 @@
 								</th>
 							</tr>
 						</thead>
-						<tbody class="bg-white divide-y divide-gray-200">
+						<tbody class="divide-y divide-gray-200">
 							{#each jobs as job (job.id)}
 								<tr class="hover:bg-gray-50">
 									<td class="px-4 py-3 whitespace-nowrap">
@@ -1547,7 +1547,7 @@
 																		>
 																	</tr>
 																</thead>
-																<tbody class="bg-white divide-y divide-gray-200">
+																<tbody class="divide-y divide-gray-200">
 																	{#each job.errors as error}
 																		<tr>
 																			<td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900">

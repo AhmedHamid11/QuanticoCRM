@@ -90,7 +90,7 @@
 	</div>
 
 	<!-- Profile Information -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
 			<h2 class="text-lg font-medium text-gray-900">Profile Information</h2>
 		</div>
@@ -127,7 +127,7 @@
 	</div>
 
 	<!-- Current Organization -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
 			<h2 class="text-lg font-medium text-gray-900">Current Organization</h2>
 		</div>
@@ -154,7 +154,7 @@
 
 	<!-- Organization Memberships -->
 	{#if auth.memberships.length > 1}
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="px-6 py-4 border-b border-gray-200">
 				<h2 class="text-lg font-medium text-gray-900">All Organizations</h2>
 			</div>
@@ -179,7 +179,7 @@
 	{/if}
 
 	<!-- Integrations -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
 			<h2 class="text-lg font-medium text-gray-900">Integrations</h2>
 			<p class="mt-1 text-sm text-gray-500">Connect QuanticoCRM with other tools</p>
@@ -262,7 +262,7 @@
 	</div>
 
 	<!-- Change Password -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
 			<h2 class="text-lg font-medium text-gray-900">Change Password</h2>
 		</div>

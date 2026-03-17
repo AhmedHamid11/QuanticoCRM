@@ -24,7 +24,7 @@
 				</tr>
 			</thead>
 		{/if}
-		<tbody class="bg-white divide-y divide-gray-200">
+		<tbody class="divide-y divide-gray-200">
 			{#each Array(rows) as _, rowIndex (rowIndex)}
 				<tr>
 					{#each Array(columns) as _, colIndex (colIndex)}

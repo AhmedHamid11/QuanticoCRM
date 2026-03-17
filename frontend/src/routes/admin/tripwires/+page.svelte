@@ -204,7 +204,7 @@
 			No tripwires found. <a href="/admin/tripwires/new" class="text-blue-600 hover:underline">Create one</a>
 		</div>
 	{:else}
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
@@ -246,7 +246,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each tripwires as tw (tw.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 whitespace-nowrap">

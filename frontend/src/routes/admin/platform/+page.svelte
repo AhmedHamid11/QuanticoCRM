@@ -191,7 +191,7 @@
 		</div>
 	{/if}
 
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
 			<div class="flex items-center justify-between">
 				<h2 class="text-lg font-medium text-gray-900">Organizations ({total})</h2>
@@ -265,7 +265,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each orgs as org (org.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 whitespace-nowrap">

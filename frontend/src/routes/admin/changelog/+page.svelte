@@ -248,7 +248,7 @@
 	{/if}
 
 	<!-- Main content -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		{#if isLoading}
 			<!-- Loading state -->
 			<div class="px-6 py-12 text-center">

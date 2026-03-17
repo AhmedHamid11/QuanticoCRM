@@ -278,7 +278,7 @@
 	</div>
 
 	<!-- Google Calendar Connection -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200">
 			<h2 class="text-lg font-medium text-gray-900">Google Calendar</h2>
 			<p class="mt-1 text-sm text-gray-500">Connect to automatically check your availability and create calendar events for new bookings</p>
@@ -344,7 +344,7 @@
 	</div>
 
 	<!-- Scheduling Pages -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		<div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
 			<div>
 				<h2 class="text-lg font-medium text-gray-900">Scheduling Pages</h2>

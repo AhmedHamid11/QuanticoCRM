@@ -197,7 +197,7 @@
 
 	<!-- Results Table -->
 	{#if result && result.rows && result.rows.length > 0}
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="overflow-x-auto">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
@@ -209,7 +209,7 @@
 							{/each}
 						</tr>
 					</thead>
-					<tbody class="bg-white divide-y divide-gray-200">
+					<tbody class="divide-y divide-gray-200">
 						{#each result.rows as row, rowIndex}
 							<tr class="hover:bg-gray-50" class:bg-gray-25={rowIndex % 2 === 1}>
 								{#each row as cell}

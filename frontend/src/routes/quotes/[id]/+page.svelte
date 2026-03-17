@@ -464,7 +464,7 @@
 
 		<!-- Line Items (Quote-specific) -->
 		{#if quote.lineItems && quote.lineItems.length > 0}
-			<div class="bg-white shadow rounded-lg overflow-hidden">
+			<div class="crm-card overflow-hidden">
 				<div class="px-6 py-4 border-b border-gray-200">
 					<h3 class="text-lg font-medium text-gray-900">Line Items</h3>
 				</div>
@@ -488,7 +488,7 @@
 							{/if}
 						</tr>
 					</thead>
-					<tbody class="bg-white divide-y divide-gray-200">
+					<tbody class="divide-y divide-gray-200">
 						{#each quote.lineItems as item, i}
 							<tr>
 								<td class="px-6 py-4 text-sm text-gray-500">{i + 1}</td>
@@ -545,7 +545,7 @@
 		{/if}
 
 		<!-- System Info -->
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="px-6 py-4 border-b border-gray-200">
 				<h2 class="text-lg font-medium text-gray-900">System Information</h2>
 			</div>

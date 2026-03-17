@@ -458,7 +458,7 @@
 							</th>
 						</tr>
 					</thead>
-					<tbody class="bg-white divide-y divide-gray-200">
+					<tbody class="divide-y divide-gray-200">
 						<tr>
 							{#each listColumns as columnName, i (columnName)}
 								<td class="px-4 py-3 text-sm {i === 0 ? 'text-blue-600 font-medium' : 'text-gray-500'}">

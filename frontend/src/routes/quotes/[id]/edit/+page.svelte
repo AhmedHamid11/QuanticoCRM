@@ -253,7 +253,7 @@
 			{/each}
 
 			<!-- Line Items (Special Section) -->
-			<div class="bg-white shadow rounded-lg overflow-hidden">
+			<div class="crm-card overflow-hidden">
 				<div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
 					<h2 class="text-lg font-medium text-gray-900">Line Items</h2>
 				</div>
@@ -263,7 +263,7 @@
 			</div>
 
 			<!-- Pricing (Special Section) -->
-			<div class="bg-white shadow rounded-lg overflow-hidden">
+			<div class="crm-card overflow-hidden">
 				<div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
 					<h2 class="text-lg font-medium text-gray-900">Pricing</h2>
 				</div>

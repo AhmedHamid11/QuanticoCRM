@@ -305,7 +305,7 @@
 
 	<!-- Pending Invitations -->
 	{#if pendingInvitations.length > 0}
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="px-6 py-4 border-b border-gray-200 bg-amber-50">
 				<h2 class="text-lg font-medium text-amber-800">Pending Invitations ({pendingInvitations.length})</h2>
 				<p class="text-sm text-amber-600">These users have been invited but haven't accepted yet. Share the invite link with them.</p>
@@ -320,7 +320,7 @@
 						<th scope="col" class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each pendingInvitations as invitation (invitation.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 whitespace-nowrap">
@@ -360,7 +360,7 @@
 	{/if}
 
 	<!-- Users table -->
-	<div class="bg-white shadow rounded-lg overflow-hidden">
+	<div class="crm-card overflow-hidden">
 		{#if isLoading}
 			<div class="flex items-center justify-center py-12">
 				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -397,7 +397,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each users as user (user.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 whitespace-nowrap">

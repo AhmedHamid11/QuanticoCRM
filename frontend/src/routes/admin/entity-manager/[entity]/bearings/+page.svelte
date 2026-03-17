@@ -287,7 +287,7 @@
 				{/if}
 			</div>
 		{:else if bearings.length > 0}
-			<div class="bg-white shadow rounded-lg overflow-hidden">
+			<div class="crm-card overflow-hidden">
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
@@ -299,7 +299,7 @@
 							<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 						</tr>
 					</thead>
-					<tbody class="bg-white divide-y divide-gray-200">
+					<tbody class="divide-y divide-gray-200">
 						{#each bearings.toSorted((a, b) => a.displayOrder - b.displayOrder) as bearing (bearing.id)}
 							{#if editingId === bearing.id}
 								<!-- Edit Row -->

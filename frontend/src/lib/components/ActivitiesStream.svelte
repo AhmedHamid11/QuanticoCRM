@@ -126,7 +126,7 @@
 	});
 </script>
 
-<div class="bg-white shadow rounded-lg overflow-hidden">
+<div class="crm-card overflow-hidden">
 	<!-- Header -->
 	<div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
 		<div class="flex items-center gap-4">

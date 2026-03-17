@@ -478,7 +478,7 @@
 		<div class="text-center py-12 text-red-500">{error}</div>
 	{:else}
 		<!-- Schedules Table -->
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
 				<h2 class="text-lg font-medium text-gray-900">Scan Schedules</h2>
 				<button
@@ -512,7 +512,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#if isAddingNew}
 						<tr class="bg-blue-50">
 							<td class="px-6 py-4">
@@ -766,7 +766,7 @@
 		</div>
 
 		<!-- Recent Jobs -->
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
 				<h2 class="text-lg font-medium text-gray-900">Recent Jobs</h2>
 				{#if jobs.some(j => j.status !== 'running')}
@@ -805,7 +805,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each paginatedJobs as job (job.id)}
 						<tr class="hover:bg-gray-50">
 							<td class="px-6 py-4 text-sm text-gray-500">

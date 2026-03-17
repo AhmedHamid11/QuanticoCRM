@@ -1251,7 +1251,7 @@
 									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Options</th>
 								</tr>
 							</thead>
-							<tbody class="bg-white divide-y divide-gray-200">
+							<tbody class="divide-y divide-gray-200">
 								{#each previewData.headers as header, idx}
 									{@const mappedField = getFieldForMapping(columnMapping[header] || '')}
 									{@const isLink = mappedField?.type === 'link'}
@@ -1447,7 +1447,7 @@
 									<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Expected</th>
 								</tr>
 							</thead>
-							<tbody class="bg-white divide-y divide-gray-200">
+							<tbody class="divide-y divide-gray-200">
 								{#each analyzeResult.issues as issue}
 									<tr>
 										<td class="px-4 py-2 text-sm">{issue.row}</td>

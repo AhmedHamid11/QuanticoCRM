@@ -329,7 +329,7 @@
 	});
 </script>
 
-<div class="bg-white shadow rounded-lg overflow-hidden">
+<div class="crm-card overflow-hidden">
 	<!-- Header -->
 	<div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
 		<h3 class="text-lg font-medium text-gray-900">
@@ -381,7 +381,7 @@
 						{/if}
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#if isAddingInline}
 						<tr class="bg-blue-50 border-blue-200">
 							{#each config.displayFields as fieldConfig}

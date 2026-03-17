@@ -355,7 +355,7 @@
 							{/each}
 						</tr>
 					</thead>
-					<tbody class="bg-white divide-y divide-gray-200">
+					<tbody class="divide-y divide-gray-200">
 						{#each preview.fields as field}
 							{#if !SKIP_FIELDS.includes(field.name)}
 								<tr class="{valuesAreDifferent(field) ? 'bg-yellow-50' : ''}">

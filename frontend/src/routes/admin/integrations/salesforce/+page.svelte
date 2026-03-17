@@ -428,7 +428,7 @@
 								<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 							</tr>
 						</thead>
-						<tbody class="bg-white divide-y divide-gray-200">
+						<tbody class="divide-y divide-gray-200">
 							{#each jobs as job (job.id)}
 								{@const badge = getJobStatusBadge(job.status)}
 								<tr>

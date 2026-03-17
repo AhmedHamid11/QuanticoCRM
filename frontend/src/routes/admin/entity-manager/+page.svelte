@@ -166,7 +166,7 @@
 	{:else if error}
 		<div class="text-center py-12 text-red-500">{error}</div>
 	{:else}
-		<div class="bg-white shadow rounded-lg overflow-hidden">
+		<div class="crm-card overflow-hidden">
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
@@ -184,7 +184,7 @@
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200">
 					{#each entities as entity (entity.id)}
 						<tr
 							class="hover:bg-gray-50 cursor-pointer"
