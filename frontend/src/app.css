@@ -4,12 +4,8 @@
 
 /* Prevent html/body from painting backgrounds beyond viewport.
    All visible background comes from .crm-bg-fixed (position:fixed). */
-html {
-  background: transparent;
-}
-
-body {
-  background: transparent;
+html, body {
+  background: #f9fafb;
 }
 
 /* Fixed background layer - stays viewport-sized, never scrolls */
