@@ -88,18 +88,6 @@
 		);
 	});
 
-	// Related lists not placed in any section card (these auto-generate a "Related" tab at render time)
-	let unplacedRelatedLists = $derived(() => {
-		if (!editorLayout) return [];
-		const placedIds = new Set(
-			editorLayout.sections.flatMap(s =>
-				(s.cards ?? [])
-					.filter(c => c.cardType === 'relatedList' && c.cardConfig)
-					.map(c => (c.cardConfig as any).relatedListConfigId)
-			)
-		);
-		return relatedListConfigs.filter(c => c.enabled && !placedIds.has(c.id));
-	});
 
 	// Navigation guard
 	beforeNavigate(({ cancel }) => {
@@ -918,7 +906,7 @@
 					</button>
 					<h2 class="text-sm font-semibold text-gray-900">Tabs</h2>
 					<span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-						{editorLayout.tabs.length + (unplacedRelatedLists().length > 0 ? 1 : 0)} tab{(editorLayout.tabs.length + (unplacedRelatedLists().length > 0 ? 1 : 0)) !== 1 ? 's' : ''}
+						{editorLayout.tabs.length} tab{editorLayout.tabs.length !== 1 ? 's' : ''}
 					</span>
 				</div>
 				<button
@@ -984,21 +972,6 @@
 						{/each}
 					{/if}
 
-					<!-- Ghost "Related" tab — auto-generated at render time from unplaced related lists -->
-					{#if unplacedRelatedLists().length > 0}
-						<div class="flex items-center gap-3 px-3 py-2 bg-purple-50 rounded border border-dashed border-purple-300 mt-2">
-							<svg class="w-4 h-4 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-							</svg>
-							<span class="flex-1 text-sm font-medium text-purple-700">Related</span>
-							<span class="flex-shrink-0 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-								{unplacedRelatedLists().length} list{unplacedRelatedLists().length !== 1 ? 's' : ''} · auto
-							</span>
-						</div>
-						<p class="text-xs text-purple-500 mt-1 px-1">
-							Auto-generated tab. Add relatedList cards to sections to control placement.
-						</p>
-					{/if}
 				</div>
 			{/if}
 		</div>

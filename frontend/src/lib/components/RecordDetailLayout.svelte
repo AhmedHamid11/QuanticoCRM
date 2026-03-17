@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { LayoutDataV3, RelatedListCardConfig } from '$lib/types/layout';
+	import type { LayoutDataV3 } from '$lib/types/layout';
 	import { getSectionsForTab, migrateLayoutV3 } from '$lib/types/layout';
 	import type { FieldDef } from '$lib/types/admin';
 	import type { RelatedListConfig } from '$lib/types/related-list';
@@ -7,7 +7,6 @@
 	import SidebarCardRenderer from './SidebarCardRenderer.svelte';
 	import HeaderStrip from './HeaderStrip.svelte';
 	import TabBar from './TabBar.svelte';
-	import RelatedList from './RelatedList.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
@@ -40,29 +39,8 @@
 	// Migrate layout to multi-card format transparently
 	let layout = $derived(migrateLayoutV3(rawLayout));
 
-	// Collect relatedListConfigIds used in section cards (for deduplication)
-	let usedInSectionCards = $derived(
-		layout.sections.flatMap(s =>
-			(s.cards ?? [])
-				.filter(c => c.cardType === 'relatedList' && c.cardConfig)
-				.map(c => (c.cardConfig as RelatedListCardConfig).relatedListConfigId)
-		)
-	);
-
-	let enabledRelatedLists = $derived(
-		relatedListConfigs
-			.filter((c) => c.enabled && !usedInSectionCards.includes(c.id))
-			.sort((a, b) => a.sortOrder - b.sortOrder)
-	);
-
 	let tabs = $derived(
-		(() => {
-			const sorted = [...layout.tabs].sort((a, b) => a.order - b.order);
-			if (enabledRelatedLists.length > 0) {
-				sorted.push({ id: 'related', label: 'Related', order: 9999, sectionIds: [] });
-			}
-			return sorted;
-		})()
+		[...layout.tabs].sort((a, b) => a.order - b.order)
 	);
 
 	let activeTabId = $derived(
@@ -101,30 +79,21 @@
 <div class="grid grid-cols-1 items-start gap-6 {hasSidebar ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : ''}">
 	<!-- Main content area -->
 	<div class="space-y-4">
-		{#if activeTabId === 'related'}
-			{#each enabledRelatedLists as config (config.id)}
-				<RelatedList {config} parentEntity={entityName} parentId={recordId} />
-			{/each}
-			{#if enabledRelatedLists.length === 0}
-				<p class="text-sm text-gray-500">No related records configured.</p>
-			{/if}
-		{:else}
-			{#each activeSections as section (section.id)}
-				<SectionRenderer
-					{section}
-					{fields}
-					{record}
-					{formatValue}
-					{renderLink}
-					{entityName}
-					{recordId}
-					{onRecordUpdate}
-					{relatedListConfigs}
-				/>
-			{/each}
-			{#if activeSections.length === 0}
-				<p class="text-sm text-gray-500">No content configured for this tab.</p>
-			{/if}
+		{#each activeSections as section (section.id)}
+			<SectionRenderer
+				{section}
+				{fields}
+				{record}
+				{formatValue}
+				{renderLink}
+				{entityName}
+				{recordId}
+				{onRecordUpdate}
+				{relatedListConfigs}
+			/>
+		{/each}
+		{#if activeSections.length === 0}
+			<p class="text-sm text-gray-500">No content configured for this tab.</p>
 		{/if}
 	</div>
 
