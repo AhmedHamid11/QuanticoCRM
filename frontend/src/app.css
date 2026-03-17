@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent html/body from painting backgrounds beyond viewport.
+   All visible background comes from .crm-bg-fixed (position:fixed). */
+html {
+  background: transparent;
+}
+
+body {
+  background: transparent;
+}
+
 /* Fixed background layer - stays viewport-sized, never scrolls */
 .crm-bg-fixed {
   position: fixed;
@@ -23,6 +33,7 @@
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  background: transparent;
 }
 
 /* Grain texture overlay */
