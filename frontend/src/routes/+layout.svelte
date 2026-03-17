@@ -201,7 +201,6 @@
 		</div>
 	</div>
 {:else if auth.isAuthenticated}
-	<div class="crm-bg-fixed"></div>
 	<canvas class="crm-grain" bind:this={grainCanvas}></canvas>
 	<div class="crm-gradient-bg" style="--crm-accent-color: {accentColor}">
 		<!-- Impersonation banner -->

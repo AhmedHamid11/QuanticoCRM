@@ -2,34 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent html/body from painting backgrounds beyond viewport.
-   All visible background comes from .crm-bg-fixed (position:fixed). */
-html, body {
-  background: #f9fafb;
+/* Background on body — matches working ui-library.html pattern */
+body {
+  background: #d6d0c8;
+  overflow-x: hidden;
 }
 
-/* Fixed background layer - stays viewport-sized, never scrolls */
-.crm-bg-fixed {
+body::before {
+  content: '';
   position: fixed;
   inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 85% 100%, #f08c5a 0%, #e8a070 25%, transparent 65%);
   z-index: 0;
   pointer-events: none;
-  background: #d6d0c8;
-}
-
-.crm-bg-fixed::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 85% 100%, #f08c5a 0%, #e8a070 25%, transparent 65%);
 }
 
 /* Scrollable content wrapper */
 .crm-gradient-bg {
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden;
-  background: transparent;
 }
 
 /* Grain texture overlay */
