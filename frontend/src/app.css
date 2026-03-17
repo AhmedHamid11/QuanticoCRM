@@ -5,6 +5,7 @@
 /* Warm textured background applied to authenticated main area */
 .crm-gradient-bg {
   background: #d6d0c8;
+  background-attachment: fixed;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
