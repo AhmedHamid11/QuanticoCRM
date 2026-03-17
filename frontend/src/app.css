@@ -2,31 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Warm textured background applied to authenticated main area */
+/* Fixed background layer - stays viewport-sized, never scrolls */
+.crm-bg-fixed {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #d6d0c8;
+}
+
+.crm-bg-fixed::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 85% 100%, #f08c5a 0%, #e8a070 25%, transparent 65%);
+}
+
+/* Scrollable content wrapper */
 .crm-gradient-bg {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
-}
-
-/* Solid background color - fixed to viewport */
-.crm-gradient-bg::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: #d6d0c8;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Gradient accent - fixed to viewport */
-.crm-gradient-bg::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 85% 100%, #f08c5a 0%, #e8a070 25%, transparent 65%);
-  z-index: 0;
-  pointer-events: none;
 }
 
 /* Grain texture overlay */
