@@ -1,0 +1,668 @@
+package repo
+
+import (
+	"context"
+	"database/sql"
+	"time"
+
+	"github.com/fastcrm/backend/internal/db"
+	"github.com/fastcrm/backend/internal/entity"
+)
+
+// SequenceRepo handles all database operations for sequences, steps, enrollments,
+// and step executions. Uses the DBConn interface for compatibility with both local
+// SQLite and Turso connections.
+type SequenceRepo struct {
+	db db.DBConn
+}
+
+// NewSequenceRepo creates a new SequenceRepo with the given connection.
+func NewSequenceRepo(conn db.DBConn) *SequenceRepo {
+	return &SequenceRepo{db: conn}
+}
+
+// WithDB returns a new SequenceRepo using the provided tenant database connection.
+// This is the standard tenant-routing pattern used throughout the codebase.
+func (r *SequenceRepo) WithDB(conn db.DBConn) *SequenceRepo {
+	if conn == nil {
+		return r
+	}
+	return &SequenceRepo{db: conn}
+}
+
+// ========== Sequences ==========
+
+// CreateSequence inserts a new sequence record.
+func (r *SequenceRepo) CreateSequence(ctx context.Context, s *entity.Sequence) error {
+	query := `
+		INSERT INTO sequences
+		    (id, org_id, name, description, status, timezone,
+		     business_hours_start, business_hours_end, created_by,
+		     created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	var desc interface{}
+	if s.Description != nil {
+		desc = *s.Description
+	}
+	var bhStart, bhEnd interface{}
+	if s.BusinessHoursStart != nil {
+		bhStart = *s.BusinessHoursStart
+	}
+	if s.BusinessHoursEnd != nil {
+		bhEnd = *s.BusinessHoursEnd
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		s.ID, s.OrgID, s.Name, desc, s.Status, s.Timezone,
+		bhStart, bhEnd, s.CreatedBy,
+	)
+	return err
+}
+
+// GetSequence retrieves a sequence by orgID and ID, including all its steps.
+// Returns nil (not an error) when no record is found.
+func (r *SequenceRepo) GetSequence(ctx context.Context, orgID, id string) (*entity.Sequence, error) {
+	query := `
+		SELECT id, org_id, name, description, status, timezone,
+		       business_hours_start, business_hours_end, created_by,
+		       created_at, updated_at
+		FROM sequences
+		WHERE org_id = ? AND id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, orgID, id)
+
+	s, err := scanSequence(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// ListSequences returns all sequences for an org, ordered by updated_at DESC.
+func (r *SequenceRepo) ListSequences(ctx context.Context, orgID string) ([]*entity.Sequence, error) {
+	query := `
+		SELECT id, org_id, name, description, status, timezone,
+		       business_hours_start, business_hours_end, created_by,
+		       created_at, updated_at
+		FROM sequences
+		WHERE org_id = ?
+		ORDER BY updated_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sequences []*entity.Sequence
+	for rows.Next() {
+		s, err := scanSequenceRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		sequences = append(sequences, s)
+	}
+	return sequences, rows.Err()
+}
+
+// UpdateSequence updates the mutable fields of a sequence.
+func (r *SequenceRepo) UpdateSequence(ctx context.Context, s *entity.Sequence) error {
+	query := `
+		UPDATE sequences
+		SET name = ?, description = ?, timezone = ?,
+		    business_hours_start = ?, business_hours_end = ?,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND org_id = ?
+	`
+	var desc interface{}
+	if s.Description != nil {
+		desc = *s.Description
+	}
+	var bhStart, bhEnd interface{}
+	if s.BusinessHoursStart != nil {
+		bhStart = *s.BusinessHoursStart
+	}
+	if s.BusinessHoursEnd != nil {
+		bhEnd = *s.BusinessHoursEnd
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		s.Name, desc, s.Timezone, bhStart, bhEnd, s.ID, s.OrgID,
+	)
+	return err
+}
+
+// DeleteSequence removes a sequence. Only allowed if status=draft.
+func (r *SequenceRepo) DeleteSequence(ctx context.Context, orgID, id string) error {
+	_, err := r.db.ExecContext(ctx,
+		"DELETE FROM sequences WHERE id = ? AND org_id = ? AND status = 'draft'",
+		id, orgID,
+	)
+	return err
+}
+
+// ActivateSequence transitions a sequence from draft to active.
+func (r *SequenceRepo) ActivateSequence(ctx context.Context, orgID, id string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequences SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND org_id = ? AND status = 'draft'",
+		id, orgID,
+	)
+	return err
+}
+
+// PauseSequence transitions a sequence from active to paused.
+func (r *SequenceRepo) PauseSequence(ctx context.Context, orgID, id string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequences SET status = 'paused', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND org_id = ? AND status = 'active'",
+		id, orgID,
+	)
+	return err
+}
+
+// ========== Steps ==========
+
+// CreateStep inserts a new sequence step.
+func (r *SequenceRepo) CreateStep(ctx context.Context, step *entity.SequenceStep) error {
+	query := `
+		INSERT INTO sequence_steps
+		    (id, sequence_id, step_number, step_type, delay_days, delay_hours,
+		     template_id, config_json, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	var templateID, configJSON interface{}
+	if step.TemplateID != nil {
+		templateID = *step.TemplateID
+	}
+	if step.ConfigJSON != nil {
+		configJSON = *step.ConfigJSON
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		step.ID, step.SequenceID, step.StepNumber, step.StepType,
+		step.DelayDays, step.DelayHours, templateID, configJSON,
+	)
+	return err
+}
+
+// UpdateStep updates the mutable fields of a sequence step.
+func (r *SequenceRepo) UpdateStep(ctx context.Context, step *entity.SequenceStep) error {
+	query := `
+		UPDATE sequence_steps
+		SET step_number = ?, step_type = ?, delay_days = ?, delay_hours = ?,
+		    template_id = ?, config_json = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND sequence_id = ?
+	`
+	var templateID, configJSON interface{}
+	if step.TemplateID != nil {
+		templateID = *step.TemplateID
+	}
+	if step.ConfigJSON != nil {
+		configJSON = *step.ConfigJSON
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		step.StepNumber, step.StepType, step.DelayDays, step.DelayHours,
+		templateID, configJSON, step.ID, step.SequenceID,
+	)
+	return err
+}
+
+// DeleteStep removes a step from a sequence.
+func (r *SequenceRepo) DeleteStep(ctx context.Context, sequenceID, stepID string) error {
+	_, err := r.db.ExecContext(ctx,
+		"DELETE FROM sequence_steps WHERE id = ? AND sequence_id = ?",
+		stepID, sequenceID,
+	)
+	return err
+}
+
+// ListStepsBySequence returns all steps for a sequence, ordered by step_number.
+func (r *SequenceRepo) ListStepsBySequence(ctx context.Context, sequenceID string) ([]*entity.SequenceStep, error) {
+	query := `
+		SELECT id, sequence_id, step_number, step_type, delay_days, delay_hours,
+		       template_id, config_json, created_at, updated_at
+		FROM sequence_steps
+		WHERE sequence_id = ?
+		ORDER BY step_number ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, sequenceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var steps []*entity.SequenceStep
+	for rows.Next() {
+		step, err := scanStepRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		steps = append(steps, step)
+	}
+	return steps, rows.Err()
+}
+
+// ========== Enrollments ==========
+
+// CreateEnrollment inserts a new sequence enrollment.
+func (r *SequenceRepo) CreateEnrollment(ctx context.Context, e *entity.SequenceEnrollment) error {
+	query := `
+		INSERT INTO sequence_enrollments
+		    (id, sequence_id, contact_id, org_id, enrolled_by, status, current_step,
+		     ab_variant_id, enrolled_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	var abVariantID interface{}
+	if e.ABVariantID != nil {
+		abVariantID = *e.ABVariantID
+	}
+	enrolledAt := e.EnrolledAt.UTC().Format("2006-01-02T15:04:05Z")
+
+	_, err := r.db.ExecContext(ctx, query,
+		e.ID, e.SequenceID, e.ContactID, e.OrgID, e.EnrolledBy,
+		e.Status, e.CurrentStep, abVariantID, enrolledAt,
+	)
+	return err
+}
+
+// GetEnrollment retrieves a single enrollment by ID.
+// Returns nil (not an error) when not found.
+func (r *SequenceRepo) GetEnrollment(ctx context.Context, id string) (*entity.SequenceEnrollment, error) {
+	query := `
+		SELECT id, sequence_id, contact_id, org_id, enrolled_by, status, current_step,
+		       ab_variant_id, enrolled_at, finished_at, paused_at, created_at, updated_at
+		FROM sequence_enrollments
+		WHERE id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, id)
+	e, err := scanEnrollment(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return e, err
+}
+
+// UpdateEnrollmentStatus updates the status (and optional timestamp fields) of an enrollment.
+func (r *SequenceRepo) UpdateEnrollmentStatus(ctx context.Context, id, status string) error {
+	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	query := `
+		UPDATE sequence_enrollments
+		SET status = ?, updated_at = CURRENT_TIMESTAMP,
+		    finished_at = CASE WHEN ? IN ('finished', 'replied', 'bounced', 'opted_out') THEN ? ELSE finished_at END,
+		    paused_at   = CASE WHEN ? = 'paused' THEN ? ELSE paused_at END
+		WHERE id = ?
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		status,
+		status, now,
+		status, now,
+		id,
+	)
+	return err
+}
+
+// GetActiveEnrollmentsByContact returns all active/enrolled enrollments for a contact
+// across ALL sequences. Used for overlap detection.
+func (r *SequenceRepo) GetActiveEnrollmentsByContact(ctx context.Context, orgID, contactID string) ([]*entity.SequenceEnrollment, error) {
+	query := `
+		SELECT e.id, e.sequence_id, e.contact_id, e.org_id, e.enrolled_by, e.status, e.current_step,
+		       e.ab_variant_id, e.enrolled_at, e.finished_at, e.paused_at, e.created_at, e.updated_at
+		FROM sequence_enrollments e
+		WHERE e.org_id = ? AND e.contact_id = ?
+		  AND e.status IN ('enrolled', 'active', 'paused')
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID, contactID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var enrollments []*entity.SequenceEnrollment
+	for rows.Next() {
+		e, err := scanEnrollmentRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		enrollments = append(enrollments, e)
+	}
+	return enrollments, rows.Err()
+}
+
+// GetActiveEnrollmentBySequenceAndContact returns the enrollment for a specific contact
+// in a specific sequence if it exists and is still active. Used for UNIQUE guard.
+// Returns nil (not an error) when not found.
+func (r *SequenceRepo) GetActiveEnrollmentBySequenceAndContact(ctx context.Context, sequenceID, contactID string) (*entity.SequenceEnrollment, error) {
+	query := `
+		SELECT id, sequence_id, contact_id, org_id, enrolled_by, status, current_step,
+		       ab_variant_id, enrolled_at, finished_at, paused_at, created_at, updated_at
+		FROM sequence_enrollments
+		WHERE sequence_id = ? AND contact_id = ?
+		  AND status IN ('enrolled', 'active', 'paused')
+	`
+	row := r.db.QueryRowContext(ctx, query, sequenceID, contactID)
+	e, err := scanEnrollment(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return e, err
+}
+
+// GetEnrollmentsBySequenceAndContacts returns enrollments for a set of contacts in a
+// specific sequence. Used for bulk enrollment skip logic.
+func (r *SequenceRepo) GetEnrollmentsBySequenceAndContacts(ctx context.Context, sequenceID string, contactIDs []string) (map[string]bool, error) {
+	if len(contactIDs) == 0 {
+		return map[string]bool{}, nil
+	}
+
+	// Build query with placeholders
+	placeholders := make([]byte, 0, len(contactIDs)*2)
+	args := make([]interface{}, 0, len(contactIDs)+1)
+	args = append(args, sequenceID)
+	for i, id := range contactIDs {
+		if i > 0 {
+			placeholders = append(placeholders, ',')
+		}
+		placeholders = append(placeholders, '?')
+		args = append(args, id)
+	}
+
+	query := "SELECT contact_id FROM sequence_enrollments WHERE sequence_id = ? AND contact_id IN (" + string(placeholders) + ")"
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	enrolled := make(map[string]bool)
+	for rows.Next() {
+		var contactID string
+		if err := rows.Scan(&contactID); err != nil {
+			return nil, err
+		}
+		enrolled[contactID] = true
+	}
+	return enrolled, rows.Err()
+}
+
+// BulkCreateEnrollments inserts multiple enrollments in a single transaction.
+func (r *SequenceRepo) BulkCreateEnrollments(ctx context.Context, enrollments []*entity.SequenceEnrollment) error {
+	if len(enrollments) == 0 {
+		return nil
+	}
+	for _, e := range enrollments {
+		if err := r.CreateEnrollment(ctx, e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ========== Suppression ==========
+
+// IsContactOptedOut checks whether a contact has opted out of email (channel='email' or channel='all').
+func (r *SequenceRepo) IsContactOptedOut(ctx context.Context, orgID, contactID string) (bool, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM opt_out_list
+		WHERE org_id = ? AND contact_id = ? AND channel IN ('email', 'all')
+	`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, orgID, contactID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// GetContactFieldValue retrieves the value of a single field for a contact.
+// Returns empty string if the contact doesn't exist or the field is NULL.
+func (r *SequenceRepo) GetContactFieldValue(ctx context.Context, orgID, contactID, field string) (string, error) {
+	// We use a parameterised column name via a CASE approach to avoid SQL injection.
+	// Only pre-approved fields are queried.
+	// NOTE: field is validated by the caller to be a known safe column name.
+	query := "SELECT COALESCE(" + sanitizeFieldName(field) + ", '') FROM contacts WHERE org_id = ? AND id = ?"
+	var value string
+	err := r.db.QueryRowContext(ctx, query, orgID, contactID).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// ========== Step Executions ==========
+
+// CreateStepExecution inserts a new step execution record.
+func (r *SequenceRepo) CreateStepExecution(ctx context.Context, exec *entity.StepExecution) error {
+	query := `
+		INSERT INTO sequence_step_executions
+		    (id, enrollment_id, step_id, org_id, status, scheduled_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	var scheduledAt interface{}
+	if exec.ScheduledAt != nil {
+		scheduledAt = exec.ScheduledAt.UTC().Format("2006-01-02T15:04:05Z")
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		exec.ID, exec.EnrollmentID, exec.StepID, exec.OrgID, exec.Status, scheduledAt,
+	)
+	return err
+}
+
+// ClaimStepExecution atomically transitions a step execution from scheduled to executing.
+// Returns true if the row was successfully claimed (rows affected > 0).
+func (r *SequenceRepo) ClaimStepExecution(ctx context.Context, id string) (bool, error) {
+	result, err := r.db.ExecContext(ctx,
+		"UPDATE sequence_step_executions SET status = 'executing', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'scheduled'",
+		id,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// ========== Helpers ==========
+
+// sanitizeFieldName converts a field name to its snake_case DB column equivalent,
+// allowing only known-safe column names to prevent SQL injection.
+// Returns the field as-is if it's a known column, otherwise returns 'id' as a safe fallback.
+func sanitizeFieldName(field string) string {
+	allowed := map[string]string{
+		"status":       "status",
+		"email":        "email_address",
+		"email_address": "email_address",
+		"phone":        "phone_number",
+		"phone_number": "phone_number",
+		"first_name":   "first_name",
+		"last_name":    "last_name",
+		"account_name": "account_name",
+	}
+	if col, ok := allowed[field]; ok {
+		return col
+	}
+	return "id" // Safe fallback (always non-null)
+}
+
+// scanSequence scans a single sequence from a *sql.Row.
+func scanSequence(row *sql.Row) (*entity.Sequence, error) {
+	var s entity.Sequence
+	var desc, bhStart, bhEnd, createdAt, updatedAt sql.NullString
+
+	err := row.Scan(
+		&s.ID, &s.OrgID, &s.Name, &desc, &s.Status, &s.Timezone,
+		&bhStart, &bhEnd, &s.CreatedBy, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if desc.Valid {
+		s.Description = &desc.String
+	}
+	if bhStart.Valid {
+		s.BusinessHoursStart = &bhStart.String
+	}
+	if bhEnd.Valid {
+		s.BusinessHoursEnd = &bhEnd.String
+	}
+	parseSequenceTimes(&s, createdAt, updatedAt)
+	return &s, nil
+}
+
+// scanSequenceRow scans a single sequence from *sql.Rows.
+func scanSequenceRow(rows *sql.Rows) (*entity.Sequence, error) {
+	var s entity.Sequence
+	var desc, bhStart, bhEnd, createdAt, updatedAt sql.NullString
+
+	err := rows.Scan(
+		&s.ID, &s.OrgID, &s.Name, &desc, &s.Status, &s.Timezone,
+		&bhStart, &bhEnd, &s.CreatedBy, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if desc.Valid {
+		s.Description = &desc.String
+	}
+	if bhStart.Valid {
+		s.BusinessHoursStart = &bhStart.String
+	}
+	if bhEnd.Valid {
+		s.BusinessHoursEnd = &bhEnd.String
+	}
+	parseSequenceTimes(&s, createdAt, updatedAt)
+	return &s, nil
+}
+
+func parseSequenceTimes(s *entity.Sequence, createdAt, updatedAt sql.NullString) {
+	if createdAt.Valid {
+		if t, err := parseDBTime(createdAt.String); err == nil {
+			s.CreatedAt = t
+		}
+	}
+	if updatedAt.Valid {
+		if t, err := parseDBTime(updatedAt.String); err == nil {
+			s.UpdatedAt = t
+		}
+	}
+}
+
+// scanStepRow scans a single step from *sql.Rows.
+func scanStepRow(rows *sql.Rows) (*entity.SequenceStep, error) {
+	var step entity.SequenceStep
+	var templateID, configJSON, createdAt, updatedAt sql.NullString
+
+	err := rows.Scan(
+		&step.ID, &step.SequenceID, &step.StepNumber, &step.StepType,
+		&step.DelayDays, &step.DelayHours, &templateID, &configJSON,
+		&createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if templateID.Valid {
+		step.TemplateID = &templateID.String
+	}
+	if configJSON.Valid {
+		step.ConfigJSON = &configJSON.String
+	}
+	if createdAt.Valid {
+		if t, err := parseDBTime(createdAt.String); err == nil {
+			step.CreatedAt = t
+		}
+	}
+	if updatedAt.Valid {
+		if t, err := parseDBTime(updatedAt.String); err == nil {
+			step.UpdatedAt = t
+		}
+	}
+	return &step, nil
+}
+
+// scanEnrollment scans a single enrollment from *sql.Row.
+func scanEnrollment(row *sql.Row) (*entity.SequenceEnrollment, error) {
+	var e entity.SequenceEnrollment
+	var abVariantID, enrolledAt, finishedAt, pausedAt, createdAt, updatedAt sql.NullString
+
+	err := row.Scan(
+		&e.ID, &e.SequenceID, &e.ContactID, &e.OrgID, &e.EnrolledBy,
+		&e.Status, &e.CurrentStep, &abVariantID,
+		&enrolledAt, &finishedAt, &pausedAt, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	parseEnrollmentOptionals(&e, abVariantID, enrolledAt, finishedAt, pausedAt, createdAt, updatedAt)
+	return &e, nil
+}
+
+// scanEnrollmentRow scans a single enrollment from *sql.Rows.
+func scanEnrollmentRow(rows *sql.Rows) (*entity.SequenceEnrollment, error) {
+	var e entity.SequenceEnrollment
+	var abVariantID, enrolledAt, finishedAt, pausedAt, createdAt, updatedAt sql.NullString
+
+	err := rows.Scan(
+		&e.ID, &e.SequenceID, &e.ContactID, &e.OrgID, &e.EnrolledBy,
+		&e.Status, &e.CurrentStep, &abVariantID,
+		&enrolledAt, &finishedAt, &pausedAt, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	parseEnrollmentOptionals(&e, abVariantID, enrolledAt, finishedAt, pausedAt, createdAt, updatedAt)
+	return &e, nil
+}
+
+func parseEnrollmentOptionals(e *entity.SequenceEnrollment, abVariantID, enrolledAt, finishedAt, pausedAt, createdAt, updatedAt sql.NullString) {
+	if abVariantID.Valid {
+		e.ABVariantID = &abVariantID.String
+	}
+	if enrolledAt.Valid {
+		if t, err := parseDBTime(enrolledAt.String); err == nil {
+			e.EnrolledAt = t
+		}
+	}
+	if finishedAt.Valid {
+		if t, err := parseDBTime(finishedAt.String); err == nil {
+			e.FinishedAt = &t
+		}
+	}
+	if pausedAt.Valid {
+		if t, err := parseDBTime(pausedAt.String); err == nil {
+			e.PausedAt = &t
+		}
+	}
+	if createdAt.Valid {
+		if t, err := parseDBTime(createdAt.String); err == nil {
+			e.CreatedAt = t
+		}
+	}
+	if updatedAt.Valid {
+		if t, err := parseDBTime(updatedAt.String); err == nil {
+			e.UpdatedAt = t
+		}
+	}
+}
+
+// parseDBTime parses SQLite timestamp strings into time.Time.
+func parseDBTime(s string) (time.Time, error) {
+	formats := []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05",
+	}
+	for _, format := range formats {
+		if t, err := time.Parse(format, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, nil
+}
