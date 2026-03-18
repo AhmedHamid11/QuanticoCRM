@@ -203,6 +203,12 @@ func main() {
 	// Initialize Gmail OAuth service (reuses same Google OAuth app + encryption key)
 	gmailOAuthService := service.NewGmailOAuthService(engagementRepo, sfEncryptionKey)
 
+	// Initialize Gmail provider (RFC 2822 message builder + Gmail API send)
+	gmailProvider := service.NewGmailProvider(gmailOAuthService)
+
+	// Initialize template engine for variable substitution in send-test
+	templateEngine := service.NewTemplateEngine()
+
 	// Initialize Salesforce delivery service components (Plan 03)
 	payloadBuilder := service.NewMergeInstructionBuilder(salesforceRepo, metadataRepo)
 	batchAssembler := service.NewBatchAssembler()
@@ -351,6 +357,9 @@ func main() {
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
 	schedulingHandler := handler.NewSchedulingHandler(schedulingService, googleCalendarService, schedulingRepo, dbManager, authRepo)
 	gmailHandler := handler.NewGmailHandler(gmailOAuthService, engagementRepo, dbManager, authRepo)
+	gmailHandler.SetGmailProvider(gmailProvider)
+	gmailHandler.SetTemplateEngine(templateEngine)
+	gmailHandler.SetContactRepo(contactRepo)
 
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
