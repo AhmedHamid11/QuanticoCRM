@@ -17,7 +17,7 @@ import (
 )
 
 // GmailHandler handles HTTP requests for Gmail OAuth, connection management,
-// and sending test emails via the Gmail API.
+// email template CRUD, and sending test emails via the Gmail API.
 type GmailHandler struct {
 	gmailService   *service.GmailOAuthService
 	gmailProvider  *service.GmailProvider
@@ -53,7 +53,7 @@ func (h *GmailHandler) SetTemplateEngine(e *service.TemplateEngine) {
 	h.templateEngine = e
 }
 
-// SetContactRepo injects the ContactRepo for resolving contactId in send-test.
+// SetContactRepo injects the ContactRepo for resolving contactId in preview/send-test.
 func (h *GmailHandler) SetContactRepo(r *repo.ContactRepo) {
 	h.contactRepo = r
 }
@@ -64,6 +64,7 @@ func (h *GmailHandler) RegisterRoutes(router fiber.Router) {
 	log.Println("[STARTUP] Registering Gmail routes")
 	g := router.Group("/gmail")
 
+	// OAuth management
 	g.Get("/status", h.GetStatus)
 	g.Get("/connect", h.GetConnectURL)
 	g.Delete("/disconnect", h.Disconnect)
@@ -73,9 +74,9 @@ func (h *GmailHandler) RegisterRoutes(router fiber.Router) {
 	log.Println("[STARTUP] Registering email template routes")
 	g.Get("/email-templates", h.ListEmailTemplates)
 	g.Post("/email-templates", h.CreateEmailTemplate)
-	g.Get("/email-templates/:id", h.GetEmailTemplateHandler)
-	g.Put("/email-templates/:id", h.UpdateEmailTemplateHandler)
-	g.Delete("/email-templates/:id", h.DeleteEmailTemplateHandler)
+	g.Get("/email-templates/:id", h.GetEmailTemplate)
+	g.Put("/email-templates/:id", h.UpdateEmailTemplate)
+	g.Delete("/email-templates/:id", h.DeleteEmailTemplate)
 	g.Post("/email-templates/:id/preview", h.PreviewEmailTemplate)
 }
 
@@ -214,12 +215,15 @@ func (h *GmailHandler) SendTestEmail(c *fiber.Ctx) error {
 		contact, contactErr := tenantContactRepo.GetByID(c.Context(), orgID, req.ContactID)
 		if contactErr == nil && contact != nil {
 			vars := map[string]string{
-				"firstName":    contact.FirstName,
-				"lastName":     contact.LastName,
-				"fullName":     contact.Name(),
-				"emailAddress": contact.EmailAddress,
+				"first_name":   contact.FirstName,
+				"last_name":    contact.LastName,
+				"full_name":    contact.Name(),
+				"email":        contact.EmailAddress,
 				"phone":        contact.PhoneNumber,
-				"accountName":  contact.AccountName,
+				"account_name": contact.AccountName,
+				"city":         contact.AddressCity,
+				"state":        contact.AddressState,
+				"country":      contact.AddressCountry,
 			}
 			subject, bodyHTML = h.templateEngine.RenderTemplate(tmpl, vars)
 		}
@@ -247,7 +251,6 @@ func (h *GmailHandler) SendTestEmail(c *fiber.Ctx) error {
 	if err := tenantProvider.Send(c.Context(), orgID, userID, fromEmail, req.ToEmail, subject, bodyHTML); err != nil {
 		log.Printf("[Gmail] SendTestEmail: send failed for org %s user %s: %v", orgID, userID, err)
 
-		// Surface meaningful error messages for common failure modes
 		errMsg := fmt.Sprintf("Failed to send test email: %s", err.Error())
 		if errors.Is(err, service.ErrGmailNotConnected) || errors.Is(err, service.ErrGmailNoTokens) {
 			errMsg = "Gmail not connected — connect your Gmail account first"
@@ -264,9 +267,9 @@ func (h *GmailHandler) SendTestEmail(c *fiber.Ctx) error {
 	})
 }
 
-// ========== Email Template Handlers ==========
+// ========== Email Template CRUD Handlers ==========
 
-// ListEmailTemplates returns all email templates for the org.
+// ListEmailTemplates returns all email templates for the calling org.
 // GET /gmail/email-templates
 func (h *GmailHandler) ListEmailTemplates(c *fiber.Ctx) error {
 	orgID, _ := getGmailContext(c)
@@ -291,17 +294,17 @@ func (h *GmailHandler) CreateEmailTemplate(c *fiber.Ctx) error {
 	orgID, userID := getGmailContext(c)
 	tenantDB := middleware.GetTenantDBConn(c)
 
-	var body struct {
+	var input struct {
 		Name                string `json:"name"`
 		Subject             string `json:"subject"`
 		BodyHTML            string `json:"bodyHtml"`
 		BodyText            string `json:"bodyText"`
 		HasComplianceFooter int    `json:"hasComplianceFooter"`
 	}
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	if body.Name == "" {
+	if input.Name == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name is required"})
 	}
 
@@ -309,28 +312,25 @@ func (h *GmailHandler) CreateEmailTemplate(c *fiber.Ctx) error {
 	tmpl := &entity.EmailTemplate{
 		ID:                  uuid.New().String(),
 		OrgID:               orgID,
-		Name:                body.Name,
-		Subject:             body.Subject,
-		BodyHTML:            body.BodyHTML,
-		BodyText:            body.BodyText,
-		HasComplianceFooter: body.HasComplianceFooter,
+		Name:                input.Name,
+		Subject:             input.Subject,
+		BodyHTML:            input.BodyHTML,
+		BodyText:            input.BodyText,
+		HasComplianceFooter: input.HasComplianceFooter,
 		CreatedBy:           userID,
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
-
 	if err := h.engagementRepo.WithDB(tenantDB).CreateEmailTemplate(c.Context(), tmpl); err != nil {
 		log.Printf("[Gmail] CreateEmailTemplate error for org %s: %v", orgID, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create email template",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create email template"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(tmpl)
 }
 
-// GetEmailTemplateHandler retrieves a single email template by ID.
+// GetEmailTemplate retrieves a single email template by ID.
 // GET /gmail/email-templates/:id
-func (h *GmailHandler) GetEmailTemplateHandler(c *fiber.Ctx) error {
+func (h *GmailHandler) GetEmailTemplate(c *fiber.Ctx) error {
 	orgID, _ := getGmailContext(c)
 	id := c.Params("id")
 	tenantDB := middleware.GetTenantDBConn(c)
@@ -338,9 +338,7 @@ func (h *GmailHandler) GetEmailTemplateHandler(c *fiber.Ctx) error {
 	tmpl, err := h.engagementRepo.WithDB(tenantDB).GetEmailTemplate(c.Context(), orgID, id)
 	if err != nil {
 		log.Printf("[Gmail] GetEmailTemplate error for org %s id %s: %v", orgID, id, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch email template",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch email template"})
 	}
 	if tmpl == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Email template not found"})
@@ -348,66 +346,71 @@ func (h *GmailHandler) GetEmailTemplateHandler(c *fiber.Ctx) error {
 	return c.JSON(tmpl)
 }
 
-// UpdateEmailTemplateHandler updates a template's mutable fields.
+// UpdateEmailTemplate updates an existing email template.
 // PUT /gmail/email-templates/:id
-func (h *GmailHandler) UpdateEmailTemplateHandler(c *fiber.Ctx) error {
+func (h *GmailHandler) UpdateEmailTemplate(c *fiber.Ctx) error {
 	orgID, _ := getGmailContext(c)
 	id := c.Params("id")
 	tenantDB := middleware.GetTenantDBConn(c)
 
-	var body struct {
+	existing, err := h.engagementRepo.WithDB(tenantDB).GetEmailTemplate(c.Context(), orgID, id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch email template"})
+	}
+	if existing == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Email template not found"})
+	}
+
+	var input struct {
 		Name                string `json:"name"`
 		Subject             string `json:"subject"`
 		BodyHTML            string `json:"bodyHtml"`
 		BodyText            string `json:"bodyText"`
 		HasComplianceFooter int    `json:"hasComplianceFooter"`
 	}
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	tmpl := &entity.EmailTemplate{
-		ID:                  id,
-		OrgID:               orgID,
-		Name:                body.Name,
-		Subject:             body.Subject,
-		BodyHTML:            body.BodyHTML,
-		BodyText:            body.BodyText,
-		HasComplianceFooter: body.HasComplianceFooter,
+	if input.Name != "" {
+		existing.Name = input.Name
 	}
+	if input.Subject != "" {
+		existing.Subject = input.Subject
+	}
+	existing.BodyHTML = input.BodyHTML
+	existing.BodyText = input.BodyText
+	existing.HasComplianceFooter = input.HasComplianceFooter
 
-	if err := h.engagementRepo.WithDB(tenantDB).UpdateEmailTemplate(c.Context(), tmpl); err != nil {
+	if err := h.engagementRepo.WithDB(tenantDB).UpdateEmailTemplate(c.Context(), existing); err != nil {
 		log.Printf("[Gmail] UpdateEmailTemplate error for org %s id %s: %v", orgID, id, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to update email template",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update email template"})
 	}
-	return c.JSON(fiber.Map{"id": id, "updated": true})
+	return c.JSON(existing)
 }
 
-// DeleteEmailTemplateHandler removes a template by ID.
+// DeleteEmailTemplate removes an email template.
 // DELETE /gmail/email-templates/:id
-func (h *GmailHandler) DeleteEmailTemplateHandler(c *fiber.Ctx) error {
+func (h *GmailHandler) DeleteEmailTemplate(c *fiber.Ctx) error {
 	orgID, _ := getGmailContext(c)
 	id := c.Params("id")
 	tenantDB := middleware.GetTenantDBConn(c)
 
 	if err := h.engagementRepo.WithDB(tenantDB).DeleteEmailTemplate(c.Context(), orgID, id); err != nil {
 		log.Printf("[Gmail] DeleteEmailTemplate error for org %s id %s: %v", orgID, id, err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to delete email template",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete email template"})
 	}
-	return c.JSON(fiber.Map{"id": id, "deleted": true})
+	return c.JSON(fiber.Map{"status": "deleted"})
 }
 
-// PreviewEmailTemplate renders a template against a contact (or sample data) and returns the result.
+// PreviewEmailTemplate renders a template against an optional contact (or sample data)
+// and returns the rendered subject and bodyHtml.
 // POST /gmail/email-templates/:id/preview
 //
 // Request body (one of):
 //
-//	{ "contactId": "..." }         — fetches real contact from DB, converts to vars
-//	{ "sampleData": { "first_name": "Jane", ... } }  — uses provided data directly
+//	{ "contactId": "..." }                              — fetches real contact from DB
+//	{ "sampleData": { "first_name": "Jane", ... } }    — uses provided data directly
 func (h *GmailHandler) PreviewEmailTemplate(c *fiber.Ctx) error {
 	orgID, _ := getGmailContext(c)
 	id := c.Params("id")
@@ -417,15 +420,11 @@ func (h *GmailHandler) PreviewEmailTemplate(c *fiber.Ctx) error {
 		ContactID  string            `json:"contactId"`
 		SampleData map[string]string `json:"sampleData"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
-	}
+	_ = c.BodyParser(&req)
 
 	tmpl, err := h.engagementRepo.WithDB(tenantDB).GetEmailTemplate(c.Context(), orgID, id)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch email template",
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch email template"})
 	}
 	if tmpl == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Email template not found"})
@@ -439,8 +438,7 @@ func (h *GmailHandler) PreviewEmailTemplate(c *fiber.Ctx) error {
 	var vars map[string]string
 
 	if req.ContactID != "" && h.contactRepo != nil {
-		tenantContactRepo := h.contactRepo.WithDB(tenantDB)
-		contact, contactErr := tenantContactRepo.GetByID(c.Context(), orgID, req.ContactID)
+		contact, contactErr := h.contactRepo.WithDB(tenantDB).GetByID(c.Context(), orgID, req.ContactID)
 		if contactErr == nil && contact != nil {
 			contactMap := map[string]interface{}{
 				"first_name":   contact.FirstName,
@@ -490,7 +488,6 @@ func (h *GmailHandler) OAuthCallback(c *fiber.Ctx) error {
 	redirectBase := getRedirectBase(c)
 
 	// Resolve the tenant DB for the org encoded in the state token.
-	// We must do this before calling HandleCallback so the service can persist tokens.
 	orgID, tenantDB, err := h.resolveTenantDBFromState(c, state)
 	if err != nil {
 		log.Printf("[Gmail] OAuthCallback: failed to resolve tenant DB: %v", err)
@@ -525,18 +522,15 @@ func getGmailContext(c *fiber.Ctx) (string, string) {
 // then looks up the correct tenant DB connection for that org.
 // This is necessary for the public callback route, which has no auth middleware.
 func (h *GmailHandler) resolveTenantDBFromState(c *fiber.Ctx, state string) (string, db.DBConn, error) {
-	// Decode the state to get orgID (we just need orgID here)
 	orgID, _, err := h.gmailService.DecodeStateForCallback(state)
 	if err != nil {
 		return "", nil, err
 	}
 
-	// Local mode: all data is in the shared master DB
 	if h.dbManager.IsLocalMode() {
 		return orgID, h.dbManager.GetMasterDB(), nil
 	}
 
-	// Production: resolve the org's dedicated Turso database
 	org, err := h.authRepo.GetOrganizationByID(c.Context(), orgID)
 	if err != nil {
 		return "", nil, err
