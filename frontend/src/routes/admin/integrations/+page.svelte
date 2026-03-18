@@ -5,21 +5,36 @@
 	import type { SalesforceConfig } from '$lib/types/salesforce';
 
 	let salesforceStatus = $state<string>('loading');
+	let gmailConnected = $state<boolean | null>(null);
 	let isLoading = $state(true);
 
 	onMount(async () => {
 		try {
-			const status = await get<SalesforceConfig>('/salesforce/status');
-			salesforceStatus = status.status;
+			const [sfStatus, gmailStatus] = await Promise.allSettled([
+				get<SalesforceConfig>('/salesforce/status'),
+				get<{ connected: boolean }>('/gmail/status')
+			]);
+
+			if (sfStatus.status === 'fulfilled') {
+				salesforceStatus = sfStatus.value.status;
+			} else {
+				salesforceStatus = 'not_configured';
+			}
+
+			if (gmailStatus.status === 'fulfilled') {
+				gmailConnected = gmailStatus.value.connected;
+			} else {
+				gmailConnected = false;
+			}
 		} catch (e) {
-			// If no config exists, show "Not Configured"
 			salesforceStatus = 'not_configured';
+			gmailConnected = false;
 		} finally {
 			isLoading = false;
 		}
 	});
 
-	function getStatusBadge(status: string): { text: string; color: string } {
+	function getSalesforceBadge(status: string): { text: string; color: string } {
 		switch (status) {
 			case 'connected':
 				return { text: 'Connected', color: 'bg-green-100 text-green-800' };
@@ -34,7 +49,14 @@
 		}
 	}
 
-	const badge = $derived(getStatusBadge(salesforceStatus));
+	const sfBadge = $derived(getSalesforceBadge(salesforceStatus));
+	const gmailBadge = $derived(
+		gmailConnected === null
+			? { text: 'Loading...', color: 'bg-gray-100 text-gray-800' }
+			: gmailConnected
+			? { text: 'Connected', color: 'bg-green-100 text-green-800' }
+			: { text: 'Not Connected', color: 'bg-gray-100 text-gray-800' }
+	);
 </script>
 
 <div class="space-y-6">
@@ -68,8 +90,8 @@
 					<div class="flex items-center justify-between">
 						<h3 class="text-lg font-medium text-gray-900">Salesforce</h3>
 						{#if !isLoading}
-							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {badge.color}">
-								{badge.text}
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {sfBadge.color}">
+								{sfBadge.text}
 							</span>
 						{/if}
 					</div>
@@ -83,23 +105,37 @@
 			</div>
 		</a>
 
-		<!-- Placeholder for future integrations -->
-		<div class="bg-white shadow rounded-lg p-6 border-l-4 border-gray-300 opacity-50">
+		<!-- Gmail Integration Card -->
+		<a
+			href="/admin/integrations/gmail"
+			class="bg-white shadow rounded-lg p-6 hover:shadow-md transition-shadow border-l-4 border-red-500"
+		>
 			<div class="flex items-start">
 				<div class="flex-shrink-0">
-					<div class="h-12 w-12 bg-gray-300 rounded-lg flex items-center justify-center">
-						<svg class="h-8 w-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+					<!-- Gmail envelope icon -->
+					<div class="h-12 w-12 bg-red-500 rounded-lg flex items-center justify-center">
+						<svg class="h-7 w-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+							<path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
 						</svg>
 					</div>
 				</div>
-				<div class="ml-4">
-					<h3 class="text-lg font-medium text-gray-500">More integrations coming soon</h3>
-					<p class="mt-1 text-sm text-gray-400">
-						Additional integrations will be available in future releases
+				<div class="ml-4 flex-1">
+					<div class="flex items-center justify-between">
+						<h3 class="text-lg font-medium text-gray-900">Gmail</h3>
+						{#if !isLoading}
+							<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {gmailBadge.color}">
+								{gmailBadge.text}
+							</span>
+						{/if}
+					</div>
+					<p class="mt-1 text-sm text-gray-500">
+						Connect your Gmail account to send emails from sequences
 					</p>
+					<div class="mt-3 text-sm text-red-600 font-medium">
+						Configure &rarr;
+					</div>
 				</div>
 			</div>
-		</div>
+		</a>
 	</div>
 </div>

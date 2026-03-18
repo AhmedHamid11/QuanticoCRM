@@ -72,6 +72,12 @@ func (s *GmailOAuthService) GetEncryptionKey() []byte {
 	return s.encryptionKey
 }
 
+// DecodeStateForCallback is a thin public wrapper around decodeState used by the
+// handler's public callback route to extract the orgID before auth middleware runs.
+func (s *GmailOAuthService) DecodeStateForCallback(state string) (orgID, userID string, err error) {
+	return s.decodeState(state)
+}
+
 // ============================================================
 // OAuth config
 // ============================================================

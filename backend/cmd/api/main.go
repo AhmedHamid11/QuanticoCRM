@@ -151,6 +151,7 @@ func main() {
 	notificationRepo := repo.NewNotificationRepo(masterDBConn)
 	salesforceRepo := repo.NewSalesforceRepo(masterDBConn)
 	schedulingRepo := repo.NewSchedulingRepo(masterDBConn)
+	engagementRepo := repo.NewEngagementRepo(masterDBConn)
 	ingestAPIKeyRepo := repo.NewIngestAPIKeyRepo(masterDBConn)
 	mirrorRepo := repo.NewMirrorRepo(masterDBConn)
 	ingestJobRepo := repo.NewIngestJobRepo(masterDBConn)
@@ -198,6 +199,9 @@ func main() {
 	// Initialize Google Calendar service (reuses same encryption key as Salesforce)
 	googleCalendarService := service.NewGoogleCalendarService(schedulingRepo, sfEncryptionKey)
 	schedulingService := service.NewSchedulingService(schedulingRepo, googleCalendarService)
+
+	// Initialize Gmail OAuth service (reuses same Google OAuth app + encryption key)
+	gmailOAuthService := service.NewGmailOAuthService(engagementRepo, sfEncryptionKey)
 
 	// Initialize Salesforce delivery service components (Plan 03)
 	payloadBuilder := service.NewMergeInstructionBuilder(salesforceRepo, metadataRepo)
@@ -346,6 +350,7 @@ func main() {
 	scanJobHandler := handler.NewScanJobHandler(masterDB, scanJobRepo, notificationRepo, scanScheduler, scanJobService)
 	salesforceHandler := handler.NewSalesforceHandler(salesforceOAuthService, sfDeliveryService, rateLimitService, salesforceRepo)
 	schedulingHandler := handler.NewSchedulingHandler(schedulingService, googleCalendarService, schedulingRepo, dbManager, authRepo)
+	gmailHandler := handler.NewGmailHandler(gmailOAuthService, engagementRepo, dbManager, authRepo)
 
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
@@ -485,6 +490,10 @@ func main() {
 
 	// Scheduling public routes (no auth - public booking pages and Google OAuth callback)
 	schedulingHandler.RegisterPublicRoutes(api)
+
+	// Gmail OAuth callback (public - user redirected back from Google)
+	// State parameter provides CSRF protection (verified by service)
+	gmailHandler.RegisterPublicRoutes(api)
 
 	// CRITICAL: Register impersonate routes BEFORE the /auth group to bypass rate limiting.
 	// These are admin-only routes protected by strong auth — rate limiting is unnecessary
@@ -658,6 +667,9 @@ func main() {
 
 	// Salesforce integration - admin can configure OAuth and manage sync
 	salesforceHandler.RegisterRoutes(adminProtected)
+
+	// Gmail integration - admin can connect/disconnect Gmail and check DNS validation
+	gmailHandler.RegisterRoutes(adminProtected)
 
 	// Scheduling - all authenticated users can manage their own scheduling pages
 	schedulingHandler.RegisterRoutes(protected)
