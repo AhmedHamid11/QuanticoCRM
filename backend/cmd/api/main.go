@@ -361,6 +361,10 @@ func main() {
 	gmailHandler.SetTemplateEngine(templateEngine)
 	gmailHandler.SetContactRepo(contactRepo)
 
+	sequenceRepo := repo.NewSequenceRepo(masterDBConn)
+	sequenceService := service.NewSequenceService(sequenceRepo)
+	sequenceHandler := handler.NewSequenceHandler(sequenceService, sequenceRepo, engagementRepo)
+
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
 	ingestHandler.SetMetadataRepo(metadataRepo)
@@ -679,6 +683,9 @@ func main() {
 
 	// Gmail integration - admin can connect/disconnect Gmail and check DNS validation
 	gmailHandler.RegisterRoutes(adminProtected)
+
+	// Sequence engine - admin can create/manage sequences and enroll contacts
+	sequenceHandler.RegisterRoutes(adminProtected)
 
 	// Scheduling - all authenticated users can manage their own scheduling pages
 	schedulingHandler.RegisterRoutes(protected)
