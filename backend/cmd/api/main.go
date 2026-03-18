@@ -365,6 +365,27 @@ func main() {
 	sequenceService := service.NewSequenceService(sequenceRepo)
 	sequenceHandler := handler.NewSequenceHandler(sequenceService, sequenceRepo, engagementRepo)
 
+	sequenceScheduler, err := service.NewSequenceScheduler(
+		sequenceRepo, sequenceService,
+		gmailProvider, gmailOAuthService, templateEngine,
+		engagementRepo, contactRepo,
+	)
+	if err != nil {
+		log.Printf("Warning: Failed to create sequence scheduler: %v", err)
+	} else {
+		if startErr := sequenceScheduler.Start(context.Background()); startErr != nil {
+			log.Printf("Warning: Failed to start sequence scheduler: %v", startErr)
+		} else {
+			log.Println("Sequence scheduler started")
+			defer func() {
+				if shutdownErr := sequenceScheduler.Shutdown(); shutdownErr != nil {
+					log.Printf("Warning: Sequence scheduler shutdown error: %v", shutdownErr)
+				}
+			}()
+		}
+		sequenceHandler.SetScheduler(sequenceScheduler)
+	}
+
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
 	ingestHandler.SetMetadataRepo(metadataRepo)
@@ -686,6 +707,8 @@ func main() {
 
 	// Sequence engine - admin can create/manage sequences and enroll contacts
 	sequenceHandler.RegisterRoutes(adminProtected)
+	// Task queue - PRA daily task inbox (all authenticated users)
+	sequenceHandler.RegisterTaskRoutes(protected)
 
 	// Scheduling - all authenticated users can manage their own scheduling pages
 	schedulingHandler.RegisterRoutes(protected)

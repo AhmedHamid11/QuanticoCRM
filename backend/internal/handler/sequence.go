@@ -15,9 +15,10 @@ import (
 // SequenceHandler handles HTTP requests for sequence CRUD, step management,
 // and contact enrollment.
 type SequenceHandler struct {
-	sequenceService *service.SequenceService
-	sequenceRepo    *repo.SequenceRepo
-	engagementRepo  *repo.EngagementRepo
+	sequenceService   *service.SequenceService
+	sequenceRepo      *repo.SequenceRepo
+	engagementRepo    *repo.EngagementRepo
+	sequenceScheduler *service.SequenceScheduler
 }
 
 // NewSequenceHandler creates a new SequenceHandler.
@@ -31,6 +32,12 @@ func NewSequenceHandler(
 		sequenceRepo:    seqRepo,
 		engagementRepo:  engagementRepo,
 	}
+}
+
+// SetScheduler wires the SequenceScheduler so the handler can register org
+// DBs when a new enrollment triggers polling for that org.
+func (h *SequenceHandler) SetScheduler(scheduler *service.SequenceScheduler) {
+	h.sequenceScheduler = scheduler
 }
 
 // RegisterRoutes registers all sequence routes on the admin-protected group.
@@ -57,6 +64,17 @@ func (h *SequenceHandler) RegisterRoutes(router fiber.Router) {
 	// Enrollment
 	g.Post("/:id/enroll", h.EnrollContact)
 	g.Post("/:id/enroll-bulk", h.BulkEnroll)
+}
+
+// RegisterTaskRoutes registers the PRA task queue routes on the user-accessible group.
+// These routes are accessible to all authenticated users (not just admins).
+func (h *SequenceHandler) RegisterTaskRoutes(router fiber.Router) {
+	log.Println("[STARTUP] Registering task queue routes")
+	g := router.Group("/engagement/tasks")
+	g.Get("", h.ListTasks)
+	g.Post("/:executionId/complete", h.CompleteTask)
+	g.Post("/:executionId/skip", h.SkipTask)
+	g.Put("/:executionId/reschedule", h.RescheduleTask)
 }
 
 // ========== Sequence CRUD ==========
@@ -522,6 +540,113 @@ func (h *SequenceHandler) BulkEnroll(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(result)
+}
+
+// ========== Task Queue ==========
+
+// ListTasks returns all due manual step executions for the current user.
+// GET /engagement/tasks
+func (h *SequenceHandler) ListTasks(c *fiber.Ctx) error {
+	orgID, userID := getSequenceContext(c)
+	tenantDB := middleware.GetTenantDBConn(c)
+	r := h.sequenceRepo.WithDB(tenantDB)
+
+	tasks, err := r.GetTasksForUser(c.Context(), orgID, userID, time.Now())
+	if err != nil {
+		log.Printf("[Sequence] ListTasks error for org %s user %s: %v", orgID, userID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list tasks"})
+	}
+	if tasks == nil {
+		tasks = []repo.TaskView{}
+	}
+	return c.JSON(tasks)
+}
+
+// CompleteTask marks a step execution as complete.
+// POST /engagement/tasks/:executionId/complete
+func (h *SequenceHandler) CompleteTask(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	execID := c.Params("executionId")
+	tenantDB := middleware.GetTenantDBConn(c)
+	r := h.sequenceRepo.WithDB(tenantDB)
+
+	exec, err := r.GetStepExecutionByID(c.Context(), execID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch step execution"})
+	}
+	if exec == nil || exec.OrgID != orgID {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
+	}
+
+	if err := r.CompleteStepExecution(c.Context(), execID); err != nil {
+		log.Printf("[Sequence] CompleteTask error for exec %s: %v", execID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to complete task"})
+	}
+
+	return c.JSON(fiber.Map{"status": "completed", "executionId": execID})
+}
+
+// SkipTask marks a step execution as skipped.
+// POST /engagement/tasks/:executionId/skip
+func (h *SequenceHandler) SkipTask(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	execID := c.Params("executionId")
+	tenantDB := middleware.GetTenantDBConn(c)
+	r := h.sequenceRepo.WithDB(tenantDB)
+
+	exec, err := r.GetStepExecutionByID(c.Context(), execID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch step execution"})
+	}
+	if exec == nil || exec.OrgID != orgID {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
+	}
+
+	if err := r.SkipStepExecution(c.Context(), execID); err != nil {
+		log.Printf("[Sequence] SkipTask error for exec %s: %v", execID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to skip task"})
+	}
+
+	return c.JSON(fiber.Map{"status": "skipped", "executionId": execID})
+}
+
+// RescheduleTask updates the scheduled_at of a step execution.
+// PUT /engagement/tasks/:executionId/reschedule
+func (h *SequenceHandler) RescheduleTask(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	execID := c.Params("executionId")
+	tenantDB := middleware.GetTenantDBConn(c)
+	r := h.sequenceRepo.WithDB(tenantDB)
+
+	var input struct {
+		ScheduledAt string `json:"scheduledAt"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if input.ScheduledAt == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "scheduledAt is required"})
+	}
+
+	newTime, err := time.Parse(time.RFC3339, input.ScheduledAt)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "scheduledAt must be a valid ISO 8601 timestamp"})
+	}
+
+	exec, err := r.GetStepExecutionByID(c.Context(), execID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch step execution"})
+	}
+	if exec == nil || exec.OrgID != orgID {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "task not found"})
+	}
+
+	if err := r.RescheduleStepExecution(c.Context(), execID, newTime); err != nil {
+		log.Printf("[Sequence] RescheduleTask error for exec %s: %v", execID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to reschedule task"})
+	}
+
+	return c.JSON(fiber.Map{"status": "rescheduled", "executionId": execID, "scheduledAt": newTime.UTC().Format(time.RFC3339)})
 }
 
 // ========== Helpers ==========

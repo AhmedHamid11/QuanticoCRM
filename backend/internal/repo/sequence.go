@@ -453,6 +453,61 @@ func (r *SequenceRepo) CreateStepExecution(ctx context.Context, exec *entity.Ste
 	return err
 }
 
+// GetDueExecutions returns up to 100 step executions that are due to run for the
+// given org. "Due" means status='scheduled' AND scheduled_at <= before, ordered
+// by scheduled_at ascending.
+func (r *SequenceRepo) GetDueExecutions(ctx context.Context, orgID string, before time.Time) ([]*entity.StepExecution, error) {
+	query := `
+		SELECT id, enrollment_id, step_id, org_id, status,
+		       scheduled_at, executed_at, error_message, created_at, updated_at
+		FROM sequence_step_executions
+		WHERE org_id = ? AND status = 'scheduled' AND scheduled_at <= ?
+		ORDER BY scheduled_at ASC
+		LIMIT 100
+	`
+	cutoff := before.UTC().Format("2006-01-02T15:04:05Z")
+	rows, err := r.db.QueryContext(ctx, query, orgID, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var executions []*entity.StepExecution
+	for rows.Next() {
+		exec, err := scanStepExecutionRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		executions = append(executions, exec)
+	}
+	return executions, rows.Err()
+}
+
+// UpdateStepExecution updates mutable fields of a step execution record.
+func (r *SequenceRepo) UpdateStepExecution(ctx context.Context, exec *entity.StepExecution) error {
+	query := `
+		UPDATE sequence_step_executions
+		SET status = ?, scheduled_at = ?, executed_at = ?, error_message = ?,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`
+	var scheduledAt, executedAt, errorMessage interface{}
+	if exec.ScheduledAt != nil {
+		scheduledAt = exec.ScheduledAt.UTC().Format("2006-01-02T15:04:05Z")
+	}
+	if exec.ExecutedAt != nil {
+		executedAt = exec.ExecutedAt.UTC().Format("2006-01-02T15:04:05Z")
+	}
+	if exec.ErrorMessage != nil {
+		errorMessage = *exec.ErrorMessage
+	}
+
+	_, err := r.db.ExecContext(ctx, query,
+		exec.Status, scheduledAt, executedAt, errorMessage, exec.ID,
+	)
+	return err
+}
+
 // ClaimStepExecution atomically transitions a step execution from scheduled to executing.
 // Returns true if the row was successfully claimed (rows affected > 0).
 func (r *SequenceRepo) ClaimStepExecution(ctx context.Context, id string) (bool, error) {
@@ -468,6 +523,237 @@ func (r *SequenceRepo) ClaimStepExecution(ctx context.Context, id string) (bool,
 		return false, err
 	}
 	return n > 0, nil
+}
+
+// ========== Task Queue (Manual Steps) ==========
+
+// TaskView is a flattened view of a due manual step execution joined with
+// its sequence step config, enrollment, contact info, and engagement signals.
+type TaskView struct {
+	ExecutionID  string
+	StepType     string
+	StepNumber   int
+	ConfigJSON   *string
+	ScheduledAt  time.Time
+	SequenceID   string
+	SequenceName string
+	ContactID    string
+	ContactName  string
+	ContactEmail string
+	ContactPhone *string
+	EnrollmentID string
+	LastOpenAt   *time.Time
+	LastReplyAt  *time.Time
+}
+
+// GetTasksForUser returns all due manual step executions (call, linkedin, custom)
+// for the given user (enrolled_by), joined with contact and sequence info.
+// Tasks are sorted by scheduled_at ASC (overdue first).
+func (r *SequenceRepo) GetTasksForUser(ctx context.Context, orgID, userID string, now time.Time) ([]TaskView, error) {
+	nowStr := now.UTC().Format("2006-01-02T15:04:05Z")
+	query := `
+		SELECT
+			sse.id                                      AS execution_id,
+			ss.step_type,
+			ss.step_number,
+			ss.config_json,
+			sse.scheduled_at,
+			s.id                                        AS sequence_id,
+			s.name                                      AS sequence_name,
+			se.contact_id,
+			COALESCE(c.first_name || ' ' || c.last_name, c.email_address, se.contact_id) AS contact_name,
+			COALESCE(c.email_address, '')               AS contact_email,
+			c.phone_number                              AS contact_phone,
+			se.id                                       AS enrollment_id,
+			MAX(CASE WHEN te.event_type = 'open'  THEN te.occurred_at ELSE NULL END) AS last_open_at,
+			MAX(CASE WHEN te.event_type = 'reply' THEN te.occurred_at ELSE NULL END) AS last_reply_at
+		FROM sequence_step_executions sse
+		JOIN sequence_steps ss
+			ON ss.id = sse.step_id
+		JOIN sequence_enrollments se
+			ON se.id = sse.enrollment_id
+		JOIN sequences s
+			ON s.id = se.sequence_id
+		LEFT JOIN contacts c
+			ON c.id = se.contact_id AND c.org_id = ?
+		LEFT JOIN email_tracking_events te
+			ON te.enrollment_id = se.id
+		WHERE sse.org_id = ?
+		  AND se.enrolled_by = ?
+		  AND ss.step_type IN ('call', 'linkedin', 'custom')
+		  AND sse.status = 'scheduled'
+		  AND sse.scheduled_at <= ?
+		GROUP BY sse.id
+		ORDER BY sse.scheduled_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID, orgID, userID, nowStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []TaskView
+	for rows.Next() {
+		var t TaskView
+		var scheduledAt, lastOpenAt, lastReplyAt sql.NullString
+		var phone sql.NullString
+		var configJSON sql.NullString
+
+		err := rows.Scan(
+			&t.ExecutionID,
+			&t.StepType,
+			&t.StepNumber,
+			&configJSON,
+			&scheduledAt,
+			&t.SequenceID,
+			&t.SequenceName,
+			&t.ContactID,
+			&t.ContactName,
+			&t.ContactEmail,
+			&phone,
+			&t.EnrollmentID,
+			&lastOpenAt,
+			&lastReplyAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if configJSON.Valid {
+			t.ConfigJSON = &configJSON.String
+		}
+		if scheduledAt.Valid {
+			if ts, err := parseDBTime(scheduledAt.String); err == nil {
+				t.ScheduledAt = ts
+			}
+		}
+		if phone.Valid {
+			t.ContactPhone = &phone.String
+		}
+		if lastOpenAt.Valid {
+			if ts, err := parseDBTime(lastOpenAt.String); err == nil {
+				t.LastOpenAt = &ts
+			}
+		}
+		if lastReplyAt.Valid {
+			if ts, err := parseDBTime(lastReplyAt.String); err == nil {
+				t.LastReplyAt = &ts
+			}
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
+// CompleteStepExecution marks a step execution as completed.
+func (r *SequenceRepo) CompleteStepExecution(ctx context.Context, execID string) error {
+	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequence_step_executions SET status = 'completed', executed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		now, execID,
+	)
+	return err
+}
+
+// SkipStepExecution marks a step execution as skipped.
+func (r *SequenceRepo) SkipStepExecution(ctx context.Context, execID string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequence_step_executions SET status = 'skipped', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		execID,
+	)
+	return err
+}
+
+// RescheduleStepExecution updates the scheduled_at time for a step execution.
+// Status remains 'scheduled'.
+func (r *SequenceRepo) RescheduleStepExecution(ctx context.Context, execID string, newScheduledAt time.Time) error {
+	newTime := newScheduledAt.UTC().Format("2006-01-02T15:04:05Z")
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequence_step_executions SET scheduled_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		newTime, execID,
+	)
+	return err
+}
+
+// GetStepExecutionByID retrieves a step execution by its ID.
+// Returns nil (not an error) when not found.
+func (r *SequenceRepo) GetStepExecutionByID(ctx context.Context, id string) (*entity.StepExecution, error) {
+	query := `
+		SELECT id, enrollment_id, step_id, org_id, status, scheduled_at, executed_at, error_message, created_at, updated_at
+		FROM sequence_step_executions
+		WHERE id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, id)
+	var exec entity.StepExecution
+	var scheduledAt, executedAt, errorMsg, createdAt, updatedAt sql.NullString
+
+	err := row.Scan(
+		&exec.ID, &exec.EnrollmentID, &exec.StepID, &exec.OrgID, &exec.Status,
+		&scheduledAt, &executedAt, &errorMsg, &createdAt, &updatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if scheduledAt.Valid {
+		if t, err := parseDBTime(scheduledAt.String); err == nil {
+			exec.ScheduledAt = &t
+		}
+	}
+	if executedAt.Valid {
+		if t, err := parseDBTime(executedAt.String); err == nil {
+			exec.ExecutedAt = &t
+		}
+	}
+	if errorMsg.Valid {
+		exec.ErrorMessage = &errorMsg.String
+	}
+	return &exec, nil
+}
+
+// ListEnrollmentSteps returns all step executions for an enrollment ordered by step_id.
+// Used to find the next scheduled step.
+func (r *SequenceRepo) ListEnrollmentSteps(ctx context.Context, enrollmentID string) ([]*entity.StepExecution, error) {
+	query := `
+		SELECT id, enrollment_id, step_id, org_id, status, scheduled_at, executed_at, error_message, created_at, updated_at
+		FROM sequence_step_executions
+		WHERE enrollment_id = ?
+		ORDER BY scheduled_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, enrollmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var execs []*entity.StepExecution
+	for rows.Next() {
+		var exec entity.StepExecution
+		var scheduledAt, executedAt, errorMsg, createdAt, updatedAt sql.NullString
+		err := rows.Scan(
+			&exec.ID, &exec.EnrollmentID, &exec.StepID, &exec.OrgID, &exec.Status,
+			&scheduledAt, &executedAt, &errorMsg, &createdAt, &updatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if scheduledAt.Valid {
+			if t, err := parseDBTime(scheduledAt.String); err == nil {
+				exec.ScheduledAt = &t
+			}
+		}
+		if executedAt.Valid {
+			if t, err := parseDBTime(executedAt.String); err == nil {
+				exec.ExecutedAt = &t
+			}
+		}
+		if errorMsg.Valid {
+			exec.ErrorMessage = &errorMsg.String
+		}
+		execs = append(execs, &exec)
+	}
+	return execs, rows.Err()
 }
 
 // ========== Helpers ==========
@@ -650,6 +936,44 @@ func parseEnrollmentOptionals(e *entity.SequenceEnrollment, abVariantID, enrolle
 			e.UpdatedAt = t
 		}
 	}
+}
+
+// scanStepExecutionRow scans a single StepExecution from *sql.Rows.
+func scanStepExecutionRow(rows *sql.Rows) (*entity.StepExecution, error) {
+	var exec entity.StepExecution
+	var scheduledAt, executedAt, errorMessage, createdAt, updatedAt sql.NullString
+
+	err := rows.Scan(
+		&exec.ID, &exec.EnrollmentID, &exec.StepID, &exec.OrgID, &exec.Status,
+		&scheduledAt, &executedAt, &errorMessage, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if scheduledAt.Valid {
+		if t, err := parseDBTime(scheduledAt.String); err == nil {
+			exec.ScheduledAt = &t
+		}
+	}
+	if executedAt.Valid {
+		if t, err := parseDBTime(executedAt.String); err == nil {
+			exec.ExecutedAt = &t
+		}
+	}
+	if errorMessage.Valid {
+		exec.ErrorMessage = &errorMessage.String
+	}
+	if createdAt.Valid {
+		if t, err := parseDBTime(createdAt.String); err == nil {
+			exec.CreatedAt = t
+		}
+	}
+	if updatedAt.Valid {
+		if t, err := parseDBTime(updatedAt.String); err == nil {
+			exec.UpdatedAt = t
+		}
+	}
+	return &exec, nil
 }
 
 // parseDBTime parses SQLite timestamp strings into time.Time.
