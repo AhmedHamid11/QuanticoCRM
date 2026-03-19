@@ -433,8 +433,8 @@ func (h *SequenceHandler) ActivateSequence(c *fiber.Ctx) error {
 	if seq == nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "sequence not found"})
 	}
-	if seq.Status != entity.SequenceStatusDraft {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "sequence must be in draft status to activate"})
+	if seq.Status != entity.SequenceStatusDraft && seq.Status != entity.SequenceStatusPaused {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "sequence must be in draft or paused status to activate"})
 	}
 
 	steps, err := r.ListStepsBySequence(c.Context(), id)

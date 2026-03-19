@@ -153,7 +153,7 @@ func (r *SequenceRepo) DeleteSequence(ctx context.Context, orgID, id string) err
 // ActivateSequence transitions a sequence from draft to active.
 func (r *SequenceRepo) ActivateSequence(ctx context.Context, orgID, id string) error {
 	_, err := r.db.ExecContext(ctx,
-		"UPDATE sequences SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND org_id = ? AND status = 'draft'",
+		"UPDATE sequences SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND org_id = ? AND status IN ('draft', 'paused')",
 		id, orgID,
 	)
 	return err
