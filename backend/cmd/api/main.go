@@ -361,6 +361,50 @@ func main() {
 	gmailHandler.SetTemplateEngine(templateEngine)
 	gmailHandler.SetContactRepo(contactRepo)
 
+	// Initialize EventBuffer for non-blocking tracking event writes (Phase 35)
+	// FlushFunc is wired below after TrackingRepo is ready. Buffer starts before requests.
+	eventBuffer := service.NewEventBuffer(service.DefaultEventBufferSize)
+
+	// TrackingRepo is created with a placeholder DB — the flush function does per-org routing.
+	// baseURL is read from BASE_URL env (e.g. https://api.quanticocrm.com/api/v1).
+	// Falls back to localhost for development.
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080/api/v1"
+	}
+	trackingRepo := repo.NewTrackingRepo(masterDB)
+	trackingService := service.NewTrackingService(eventBuffer, baseURL)
+	trackingHandler := handler.NewTrackingHandler(trackingService)
+
+	// Wire EventBuffer flush to persist events into the correct tenant DB.
+	// Events are grouped by OrgID so each batch hits the right database.
+	// GetTenantDB handles local mode (returns shared DB) and Turso mode (returns per-org DB).
+	eventBuffer.SetFlushFunc(func(events []entity.TrackingEvent) {
+		// Group events by org
+		byOrg := make(map[string][]entity.TrackingEvent)
+		for _, e := range events {
+			byOrg[e.OrgID] = append(byOrg[e.OrgID], e)
+		}
+		ctx := context.Background()
+		for orgID, batch := range byOrg {
+			tenantDB, dbErr := dbManager.GetTenantDB(ctx, orgID, "", "")
+			if dbErr != nil {
+				log.Printf("[EventBuffer] failed to get tenant DB for org %s: %v", orgID, dbErr)
+				continue
+			}
+			tRepo := trackingRepo.WithDB(tenantDB)
+			if insertErr := tRepo.BatchInsertTrackingEvents(ctx, batch); insertErr != nil {
+				log.Printf("[EventBuffer] BatchInsertTrackingEvents failed for org %s: %v", orgID, insertErr)
+			}
+		}
+	})
+
+	// Start the EventBuffer background flush loop (every 5 seconds)
+	eventBuffer.Start(context.Background(), service.DefaultEventFlushInterval)
+
+	// Wire tracking service to the template engine so InjectTracking works during email send
+	templateEngine.SetTrackingService(trackingService)
+
 	sequenceRepo := repo.NewSequenceRepo(masterDBConn)
 	sequenceService := service.NewSequenceService(sequenceRepo)
 	sequenceHandler := handler.NewSequenceHandler(sequenceService, sequenceRepo, engagementRepo)
@@ -528,6 +572,9 @@ func main() {
 	// Gmail OAuth callback (public - user redirected back from Google)
 	// State parameter provides CSRF protection (verified by service)
 	gmailHandler.RegisterPublicRoutes(api)
+
+	// Tracking pixel and click-redirect endpoints (public - no auth, called by email clients)
+	trackingHandler.RegisterPublicRoutes(api)
 
 	// CRITICAL: Register impersonate routes BEFORE the /auth group to bypass rate limiting.
 	// These are admin-only routes protected by strong auth — rate limiting is unnecessary
