@@ -183,7 +183,15 @@ func (s *SequenceService) EnrollContact(ctx context.Context, orgID, sequenceID, 
 		return nil, fmt.Errorf("failed to create enrollment: %w", err)
 	}
 
-	// 4b. Assign A/B variant if ABService is wired and variants are configured
+	// 4b. Pin enrollment to the latest sequence version (Phase 37 versioning).
+	// If no version exists (sequence predates versioning), skip silently — backward compatible.
+	if versionID, vErr := s.repo.GetLatestVersionID(ctx, sequenceID); vErr == nil && versionID != "" {
+		if pinErr := s.repo.SetEnrollmentVersionID(ctx, enrollmentID, versionID); pinErr != nil {
+			fmt.Printf("[SequenceService] SetEnrollmentVersionID warning for enrollment %s: %v\n", enrollmentID, pinErr)
+		}
+	}
+
+	// 4c. Assign A/B variant if ABService is wired and variants are configured
 	if s.abService != nil {
 		variantID, abErr := s.abService.AssignVariant(ctx, orgID, sequenceID, s.repo)
 		if abErr != nil {

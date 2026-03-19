@@ -72,6 +72,9 @@ func (h *SequenceHandler) RegisterRoutes(router fiber.Router) {
 	g.Post("/:id/enroll", h.EnrollContact)
 	g.Post("/:id/enroll-bulk", h.BulkEnroll)
 
+	// Clone (Sequence Library)
+	g.Post("/:id/clone", h.CloneSequence)
+
 	// A/B variant management for email steps
 	g.Get("/:id/steps/:stepId/variants", h.ListVariants)
 	g.Post("/:id/steps/:stepId/variants", h.CreateVariant)
@@ -465,6 +468,12 @@ func (h *SequenceHandler) ActivateSequence(c *fiber.Ctx) error {
 	if err := r.ActivateSequence(c.Context(), orgID, id); err != nil {
 		log.Printf("[Sequence] ActivateSequence error for org %s id %s: %v", orgID, id, err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to activate sequence"})
+	}
+
+	// Snapshot current steps into sequence_versions for enrollment pinning.
+	// Non-fatal: if version creation fails, activation still succeeds.
+	if err := createVersionSnapshot(c, r, orgID, id, steps); err != nil {
+		log.Printf("[Sequence] ActivateSequence: version snapshot failed for seq %s (non-fatal): %v", id, err)
 	}
 
 	return c.JSON(fiber.Map{"status": "active", "id": id})
@@ -897,3 +906,4 @@ func isValidStepType(t string) bool {
 	}
 	return false
 }
+
