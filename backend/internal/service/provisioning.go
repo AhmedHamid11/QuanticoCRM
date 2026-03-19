@@ -49,7 +49,7 @@ func (s *ProvisioningService) ProvisionSampleData(ctx context.Context, orgID str
 func (s *ProvisioningService) ProvisionNavigation(ctx context.Context, orgID string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	log.Printf("[Provisioning] Creating navigation tabs for org %s", orgID)
-	// Create navigation tabs (order: Home, Account, Contact, Quotes, Tasks)
+	// Create navigation tabs (order: Home, Account, Contact, Quotes, Tasks, Engagement)
 	// isSystem=true for standard tabs that shouldn't be deleted
 	tabs := []struct{ label, href, entity string; order int }{
 		{"Home", "/", "", 0},
@@ -57,6 +57,7 @@ func (s *ProvisioningService) ProvisionNavigation(ctx context.Context, orgID str
 		{"Contacts", "/contacts", "Contact", 2},
 		{"Quotes", "/quotes", "Quote", 3},
 		{"Tasks", "/tasks", "Task", 4},
+		{"Engagement", "/engagement/tasks", "", 5},
 	}
 	for _, tab := range tabs {
 		if err := s.createNavTabWithError(ctx, orgID, tab.label, tab.href, tab.entity, tab.order, true, now); err != nil {

@@ -40,6 +40,7 @@ async function loadNavigation() {
             tabs = [
                 { id: 'nav_contacts', label: 'Contacts', href: '/contacts', icon: 'users', entityName: 'Contact', sortOrder: 1, isVisible: true, isSystem: true },
                 { id: 'nav_accounts', label: 'Accounts', href: '/accounts', icon: 'building', entityName: 'Account', sortOrder: 2, isVisible: true, isSystem: true },
+                { id: 'nav_engagement', label: 'Engagement', href: '/engagement/tasks', icon: 'engagement', sortOrder: 5, isVisible: true, isSystem: true },
                 { id: 'nav_admin', label: 'Admin', href: '/admin', icon: 'settings', sortOrder: 100, isVisible: true, isSystem: true }
             ];
         }
@@ -50,6 +51,7 @@ async function loadNavigation() {
         tabs = [
             { id: 'nav_contacts', label: 'Contacts', href: '/contacts', icon: 'users', entityName: 'Contact', sortOrder: 1, isVisible: true, isSystem: true },
             { id: 'nav_accounts', label: 'Accounts', href: '/accounts', icon: 'building', entityName: 'Account', sortOrder: 2, isVisible: true, isSystem: true },
+            { id: 'nav_engagement', label: 'Engagement', href: '/engagement/tasks', icon: 'engagement', sortOrder: 5, isVisible: true, isSystem: true },
             { id: 'nav_admin', label: 'Admin', href: '/admin', icon: 'settings', sortOrder: 100, isVisible: true, isSystem: true }
         ];
     } finally {
