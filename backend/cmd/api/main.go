@@ -511,6 +511,74 @@ func main() {
 		sequenceHandler.SetScheduler(sequenceScheduler)
 	}
 
+	// ==========================================
+	// Phase 36: SFDC Mirror Extensions
+	// ==========================================
+	// Wire MirrorTriggerEvaluator to IngestService so field-match enrollment
+	// triggers fire when records are promoted by Mirror ingest.
+	triggerEvaluator := service.NewMirrorTriggerEvaluator(sequenceRepo, sequenceService)
+	ingestService.SetTriggerEvaluator(triggerEvaluator)
+
+	// SFDCActivityWritebackService: batches completed step executions into SFDC Tasks.
+	// Must be initialized after rateLimitService and salesforceOAuthService.
+	activityWritebackService := service.NewSFDCActivityWritebackService(sequenceRepo, salesforceOAuthService, rateLimitService)
+
+	// Wire activityWritebackService into the sequence scheduler (nil-safe hook)
+	if sequenceScheduler != nil {
+		sequenceScheduler.SetActivityWriteback(activityWritebackService)
+	}
+
+	// Register each org's tenant DB with the activityWritebackService at startup.
+	// Uses the same ListOrganizations + GetTenantDB pattern as warmup maintenance.
+	{
+		ctx := context.Background()
+		startupOrgs, orgErr := authRepo.ListOrganizations(ctx, 1, 10000)
+		if orgErr != nil {
+			log.Printf("[Phase36] Warning: failed to list orgs for ActivityWriteback startup registration: %v", orgErr)
+		} else {
+			for _, org := range startupOrgs.Data {
+				tenantDB, dbErr := dbManager.GetTenantDB(ctx, org.ID, "", "")
+				if dbErr != nil {
+					log.Printf("[Phase36] Warning: GetTenantDB failed for org %s: %v", org.ID, dbErr)
+					continue
+				}
+				activityWritebackService.RegisterOrgDB(org.ID, tenantDB)
+				// Also register in sequenceScheduler (enables per-org polling jobs)
+				if sequenceScheduler != nil {
+					sequenceScheduler.RegisterOrgDB(org.ID, tenantDB)
+				}
+			}
+			log.Printf("[Phase36] ActivityWriteback registered %d org DB(s) at startup", len(startupOrgs.Data))
+		}
+	}
+
+	// Hourly gocron job for SFDC activity write-back.
+	// SINGLE global job — iterates all orgs internally (per RESEARCH.md Pitfall 5).
+	activityWritebackSched, awSchedErr := gocron.NewScheduler()
+	if awSchedErr != nil {
+		log.Printf("[Phase36] Warning: failed to create activity writeback scheduler: %v", awSchedErr)
+	} else {
+		_, awJobErr := activityWritebackSched.NewJob(
+			gocron.DurationJob(60*time.Minute),
+			gocron.NewTask(func() {
+				activityWritebackService.RunHourlyBatch(context.Background())
+			}),
+			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+			gocron.WithName("sfdc-activity-writeback"),
+		)
+		if awJobErr != nil {
+			log.Printf("[Phase36] Warning: failed to schedule activity writeback job: %v", awJobErr)
+		} else {
+			activityWritebackSched.Start()
+			log.Println("[Phase36] SFDC activity writeback scheduler started (60min interval)")
+			defer func() {
+				if shutdownErr := activityWritebackSched.Shutdown(); shutdownErr != nil {
+					log.Printf("[Phase36] Warning: activity writeback scheduler shutdown error: %v", shutdownErr)
+				}
+			}()
+		}
+	}
+
 	ingestRateLimiter := service.NewIngestRateLimiter()
 	ingestHandler := handler.NewIngestHandler(ingestService, mirrorRepo, ingestJobRepo, deltaKeyRepo, ingestRateLimiter)
 	ingestHandler.SetMetadataRepo(metadataRepo)
@@ -519,6 +587,7 @@ func main() {
 	mirrorHandler := handler.NewMirrorHandler(mirrorRepo, ingestJobRepo, provisioningService)
 	mirrorHandler.SetIngestService(ingestService)
 	mirrorHandler.SetMetadataRepo(metadataRepo)
+	mirrorHandler.SetSequenceRepo(sequenceRepo)
 
 	// Wire migration propagator to version handler (created earlier in startup)
 	versionHandler.SetMigrationPropagator(migrationPropagator)

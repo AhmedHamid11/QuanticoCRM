@@ -22,6 +22,7 @@ type MirrorHandler struct {
 	provisioning  *service.ProvisioningService
 	ingestService *service.IngestService
 	metadataRepo  *repo.MetadataRepo
+	sequenceRepo  *repo.SequenceRepo
 }
 
 // NewMirrorHandler creates a new MirrorHandler
@@ -37,6 +38,11 @@ func (h *MirrorHandler) SetIngestService(svc *service.IngestService) {
 // SetMetadataRepo sets the metadata repo for loading entity field definitions
 func (h *MirrorHandler) SetMetadataRepo(r *repo.MetadataRepo) {
 	h.metadataRepo = r
+}
+
+// SetSequenceRepo wires in the SequenceRepo for watermark queries (Phase 36-02).
+func (h *MirrorHandler) SetSequenceRepo(r *repo.SequenceRepo) {
+	h.sequenceRepo = r
 }
 
 // getTenantDBConn extracts the tenant DB connection from context
@@ -463,6 +469,42 @@ func (h *MirrorHandler) ImportCSV(c *fiber.Ctx) error {
 	})
 }
 
+// GetWatermark returns the last ingest timestamp and record count for a Mirror.
+// GET /admin/mirrors/:id/watermark
+//
+// Returns 200 with {"lastIngestAt": null, "lastIngestCount": 0} if no watermark exists yet
+// (i.e., the mirror has never successfully ingested records). Returns the watermark data
+// if it has been recorded by a previous ingest run.
+func (h *MirrorHandler) GetWatermark(c *fiber.Ctx) error {
+	orgID := c.Locals("orgID").(string)
+	mirrorID := c.Params("id")
+
+	if h.sequenceRepo == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "watermark service not configured",
+		})
+	}
+
+	tenantDB := h.getTenantDBConn(c)
+	tenantRepo := h.sequenceRepo.WithDB(tenantDB)
+
+	watermark, err := tenantRepo.GetWatermark(c.Context(), orgID, mirrorID)
+	if err != nil {
+		log.Printf("[MirrorHandler] GetWatermark failed for org=%s mirror=%s: %v", orgID, mirrorID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to load watermark"})
+	}
+
+	// Not found: mirror has never ingested — return null defaults (not 404)
+	if watermark == nil {
+		return c.JSON(fiber.Map{
+			"lastIngestAt":    nil,
+			"lastIngestCount": 0,
+		})
+	}
+
+	return c.JSON(watermark)
+}
+
 // RegisterRoutes registers all mirror routes
 func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
 	mirrors := router.Group("/admin/mirrors")
@@ -473,4 +515,5 @@ func (h *MirrorHandler) RegisterRoutes(router fiber.Router) {
 	mirrors.Delete("/:id", h.Delete)
 	mirrors.Get("/:id/jobs", h.ListJobs)
 	mirrors.Post("/:id/import-csv", h.ImportCSV)
+	mirrors.Get("/:id/watermark", h.GetWatermark)
 }
