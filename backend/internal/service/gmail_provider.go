@@ -24,36 +24,48 @@ func NewGmailProvider(oauthSvc *GmailOAuthService) *GmailProvider {
 // Send composes an RFC 2822 email and delivers it via the Gmail API.
 // orgID and userID identify the authenticated Gmail account to send from.
 // fromEmail is used as the From header; toEmail is the recipient.
-func (p *GmailProvider) Send(ctx context.Context, orgID, userID, fromEmail, toEmail, subject, bodyHTML string) error {
-	client, _, err := p.oauthSvc.GetHTTPClient(ctx, orgID, userID)
-	if err != nil {
-		return fmt.Errorf("gmail send: failed to get authenticated client: %w", err)
+// Returns the Gmail messageID, threadID, and any error.
+func (p *GmailProvider) Send(ctx context.Context, orgID, userID, fromEmail, toEmail, subject, bodyHTML string) (messageID, threadID string, err error) {
+	client, _, clientErr := p.oauthSvc.GetHTTPClient(ctx, orgID, userID)
+	if clientErr != nil {
+		return "", "", fmt.Errorf("gmail send: failed to get authenticated client: %w", clientErr)
 	}
 
 	rawMsg := buildRFC2822(fromEmail, toEmail, subject, bodyHTML)
 	encoded := p.encodeMessage(rawMsg)
 
-	payload, err := json.Marshal(map[string]string{"raw": encoded})
-	if err != nil {
-		return fmt.Errorf("gmail send: failed to marshal request payload: %w", err)
+	payload, marshalErr := json.Marshal(map[string]string{"raw": encoded})
+	if marshalErr != nil {
+		return "", "", fmt.Errorf("gmail send: failed to marshal request payload: %w", marshalErr)
 	}
 
-	resp, err := client.Post(
+	resp, postErr := client.Post(
 		"https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
 		"application/json",
 		bytes.NewReader(payload),
 	)
-	if err != nil {
-		return fmt.Errorf("gmail send: HTTP request failed: %w", err)
+	if postErr != nil {
+		return "", "", fmt.Errorf("gmail send: HTTP request failed: %w", postErr)
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("gmail send: API returned %d: %s", resp.StatusCode, string(body))
+		return "", "", fmt.Errorf("gmail send: API returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	return nil
+	// Parse the response to extract id and threadId
+	var result struct {
+		ID       string `json:"id"`
+		ThreadID string `json:"threadId"`
+	}
+	if parseErr := json.Unmarshal(body, &result); parseErr != nil {
+		// Non-fatal: send succeeded but we can't extract IDs
+		return "", "", nil
+	}
+
+	return result.ID, result.ThreadID, nil
 }
 
 // encodeMessage base64URL-encodes a raw RFC 2822 message for the Gmail API.

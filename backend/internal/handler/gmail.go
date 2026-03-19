@@ -19,13 +19,14 @@ import (
 // GmailHandler handles HTTP requests for Gmail OAuth, connection management,
 // email template CRUD, and sending test emails via the Gmail API.
 type GmailHandler struct {
-	gmailService   *service.GmailOAuthService
-	gmailProvider  *service.GmailProvider
-	templateEngine *service.TemplateEngine
-	engagementRepo *repo.EngagementRepo
-	contactRepo    *repo.ContactRepo
-	dbManager      *db.Manager
-	authRepo       *repo.AuthRepo
+	gmailService    *service.GmailOAuthService
+	gmailProvider   *service.GmailProvider
+	templateEngine  *service.TemplateEngine
+	engagementRepo  *repo.EngagementRepo
+	contactRepo     *repo.ContactRepo
+	dbManager       *db.Manager
+	authRepo        *repo.AuthRepo
+	warmupScheduler *service.WarmupScheduler
 }
 
 // NewGmailHandler creates a new GmailHandler.
@@ -46,6 +47,11 @@ func NewGmailHandler(
 // SetGmailProvider injects the GmailProvider for send-test functionality.
 func (h *GmailHandler) SetGmailProvider(p *service.GmailProvider) {
 	h.gmailProvider = p
+}
+
+// SetWarmupScheduler injects the WarmupScheduler so new Gmail connections auto-create warmup sessions.
+func (h *GmailHandler) SetWarmupScheduler(ws *service.WarmupScheduler) {
+	h.warmupScheduler = ws
 }
 
 // SetTemplateEngine injects the TemplateEngine for variable substitution.
@@ -224,12 +230,28 @@ func (h *GmailHandler) SendTestEmail(c *fiber.Ctx) error {
 				"city":         contact.AddressCity,
 				"state":        contact.AddressState,
 				"country":      contact.AddressCountry,
+				// compliance_footer is empty for test sends — real sends inject it from org_settings
+				"compliance_footer": "",
 			}
-			subject, bodyHTML = h.templateEngine.RenderTemplate(tmpl, vars)
+			renderedSubject, renderedBody, renderErr := h.templateEngine.RenderTemplate(tmpl, vars)
+			if renderErr != nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": renderErr.Error(),
+				})
+			}
+			subject, bodyHTML = renderedSubject, renderedBody
 		}
 	} else if h.templateEngine != nil {
 		// No contactId: render with empty vars (tokens remain unresolved)
-		subject, bodyHTML = h.templateEngine.RenderTemplate(tmpl, map[string]string{})
+		renderedSubject, renderedBody, renderErr := h.templateEngine.RenderTemplate(tmpl, map[string]string{
+			"compliance_footer": "",
+		})
+		if renderErr != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": renderErr.Error(),
+			})
+		}
+		subject, bodyHTML = renderedSubject, renderedBody
 	}
 
 	// Get the Gmail address for the From header
@@ -248,7 +270,7 @@ func (h *GmailHandler) SendTestEmail(c *fiber.Ctx) error {
 	// Build a provider scoped to the tenant DB
 	tenantProvider := service.NewGmailProvider(svc)
 
-	if err := tenantProvider.Send(c.Context(), orgID, userID, fromEmail, req.ToEmail, subject, bodyHTML); err != nil {
+	if _, _, err := tenantProvider.Send(c.Context(), orgID, userID, fromEmail, req.ToEmail, subject, bodyHTML); err != nil {
 		log.Printf("[Gmail] SendTestEmail: send failed for org %s user %s: %v", orgID, userID, err)
 
 		errMsg := fmt.Sprintf("Failed to send test email: %s", err.Error())
@@ -308,6 +330,15 @@ func (h *GmailHandler) CreateEmailTemplate(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name is required"})
 	}
 
+	// Validate compliance footer token before saving
+	engine := h.templateEngine
+	if engine == nil {
+		engine = service.NewTemplateEngine()
+	}
+	if valErr := engine.ValidateCompliance(input.BodyHTML); valErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": valErr.Error()})
+	}
+
 	now := time.Now().UTC()
 	tmpl := &entity.EmailTemplate{
 		ID:                  uuid.New().String(),
@@ -316,7 +347,7 @@ func (h *GmailHandler) CreateEmailTemplate(c *fiber.Ctx) error {
 		Subject:             input.Subject,
 		BodyHTML:            input.BodyHTML,
 		BodyText:            input.BodyText,
-		HasComplianceFooter: input.HasComplianceFooter,
+		HasComplianceFooter: 1, // token has been validated to be present
 		CreatedBy:           userID,
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -378,9 +409,23 @@ func (h *GmailHandler) UpdateEmailTemplate(c *fiber.Ctx) error {
 	if input.Subject != "" {
 		existing.Subject = input.Subject
 	}
-	existing.BodyHTML = input.BodyHTML
-	existing.BodyText = input.BodyText
-	existing.HasComplianceFooter = input.HasComplianceFooter
+	// Only update body if provided
+	if input.BodyHTML != "" {
+		existing.BodyHTML = input.BodyHTML
+	}
+	if input.BodyText != "" {
+		existing.BodyText = input.BodyText
+	}
+
+	// Validate compliance footer token before saving
+	updateEngine := h.templateEngine
+	if updateEngine == nil {
+		updateEngine = service.NewTemplateEngine()
+	}
+	if valErr := updateEngine.ValidateCompliance(existing.BodyHTML); valErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": valErr.Error()})
+	}
+	existing.HasComplianceFooter = 1 // token is validated to be present
 
 	if err := h.engagementRepo.WithDB(tenantDB).UpdateEmailTemplate(c.Context(), existing); err != nil {
 		log.Printf("[Gmail] UpdateEmailTemplate error for org %s id %s: %v", orgID, id, err)
@@ -460,7 +505,17 @@ func (h *GmailHandler) PreviewEmailTemplate(c *fiber.Ctx) error {
 		vars = map[string]string{}
 	}
 
-	subject, bodyHTML := engine.RenderTemplate(tmpl, vars)
+	// Ensure compliance_footer key exists (empty value for preview — token stays visible)
+	if _, ok := vars["compliance_footer"]; !ok {
+		vars["compliance_footer"] = ""
+	}
+
+	subject, bodyHTML, renderErr := engine.RenderTemplate(tmpl, vars)
+	if renderErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": renderErr.Error(),
+		})
+	}
 	return c.JSON(fiber.Map{
 		"subject":  subject,
 		"bodyHtml": bodyHTML,
@@ -496,13 +551,27 @@ func (h *GmailHandler) OAuthCallback(c *fiber.Ctx) error {
 
 	svc := service.NewGmailOAuthService(h.engagementRepo.WithDB(tenantDB), h.gmailService.GetEncryptionKey())
 
-	_, _, err = svc.HandleCallback(c.Context(), code, state, redirectBase)
+	_, userID, err := svc.HandleCallback(c.Context(), code, state, redirectBase)
 	if err != nil {
 		log.Printf("[Gmail] OAuthCallback error for org %s: %v", orgID, err)
 		if errors.Is(err, service.ErrGmailInvalidState) {
 			return c.Redirect(frontendURL + "/admin/integrations/gmail?error=invalid_state")
 		}
 		return c.Redirect(frontendURL + "/admin/integrations/gmail?error=connection_failed")
+	}
+
+	// Auto-initialize warmup session for the new Gmail account
+	if h.warmupScheduler != nil && userID != "" {
+		// Get the Gmail address from the freshly stored token
+		status, statusErr := svc.GetConnectionStatus(c.Context(), orgID, userID)
+		if statusErr == nil && status.Connected {
+			sqlDB, dbErr := h.dbManager.GetTenantDB(c.Context(), orgID, "", "")
+			if dbErr == nil {
+				if warmupErr := h.warmupScheduler.InitWarmupForAccount(c.Context(), orgID, userID, status.GmailAddress, sqlDB); warmupErr != nil {
+					log.Printf("[Gmail] OAuthCallback: warmup init failed for user %s org %s: %v", userID, orgID, warmupErr)
+				}
+			}
+		}
 	}
 
 	log.Printf("[Gmail] OAuth callback completed for org %s", orgID)

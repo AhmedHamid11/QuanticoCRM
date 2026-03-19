@@ -145,19 +145,20 @@ type SequenceStep struct {
 // SequenceEnrollment tracks a contact's progress through a sequence.
 // EnrolledBy is the PRA user ID who triggered the enrollment.
 type SequenceEnrollment struct {
-	ID           string     `json:"id" db:"id"`
-	SequenceID   string     `json:"sequenceId" db:"sequence_id"`
-	ContactID    string     `json:"contactId" db:"contact_id"`
-	OrgID        string     `json:"orgId" db:"org_id"`
-	EnrolledBy   string     `json:"enrolledBy" db:"enrolled_by"`
-	Status       string     `json:"status" db:"status"`
-	CurrentStep  int        `json:"currentStep" db:"current_step"`
-	ABVariantID  *string    `json:"abVariantId,omitempty" db:"ab_variant_id"`
-	EnrolledAt   time.Time  `json:"enrolledAt" db:"enrolled_at"`
-	FinishedAt   *time.Time `json:"finishedAt,omitempty" db:"finished_at"`
-	PausedAt     *time.Time `json:"pausedAt,omitempty" db:"paused_at"`
-	CreatedAt    time.Time  `json:"createdAt" db:"created_at"`
-	UpdatedAt    time.Time  `json:"updatedAt" db:"updated_at"`
+	ID              string     `json:"id" db:"id"`
+	SequenceID      string     `json:"sequenceId" db:"sequence_id"`
+	ContactID       string     `json:"contactId" db:"contact_id"`
+	OrgID           string     `json:"orgId" db:"org_id"`
+	EnrolledBy      string     `json:"enrolledBy" db:"enrolled_by"`
+	Status          string     `json:"status" db:"status"`
+	CurrentStep     int        `json:"currentStep" db:"current_step"`
+	ABVariantID     *string    `json:"abVariantId,omitempty" db:"ab_variant_id"`
+	SoftBounceCount int        `json:"softBounceCount" db:"soft_bounce_count"`
+	EnrolledAt      time.Time  `json:"enrolledAt" db:"enrolled_at"`
+	FinishedAt      *time.Time `json:"finishedAt,omitempty" db:"finished_at"`
+	PausedAt        *time.Time `json:"pausedAt,omitempty" db:"paused_at"`
+	CreatedAt       time.Time  `json:"createdAt" db:"created_at"`
+	UpdatedAt       time.Time  `json:"updatedAt" db:"updated_at"`
 }
 
 // StepExecution records the outcome of executing a single step for an enrollment.
@@ -170,6 +171,9 @@ type StepExecution struct {
 	ScheduledAt  *time.Time `json:"scheduledAt,omitempty" db:"scheduled_at"`
 	ExecutedAt   *time.Time `json:"executedAt,omitempty" db:"executed_at"`
 	ErrorMessage *string    `json:"errorMessage,omitempty" db:"error_message"`
+	// Phase 35 fields — added by migration 077
+	GmailThreadID *string `json:"gmailThreadId,omitempty" db:"gmail_thread_id"`
+	VariantID     *string `json:"variantId,omitempty" db:"variant_id"`
 	CreatedAt    time.Time  `json:"createdAt" db:"created_at"`
 	UpdatedAt    time.Time  `json:"updatedAt" db:"updated_at"`
 }

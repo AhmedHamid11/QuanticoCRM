@@ -409,6 +409,30 @@ func main() {
 	sequenceService := service.NewSequenceService(sequenceRepo)
 	sequenceHandler := handler.NewSequenceHandler(sequenceService, sequenceRepo, engagementRepo)
 
+	// Initialize WarmupScheduler for Gmail account warmup management
+	warmupScheduler := service.NewWarmupScheduler(func(ctx context.Context, orgID string) (*sql.DB, error) {
+		return dbManager.GetTenantDB(ctx, orgID, "", "")
+	})
+	gmailHandler.SetWarmupScheduler(warmupScheduler)
+
+	// Initialize BounceHandler for bounce processing
+	bounceHandler := service.NewBounceHandler(
+		eventBuffer,
+		trackingRepo,
+		sequenceRepo.WithDB(masterDB),
+		sequenceService,
+	)
+
+	// Initialize ReplyDetector for Gmail thread polling
+	replyDetector := service.NewReplyDetector(
+		gmailOAuthService,
+		eventBuffer,
+		sequenceService,
+		sequenceRepo.WithDB(masterDB),
+		trackingRepo,
+		bounceHandler,
+	)
+
 	sequenceScheduler, err := service.NewSequenceScheduler(
 		sequenceRepo, sequenceService,
 		gmailProvider, gmailOAuthService, templateEngine,
@@ -417,6 +441,10 @@ func main() {
 	if err != nil {
 		log.Printf("Warning: Failed to create sequence scheduler: %v", err)
 	} else {
+		sequenceScheduler.SetReplyDetector(replyDetector)
+		sequenceScheduler.SetBounceHandler(bounceHandler)
+		sequenceScheduler.SetWarmupScheduler(warmupScheduler)
+
 		if startErr := sequenceScheduler.Start(context.Background()); startErr != nil {
 			log.Printf("Warning: Failed to start sequence scheduler: %v", startErr)
 		} else {

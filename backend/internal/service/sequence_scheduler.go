@@ -31,6 +31,11 @@ type SequenceScheduler struct {
 	templateEngine *TemplateEngine
 	engagementRepo *repo.EngagementRepo
 	contactRepo    *repo.ContactRepo
+	replyDetector  *ReplyDetector
+	bounceHandler  *BounceHandler
+	warmupSched    *WarmupScheduler
+	abService      *ABService
+	baseURL        string // used for building unsubscribe links in compliance footer
 
 	// orgDBs maps orgID -> *sql.DB for tenant DBs registered at startup or via RegisterOrgDB.
 	orgDBs map[string]*sql.DB
@@ -68,6 +73,31 @@ func NewSequenceScheduler(
 		orgDBs:         make(map[string]*sql.DB),
 		activeJobs:     make(map[string]gocron.Job),
 	}, nil
+}
+
+// SetReplyDetector wires in the ReplyDetector for Gmail thread polling.
+func (s *SequenceScheduler) SetReplyDetector(rd *ReplyDetector) {
+	s.replyDetector = rd
+}
+
+// SetABService wires the ABService so dispatchEmailStep can apply variant overrides.
+func (s *SequenceScheduler) SetABService(ab *ABService) {
+	s.abService = ab
+}
+
+// SetBaseURL sets the public API base URL for building unsubscribe links in emails.
+func (s *SequenceScheduler) SetBaseURL(baseURL string) {
+	s.baseURL = baseURL
+}
+
+// SetBounceHandler wires in the BounceHandler for bounce processing.
+func (s *SequenceScheduler) SetBounceHandler(bh *BounceHandler) {
+	s.bounceHandler = bh
+}
+
+// SetWarmupScheduler wires in the WarmupScheduler for daily limit enforcement.
+func (s *SequenceScheduler) SetWarmupScheduler(ws *WarmupScheduler) {
+	s.warmupSched = ws
 }
 
 // RegisterOrgDB registers a tenant DB for an org, and ensures a polling job exists.
@@ -134,6 +164,7 @@ func (s *SequenceScheduler) ensurePollingJob(orgID string) {
 }
 
 // pollDueExecutions queries for and processes all due step executions for a single org.
+// After dispatching due executions, it also polls Gmail threads for reply/bounce detection.
 func (s *SequenceScheduler) pollDueExecutions(orgID string) {
 	ctx := context.Background()
 
@@ -154,6 +185,63 @@ func (s *SequenceScheduler) pollDueExecutions(orgID string) {
 
 	for _, exec := range due {
 		s.processExecution(ctx, orgID, exec, tenantDB, tenantRepo)
+	}
+
+	// Poll for replies/bounces on recently completed email executions
+	s.pollThreadReplies(ctx, orgID, tenantDB)
+}
+
+// pollThreadReplies checks completed email step executions for Gmail replies and bounces.
+func (s *SequenceScheduler) pollThreadReplies(ctx context.Context, orgID string, tenantDB *sql.DB) {
+	if s.replyDetector == nil {
+		return
+	}
+
+	tenantTrackingRepo := s.replyDetector.trackingRepo.WithDB(tenantDB)
+	executions, err := tenantTrackingRepo.GetExecutionsForReplyCheck(ctx, orgID)
+	if err != nil {
+		log.Printf("[SequenceScheduler] GetExecutionsForReplyCheck failed for org %s: %v", orgID, err)
+		return
+	}
+
+	for _, exec := range executions {
+		if exec.GmailThreadID == nil {
+			continue
+		}
+		// Look up the sender (enrolled_by user ID) for this enrollment
+		_, enrolledBy, lookupErr := tenantTrackingRepo.GetEnrollmentContactID(ctx, exec.EnrollmentID)
+		if lookupErr != nil {
+			log.Printf("[SequenceScheduler] GetEnrollmentContactID failed for enrollment %s: %v", exec.EnrollmentID, lookupErr)
+			continue
+		}
+
+		// Wire the tenant-scoped repos into the reply detector for this check
+		origSeqRepo := s.replyDetector.seqRepo
+		origTrackingRepo := s.replyDetector.trackingRepo
+		s.replyDetector.seqRepo = s.repo.WithDB(tenantDB)
+		s.replyDetector.trackingRepo = tenantTrackingRepo
+		if s.replyDetector.bounceHandler != nil {
+			s.replyDetector.bounceHandler.trackingRepo = tenantTrackingRepo
+			s.replyDetector.bounceHandler.seqRepo = s.repo.WithDB(tenantDB)
+		}
+
+		replyType, checkErr := s.replyDetector.CheckThreadForReplies(ctx, orgID, enrolledBy, *exec.GmailThreadID, exec.EnrollmentID, exec.ID)
+
+		// Restore original repos
+		s.replyDetector.seqRepo = origSeqRepo
+		s.replyDetector.trackingRepo = origTrackingRepo
+		if s.replyDetector.bounceHandler != nil {
+			s.replyDetector.bounceHandler.trackingRepo = origTrackingRepo
+			s.replyDetector.bounceHandler.seqRepo = origSeqRepo
+		}
+
+		if checkErr != nil {
+			log.Printf("[SequenceScheduler] CheckThreadForReplies failed for exec %s thread %s: %v", exec.ID, *exec.GmailThreadID, checkErr)
+			continue
+		}
+		if replyType != "none" {
+			log.Printf("[SequenceScheduler] Thread %s for exec %s returned reply type: %s", *exec.GmailThreadID, exec.ID, replyType)
+		}
 	}
 }
 
@@ -325,10 +413,37 @@ func (s *SequenceScheduler) dispatchEmailStep(
 	}
 	vars := s.templateEngine.ContactToTemplateVars(contactMap)
 
-	// 4. Render
-	subject, bodyHTML := s.templateEngine.RenderTemplate(tmpl, vars)
+	// 3b. Build compliance footer and inject as template variable
+	// Physical address is fetched from org_settings; falls back to placeholder if not configured.
+	footerHTML := buildComplianceFooter(orgID, enrollment.ContactID, enrollment.ID, s.baseURL)
+	vars["compliance_footer"] = footerHTML
 
-	// 4b. Inject tracking pixel and rewrite links (non-blocking — uses EventBuffer)
+	// 4. Apply A/B variant overrides (before rendering)
+	// If the enrollment has a variant assigned and the variant has subject/body overrides,
+	// substitute them into the template struct before rendering.
+	variantID := ""
+	if enrollment.ABVariantID != nil && s.abService != nil {
+		variant, varErr := s.abService.GetVariantByID(ctx, orgID, *enrollment.ABVariantID)
+		if varErr != nil {
+			log.Printf("[SequenceScheduler] GetVariantByID warning for exec %s: %v", exec.ID, varErr)
+		} else if variant != nil {
+			variantID = variant.ID
+			if variant.SubjectOverride != nil && *variant.SubjectOverride != "" {
+				tmpl.Subject = *variant.SubjectOverride
+			}
+			if variant.BodyHTMLOverride != nil && *variant.BodyHTMLOverride != "" {
+				tmpl.BodyHTML = *variant.BodyHTMLOverride
+			}
+		}
+	}
+
+	// 4b. Render template (subject, bodyHTML)
+	subject, bodyHTML, renderErr := s.templateEngine.RenderTemplate(tmpl, vars)
+	if renderErr != nil {
+		return fmt.Errorf("template render: %w", renderErr)
+	}
+
+	// 4c. Inject tracking pixel and rewrite links (non-blocking — uses EventBuffer)
 	bodyHTML = s.templateEngine.InjectTracking(bodyHTML, orgID, enrollment.ID, exec.ID)
 
 	// 5. Get sender info (gmail address for the enrolledBy user)
@@ -339,9 +454,33 @@ func (s *SequenceScheduler) dispatchEmailStep(
 	fromEmail := oauthToken.GmailAddress
 	toEmail := contact.EmailAddress
 
+	// 5b. Warmup gate: check daily limit before sending
+	if s.warmupSched != nil {
+		allowed, warmupErr := s.warmupSched.CheckAndIncrementDailyCount(ctx, orgID, enrollment.EnrolledBy, tenantDB)
+		if warmupErr != nil {
+			log.Printf("[SequenceScheduler] warmup check failed for user %s: %v", enrollment.EnrolledBy, warmupErr)
+			// Non-fatal — proceed with send on warmup check error
+		} else if !allowed {
+			log.Printf("[SequenceScheduler] warmup daily limit reached for user %s, deferring email step %s", enrollment.EnrolledBy, exec.ID)
+			// Reschedule to next business day start
+			seq, seqErr := tenantRepo.GetSequence(ctx, enrollment.OrgID, enrollment.SequenceID)
+			nextSchedule := time.Now().Add(24 * time.Hour)
+			if seqErr == nil && seq != nil {
+				nextSchedule = nextBusinessHoursStartAt(seq, nextSchedule)
+			}
+			exec.Status = entity.ExecutionStatusScheduled
+			exec.ScheduledAt = &nextSchedule
+			if updateErr := tenantRepo.UpdateStepExecution(ctx, exec); updateErr != nil {
+				log.Printf("[SequenceScheduler] reschedule warmup-deferred exec %s failed: %v", exec.ID, updateErr)
+			}
+			return nil
+		}
+	}
+
 	// 6. Send
-	if err := s.gmailProvider.Send(ctx, orgID, enrollment.EnrolledBy, fromEmail, toEmail, subject, bodyHTML); err != nil {
-		return fmt.Errorf("gmail send: %w", err)
+	_, threadID, sendErr := s.gmailProvider.Send(ctx, orgID, enrollment.EnrolledBy, fromEmail, toEmail, subject, bodyHTML)
+	if sendErr != nil {
+		return fmt.Errorf("gmail send: %w", sendErr)
 	}
 
 	// 7. Mark execution completed
@@ -350,6 +489,22 @@ func (s *SequenceScheduler) dispatchEmailStep(
 	exec.ExecutedAt = &now
 	if err := tenantRepo.UpdateStepExecution(ctx, exec); err != nil {
 		log.Printf("[SequenceScheduler] UpdateStepExecution completed failed for exec %s: %v", exec.ID, err)
+	}
+
+	// 7b. Store the Gmail thread ID for reply polling
+	if threadID != "" {
+		tenantTrackingRepo := repo.NewTrackingRepo(tenantDB)
+		if threadErr := tenantTrackingRepo.UpdateStepExecutionThreadID(ctx, exec.ID, threadID); threadErr != nil {
+			log.Printf("[SequenceScheduler] UpdateStepExecutionThreadID failed for exec %s: %v", exec.ID, threadErr)
+		}
+		exec.GmailThreadID = &threadID
+	}
+
+	// 7c. Increment A/B send counter if a variant was applied
+	if variantID != "" && s.abService != nil {
+		if abErr := s.abService.IncrementABStats(ctx, orgID, variantID, 1, 0, 0, 0); abErr != nil {
+			log.Printf("[SequenceScheduler] IncrementABStats send failed for exec %s variant %s: %v", exec.ID, variantID, abErr)
+		}
 	}
 
 	// 8. Schedule next step (or finish enrollment if last step)
@@ -529,6 +684,20 @@ func parseSuppressionRules(configJSON string) []SuppressionRule {
 		return nil
 	}
 	return cfg.SuppressionRules
+}
+
+// buildComplianceFooter builds the CAN-SPAM compliance footer HTML for inclusion in outbound emails.
+// The footer includes a generic physical address placeholder and an unsubscribe link.
+// Production orgs should configure their physical address in org_settings.
+func buildComplianceFooter(orgID, contactID, _, baseURL string) string {
+	unsubscribeURL := fmt.Sprintf("%s/unsubscribe/%s/%s", baseURL, contactID, orgID)
+	return fmt.Sprintf(
+		`<div style="margin-top:20px;padding-top:10px;border-top:1px solid #eee;font-size:11px;color:#999;text-align:center">
+<p>This is a commercial message. You are receiving this email because of your business relationship with us.</p>
+<p><a href="%s" style="color:#999">Unsubscribe</a></p>
+</div>`,
+		unsubscribeURL,
+	)
 }
 
 // shouldAutoSkipManualStep returns true when the step has continue_without_completing=true
