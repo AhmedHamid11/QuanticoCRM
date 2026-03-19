@@ -84,14 +84,17 @@ func (r *SequenceRepo) GetSequence(ctx context.Context, orgID, id string) (*enti
 }
 
 // ListSequences returns all sequences for an org, ordered by updated_at DESC.
+// Each row includes step_count and enrollment_count via correlated COUNT subqueries.
 func (r *SequenceRepo) ListSequences(ctx context.Context, orgID string) ([]*entity.Sequence, error) {
 	query := `
-		SELECT id, org_id, name, description, status, timezone,
-		       business_hours_start, business_hours_end, created_by,
-		       created_at, updated_at
-		FROM sequences
-		WHERE org_id = ?
-		ORDER BY updated_at DESC
+		SELECT s.id, s.org_id, s.name, s.description, s.status, s.timezone,
+		       s.business_hours_start, s.business_hours_end, s.created_by,
+		       s.created_at, s.updated_at,
+		       (SELECT COUNT(*) FROM sequence_steps ss WHERE ss.sequence_id = s.id) AS step_count,
+		       (SELECT COUNT(*) FROM sequence_enrollments se WHERE se.sequence_id = s.id AND se.status IN ('enrolled', 'active', 'paused')) AS enrollment_count
+		FROM sequences s
+		WHERE s.org_id = ?
+		ORDER BY s.updated_at DESC
 	`
 	rows, err := r.db.QueryContext(ctx, query, orgID)
 	if err != nil {
@@ -806,17 +809,22 @@ func scanSequence(row *sql.Row) (*entity.Sequence, error) {
 }
 
 // scanSequenceRow scans a single sequence from *sql.Rows.
+// Expects 13 columns: the 11 base columns plus step_count and enrollment_count.
 func scanSequenceRow(rows *sql.Rows) (*entity.Sequence, error) {
 	var s entity.Sequence
 	var desc, bhStart, bhEnd, createdAt, updatedAt sql.NullString
+	var stepCount, enrollmentCount int
 
 	err := rows.Scan(
 		&s.ID, &s.OrgID, &s.Name, &desc, &s.Status, &s.Timezone,
 		&bhStart, &bhEnd, &s.CreatedBy, &createdAt, &updatedAt,
+		&stepCount, &enrollmentCount,
 	)
 	if err != nil {
 		return nil, err
 	}
+	s.StepCount = stepCount
+	s.EnrollmentCount = enrollmentCount
 	if desc.Valid {
 		s.Description = &desc.String
 	}

@@ -123,6 +123,9 @@ type Sequence struct {
 	CreatedBy          string    `json:"createdBy" db:"created_by"`
 	CreatedAt          time.Time `json:"createdAt" db:"created_at"`
 	UpdatedAt          time.Time `json:"updatedAt" db:"updated_at"`
+	// Computed fields — populated by ListSequences via COUNT subqueries. No db tag.
+	StepCount       int `json:"stepCount"`
+	EnrollmentCount int `json:"enrollmentCount"`
 }
 
 // SequenceStep defines a single step within a sequence.
