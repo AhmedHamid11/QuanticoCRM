@@ -45,10 +45,11 @@ func (r *SequenceRepo) CreateSequence(ctx context.Context, s *entity.Sequence) e
 	if s.Description != nil {
 		desc = *s.Description
 	}
-	var bhStart, bhEnd interface{}
+	bhStart := "09:00"
 	if s.BusinessHoursStart != nil {
 		bhStart = *s.BusinessHoursStart
 	}
+	bhEnd := "17:00"
 	if s.BusinessHoursEnd != nil {
 		bhEnd = *s.BusinessHoursEnd
 	}
@@ -122,10 +123,11 @@ func (r *SequenceRepo) UpdateSequence(ctx context.Context, s *entity.Sequence) e
 	if s.Description != nil {
 		desc = *s.Description
 	}
-	var bhStart, bhEnd interface{}
+	bhStart := "09:00"
 	if s.BusinessHoursStart != nil {
 		bhStart = *s.BusinessHoursStart
 	}
+	bhEnd := "17:00"
 	if s.BusinessHoursEnd != nil {
 		bhEnd = *s.BusinessHoursEnd
 	}
