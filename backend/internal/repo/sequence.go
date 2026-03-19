@@ -433,6 +433,161 @@ func (r *SequenceRepo) IsContactOptedOut(ctx context.Context, orgID, contactID s
 	return count > 0, nil
 }
 
+// IsContactSMSOptedOut checks whether a contact has opted out of SMS (channel='sms' or channel='all').
+func (r *SequenceRepo) IsContactSMSOptedOut(ctx context.Context, orgID, contactID string) (bool, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM opt_out_list
+		WHERE org_id = ? AND contact_id = ? AND channel IN ('sms', 'all')
+	`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, orgID, contactID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// CreateCallDisposition inserts a new call disposition record and also writes the
+// disposition shortcut value to the corresponding step_execution row.
+func (r *SequenceRepo) CreateCallDisposition(ctx context.Context, disp *entity.CallDisposition) error {
+	calledAt := disp.CalledAt.UTC().Format("2006-01-02T15:04:05Z")
+	var notes interface{}
+	if disp.Notes != nil {
+		notes = *disp.Notes
+	}
+	var durationSeconds interface{}
+	if disp.DurationSeconds != nil {
+		durationSeconds = *disp.DurationSeconds
+	}
+
+	query := `
+		INSERT INTO call_dispositions
+		    (id, org_id, step_execution_id, contact_id, enrolled_by, disposition,
+		     notes, duration_seconds, called_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`
+	if _, err := r.db.ExecContext(ctx, query,
+		disp.ID, disp.OrgID, disp.StepExecutionID, disp.ContactID,
+		disp.EnrolledBy, disp.Disposition, notes, durationSeconds, calledAt,
+	); err != nil {
+		return err
+	}
+
+	// Write disposition shortcut to step_execution row.
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequence_step_executions SET disposition = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		disp.Disposition, disp.StepExecutionID,
+	)
+	return err
+}
+
+// ActivityItem is a unified timeline entry representing either a call or SMS event.
+type ActivityItem struct {
+	Type         string     `json:"type"` // "call" | "sms"
+	OccurredAt   time.Time  `json:"occurredAt"`
+	Disposition  *string    `json:"disposition,omitempty"`
+	Direction    *string    `json:"direction,omitempty"`
+	Body         *string    `json:"body,omitempty"`
+	Notes        *string    `json:"notes,omitempty"`
+	SequenceName *string    `json:"sequenceName,omitempty"`
+	Source       string     `json:"source"` // "sequence" | "mirror"
+}
+
+// GetContactActivity returns a merged timeline of call dispositions and SMS messages
+// for a contact, sorted by occurred_at DESC, limited to the given count.
+// Records with no linked enrollment (mirror-ingested) are tagged Source="mirror".
+func (r *SequenceRepo) GetContactActivity(ctx context.Context, orgID, contactID string, limit int) ([]ActivityItem, error) {
+	query := `
+		SELECT
+			'call'                                         AS type,
+			cd.called_at                                   AS occurred_at,
+			cd.disposition                                 AS disposition,
+			NULL                                           AS direction,
+			NULL                                           AS body,
+			cd.notes                                       AS notes,
+			s.name                                         AS sequence_name,
+			CASE WHEN se.id IS NULL THEN 'mirror' ELSE 'sequence' END AS source
+		FROM call_dispositions cd
+		LEFT JOIN sequence_step_executions sse
+			ON sse.id = cd.step_execution_id
+		LEFT JOIN sequence_enrollments se
+			ON se.id = sse.enrollment_id
+		LEFT JOIN sequences s
+			ON s.id = se.sequence_id
+		WHERE cd.org_id = ? AND cd.contact_id = ?
+
+		UNION ALL
+
+		SELECT
+			'sms'                                          AS type,
+			COALESCE(sm.sent_at, sm.created_at)           AS occurred_at,
+			NULL                                           AS disposition,
+			sm.direction                                   AS direction,
+			sm.body                                        AS body,
+			NULL                                           AS notes,
+			s.name                                         AS sequence_name,
+			CASE WHEN se.id IS NULL THEN 'mirror' ELSE 'sequence' END AS source
+		FROM sms_messages sm
+		LEFT JOIN sequence_enrollments se
+			ON se.id = sm.enrollment_id
+		LEFT JOIN sequences s
+			ON s.id = se.sequence_id
+		WHERE sm.org_id = ? AND sm.contact_id = ?
+
+		ORDER BY occurred_at DESC
+		LIMIT ?
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID, contactID, orgID, contactID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []ActivityItem
+	for rows.Next() {
+		var item ActivityItem
+		var occurredAt sql.NullString
+		var disposition, direction, body, notes, sequenceName sql.NullString
+
+		err := rows.Scan(
+			&item.Type,
+			&occurredAt,
+			&disposition,
+			&direction,
+			&body,
+			&notes,
+			&sequenceName,
+			&item.Source,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if occurredAt.Valid {
+			if ts, err := parseDBTime(occurredAt.String); err == nil {
+				item.OccurredAt = ts
+			}
+		}
+		if disposition.Valid {
+			item.Disposition = &disposition.String
+		}
+		if direction.Valid {
+			item.Direction = &direction.String
+		}
+		if body.Valid {
+			item.Body = &body.String
+		}
+		if notes.Valid {
+			item.Notes = &notes.String
+		}
+		if sequenceName.Valid {
+			item.SequenceName = &sequenceName.String
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 // GetContactFieldValue retrieves the value of a single field for a contact.
 // Returns empty string if the contact doesn't exist or the field is NULL.
 func (r *SequenceRepo) GetContactFieldValue(ctx context.Context, orgID, contactID, field string) (string, error) {
@@ -559,11 +714,13 @@ type TaskView struct {
 	EnrollmentID string
 	LastOpenAt   *time.Time
 	LastReplyAt  *time.Time
+	SmsOptedOut  bool
 }
 
-// GetTasksForUser returns all due manual step executions (call, linkedin, custom)
+// GetTasksForUser returns all due manual step executions (call, sms, linkedin, custom)
 // for the given user (enrolled_by), joined with contact and sequence info.
 // Tasks are sorted by scheduled_at ASC (overdue first).
+// SMS tasks include a SmsOptedOut flag derived from a LEFT JOIN on opt_out_list.
 func (r *SequenceRepo) GetTasksForUser(ctx context.Context, orgID, userID string, now time.Time) ([]TaskView, error) {
 	nowStr := now.UTC().Format("2006-01-02T15:04:05Z")
 	query := `
@@ -581,7 +738,8 @@ func (r *SequenceRepo) GetTasksForUser(ctx context.Context, orgID, userID string
 			c.phone_number                              AS contact_phone,
 			se.id                                       AS enrollment_id,
 			MAX(CASE WHEN te.event_type = 'open'  THEN te.occurred_at ELSE NULL END) AS last_open_at,
-			MAX(CASE WHEN te.event_type = 'reply' THEN te.occurred_at ELSE NULL END) AS last_reply_at
+			MAX(CASE WHEN te.event_type = 'reply' THEN te.occurred_at ELSE NULL END) AS last_reply_at,
+			CASE WHEN ool.id IS NOT NULL THEN 1 ELSE 0 END AS sms_opted_out
 		FROM sequence_step_executions sse
 		JOIN sequence_steps ss
 			ON ss.id = sse.step_id
@@ -593,15 +751,17 @@ func (r *SequenceRepo) GetTasksForUser(ctx context.Context, orgID, userID string
 			ON c.id = se.contact_id AND c.org_id = ?
 		LEFT JOIN email_tracking_events te
 			ON te.enrollment_id = se.id
+		LEFT JOIN opt_out_list ool
+			ON ool.contact_id = se.contact_id AND ool.org_id = ? AND ool.channel IN ('sms', 'all')
 		WHERE sse.org_id = ?
 		  AND se.enrolled_by = ?
-		  AND ss.step_type IN ('call', 'linkedin', 'custom')
+		  AND ss.step_type IN ('call', 'sms', 'linkedin', 'custom')
 		  AND sse.status = 'scheduled'
 		  AND sse.scheduled_at <= ?
 		GROUP BY sse.id
 		ORDER BY sse.scheduled_at ASC
 	`
-	rows, err := r.db.QueryContext(ctx, query, orgID, orgID, userID, nowStr)
+	rows, err := r.db.QueryContext(ctx, query, orgID, orgID, orgID, userID, nowStr)
 	if err != nil {
 		return nil, err
 	}
@@ -613,6 +773,7 @@ func (r *SequenceRepo) GetTasksForUser(ctx context.Context, orgID, userID string
 		var scheduledAt, lastOpenAt, lastReplyAt sql.NullString
 		var phone sql.NullString
 		var configJSON sql.NullString
+		var smsOptedOut int
 
 		err := rows.Scan(
 			&t.ExecutionID,
@@ -629,10 +790,12 @@ func (r *SequenceRepo) GetTasksForUser(ctx context.Context, orgID, userID string
 			&t.EnrollmentID,
 			&lastOpenAt,
 			&lastReplyAt,
+			&smsOptedOut,
 		)
 		if err != nil {
 			return nil, err
 		}
+		t.SmsOptedOut = smsOptedOut != 0
 		if configJSON.Valid {
 			t.ConfigJSON = &configJSON.String
 		}
