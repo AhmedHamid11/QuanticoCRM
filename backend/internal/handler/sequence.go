@@ -89,6 +89,9 @@ func (h *SequenceHandler) RegisterTaskRoutes(router fiber.Router) {
 	g.Post("/:executionId/complete", h.CompleteTask)
 	g.Post("/:executionId/skip", h.SkipTask)
 	g.Put("/:executionId/reschedule", h.RescheduleTask)
+
+	// Contact activity timeline — accessible by PRAs alongside task routes.
+	router.Get("/contacts/:contactId/activity", h.GetContactActivity)
 }
 
 // ========== Sequence CRUD ==========
@@ -577,12 +580,23 @@ func (h *SequenceHandler) ListTasks(c *fiber.Ctx) error {
 }
 
 // CompleteTask marks a step execution as complete.
+// Optionally accepts disposition, notes, and contactId in the body for call steps.
+// When disposition is provided, a call_dispositions row is written (log error but
+// do not fail the completion — disposition is supplementary).
 // POST /engagement/tasks/:executionId/complete
 func (h *SequenceHandler) CompleteTask(c *fiber.Ctx) error {
-	orgID, _ := getSequenceContext(c)
+	orgID, userID := getSequenceContext(c)
 	execID := c.Params("executionId")
 	tenantDB := middleware.GetTenantDBConn(c)
 	r := h.sequenceRepo.WithDB(tenantDB)
+
+	var input struct {
+		Disposition string `json:"disposition"`
+		Notes       string `json:"notes"`
+		ContactID   string `json:"contactId"`
+	}
+	// Body parsing is optional — fields may be absent for non-call steps.
+	_ = c.BodyParser(&input)
 
 	exec, err := r.GetStepExecutionByID(c.Context(), execID)
 	if err != nil {
@@ -597,7 +611,33 @@ func (h *SequenceHandler) CompleteTask(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to complete task"})
 	}
 
-	return c.JSON(fiber.Map{"status": "completed", "executionId": execID})
+	// If a disposition was provided, write the call_dispositions row.
+	// This is supplementary — failures are logged but do not abort the response.
+	if input.Disposition != "" {
+		now := time.Now().UTC()
+		disp := &entity.CallDisposition{
+			ID:              uuid.New().String(),
+			OrgID:           orgID,
+			StepExecutionID: execID,
+			ContactID:       input.ContactID,
+			EnrolledBy:      userID,
+			Disposition:     input.Disposition,
+			CalledAt:        now,
+			CreatedAt:       now,
+		}
+		if input.Notes != "" {
+			disp.Notes = &input.Notes
+		}
+		if dispErr := r.CreateCallDisposition(c.Context(), disp); dispErr != nil {
+			log.Printf("[Sequence] CompleteTask: failed to write call disposition for exec %s: %v", execID, dispErr)
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"status":      "completed",
+		"executionId": execID,
+		"disposition": input.Disposition,
+	})
 }
 
 // SkipTask marks a step execution as skipped.
@@ -661,6 +701,25 @@ func (h *SequenceHandler) RescheduleTask(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"status": "rescheduled", "executionId": execID, "scheduledAt": newTime.UTC().Format(time.RFC3339)})
+}
+
+// GetContactActivity returns a merged timeline of call and SMS activity for a contact.
+// GET /contacts/:contactId/activity
+func (h *SequenceHandler) GetContactActivity(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	contactID := c.Params("contactId")
+	tenantDB := middleware.GetTenantDBConn(c)
+	r := h.sequenceRepo.WithDB(tenantDB)
+
+	items, err := r.GetContactActivity(c.Context(), orgID, contactID, 50)
+	if err != nil {
+		log.Printf("[Sequence] GetContactActivity error for contact %s: %v", contactID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch contact activity"})
+	}
+	if items == nil {
+		items = []repo.ActivityItem{}
+	}
+	return c.JSON(items)
 }
 
 // ========== A/B Variant Endpoints ==========
