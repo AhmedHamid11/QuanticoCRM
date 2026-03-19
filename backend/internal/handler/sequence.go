@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
+
 // SequenceHandler handles HTTP requests for sequence CRUD, step management,
 // and contact enrollment.
 type SequenceHandler struct {
@@ -19,6 +20,7 @@ type SequenceHandler struct {
 	sequenceRepo      *repo.SequenceRepo
 	engagementRepo    *repo.EngagementRepo
 	sequenceScheduler *service.SequenceScheduler
+	abService         *service.ABService
 }
 
 // NewSequenceHandler creates a new SequenceHandler.
@@ -38,6 +40,11 @@ func NewSequenceHandler(
 // DBs when a new enrollment triggers polling for that org.
 func (h *SequenceHandler) SetScheduler(scheduler *service.SequenceScheduler) {
 	h.sequenceScheduler = scheduler
+}
+
+// SetABService wires the ABService for variant CRUD and stats endpoints.
+func (h *SequenceHandler) SetABService(ab *service.ABService) {
+	h.abService = ab
 }
 
 // RegisterRoutes registers all sequence routes on the admin-protected group.
@@ -64,6 +71,13 @@ func (h *SequenceHandler) RegisterRoutes(router fiber.Router) {
 	// Enrollment
 	g.Post("/:id/enroll", h.EnrollContact)
 	g.Post("/:id/enroll-bulk", h.BulkEnroll)
+
+	// A/B variant management for email steps
+	g.Get("/:id/steps/:stepId/variants", h.ListVariants)
+	g.Post("/:id/steps/:stepId/variants", h.CreateVariant)
+	g.Patch("/:id/steps/:stepId/variants/:variantId", h.UpdateVariant)
+	g.Delete("/:id/steps/:stepId/variants/:variantId", h.DeleteVariant)
+	g.Post("/:id/steps/:stepId/variants/:variantId/promote", h.PromoteVariant)
 }
 
 // RegisterTaskRoutes registers the PRA task queue routes on the user-accessible group.
@@ -647,6 +661,163 @@ func (h *SequenceHandler) RescheduleTask(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"status": "rescheduled", "executionId": execID, "scheduledAt": newTime.UTC().Format(time.RFC3339)})
+}
+
+// ========== A/B Variant Endpoints ==========
+
+// ListVariants returns all A/B variants for a step with their tracking stats.
+// GET /sequences/:id/steps/:stepId/variants
+func (h *SequenceHandler) ListVariants(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	stepID := c.Params("stepId")
+
+	if h.abService == nil {
+		return c.JSON([]service.ABVariantWithStats{})
+	}
+
+	results, err := h.abService.GetVariantsWithStats(c.Context(), orgID, stepID)
+	if err != nil {
+		log.Printf("[Sequence] ListVariants error for step %s: %v", stepID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to list variants"})
+	}
+	if results == nil {
+		results = []service.ABVariantWithStats{}
+	}
+	return c.JSON(results)
+}
+
+// CreateVariant creates a new A/B test variant for an email step.
+// POST /sequences/:id/steps/:stepId/variants
+func (h *SequenceHandler) CreateVariant(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	stepID := c.Params("stepId")
+
+	if h.abService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "A/B service not available"})
+	}
+
+	var input struct {
+		VariantLabel     string `json:"variantLabel"`
+		SubjectOverride  string `json:"subjectOverride"`
+		BodyHTMLOverride string `json:"bodyHtmlOverride"`
+		TrafficPct       int    `json:"trafficPct"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if input.VariantLabel == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "variantLabel is required"})
+	}
+
+	now := time.Now().UTC()
+	v := &entity.ABTestVariant{
+		ID:           uuid.New().String(),
+		StepID:       stepID,
+		VariantLabel: input.VariantLabel,
+		TrafficPct:   input.TrafficPct,
+		IsWinner:     0,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if input.SubjectOverride != "" {
+		v.SubjectOverride = &input.SubjectOverride
+	}
+	if input.BodyHTMLOverride != "" {
+		v.BodyHTMLOverride = &input.BodyHTMLOverride
+	}
+
+	if err := h.abService.CreateVariant(c.Context(), orgID, v); err != nil {
+		log.Printf("[Sequence] CreateVariant error for step %s: %v", stepID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create variant"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(v)
+}
+
+// UpdateVariant updates a variant's label, overrides, or traffic percentage.
+// PATCH /sequences/:id/steps/:stepId/variants/:variantId
+func (h *SequenceHandler) UpdateVariant(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	variantID := c.Params("variantId")
+
+	if h.abService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "A/B service not available"})
+	}
+
+	var input struct {
+		VariantLabel     string `json:"variantLabel"`
+		SubjectOverride  string `json:"subjectOverride"`
+		BodyHTMLOverride string `json:"bodyHtmlOverride"`
+		TrafficPct       int    `json:"trafficPct"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	existing, err := h.abService.GetVariantByID(c.Context(), orgID, variantID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch variant"})
+	}
+	if existing == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "variant not found"})
+	}
+
+	if input.VariantLabel != "" {
+		existing.VariantLabel = input.VariantLabel
+	}
+	if input.SubjectOverride != "" {
+		existing.SubjectOverride = &input.SubjectOverride
+	}
+	if input.BodyHTMLOverride != "" {
+		existing.BodyHTMLOverride = &input.BodyHTMLOverride
+	}
+	if input.TrafficPct >= 0 {
+		existing.TrafficPct = input.TrafficPct
+	}
+	existing.UpdatedAt = time.Now().UTC()
+
+	if err := h.abService.UpdateVariant(c.Context(), orgID, existing); err != nil {
+		log.Printf("[Sequence] UpdateVariant error for variant %s: %v", variantID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update variant"})
+	}
+
+	return c.JSON(existing)
+}
+
+// DeleteVariant removes a variant from a step.
+// DELETE /sequences/:id/steps/:stepId/variants/:variantId
+func (h *SequenceHandler) DeleteVariant(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	variantID := c.Params("variantId")
+
+	if h.abService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "A/B service not available"})
+	}
+
+	if err := h.abService.DeleteVariant(c.Context(), orgID, variantID); err != nil {
+		log.Printf("[Sequence] DeleteVariant error for variant %s: %v", variantID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete variant"})
+	}
+
+	return c.JSON(fiber.Map{"status": "deleted", "variantId": variantID})
+}
+
+// PromoteVariant promotes a variant to 100% winner status.
+// POST /sequences/:id/steps/:stepId/variants/:variantId/promote
+func (h *SequenceHandler) PromoteVariant(c *fiber.Ctx) error {
+	orgID, _ := getSequenceContext(c)
+	variantID := c.Params("variantId")
+
+	if h.abService == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "A/B service not available"})
+	}
+
+	if err := h.abService.PromoteWinner(c.Context(), orgID, variantID); err != nil {
+		log.Printf("[Sequence] PromoteVariant error for variant %s: %v", variantID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to promote winner: " + err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"status": "promoted", "variantId": variantID})
 }
 
 // ========== Helpers ==========

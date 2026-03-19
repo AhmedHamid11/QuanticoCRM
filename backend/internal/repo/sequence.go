@@ -292,6 +292,16 @@ func (r *SequenceRepo) GetEnrollment(ctx context.Context, id string) (*entity.Se
 }
 
 // UpdateEnrollmentStatus updates the status (and optional timestamp fields) of an enrollment.
+// UpdateEnrollmentVariant sets the ab_variant_id for an enrollment.
+// Called after enrollment creation when A/B variants are configured.
+func (r *SequenceRepo) UpdateEnrollmentVariant(ctx context.Context, enrollmentID, variantID string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE sequence_enrollments SET ab_variant_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		variantID, enrollmentID,
+	)
+	return err
+}
+
 func (r *SequenceRepo) UpdateEnrollmentStatus(ctx context.Context, id, status string) error {
 	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	query := `

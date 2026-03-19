@@ -1,12 +1,17 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/fastcrm/backend/internal/entity"
 )
+
+// ComplianceFooterToken is the template token that must appear in every commercial email body.
+// Templates missing this token will fail validation at save time and render time.
+const ComplianceFooterToken = "{{compliance_footer}}"
 
 // TemplateEngine is a stateless regex-based email template renderer.
 // It is safe for concurrent use — all state is in compiled regexes held at construction time.
@@ -101,12 +106,26 @@ func (e *TemplateEngine) Render(template string, vars map[string]string) string 
 	return result
 }
 
+// ValidateCompliance checks that bodyHTML contains the {{compliance_footer}} token.
+// Returns an error if the token is missing — this enforces CAN-SPAM compliance.
+func (e *TemplateEngine) ValidateCompliance(bodyHTML string) error {
+	if !strings.Contains(bodyHTML, ComplianceFooterToken) {
+		return errors.New("template must include {{compliance_footer}} token for CAN-SPAM compliance")
+	}
+	return nil
+}
+
 // RenderTemplate renders both Subject and BodyHTML of an EmailTemplate using the given vars.
-// Returns (subject, bodyHTML).
-func (e *TemplateEngine) RenderTemplate(tmpl *entity.EmailTemplate, vars map[string]string) (string, string) {
+// Returns (subject, bodyHTML, error). An error is returned if the template body does not
+// contain the {{compliance_footer}} token (CAN-SPAM compliance enforcement).
+// The compliance_footer variable must be present in vars with the footer HTML content.
+func (e *TemplateEngine) RenderTemplate(tmpl *entity.EmailTemplate, vars map[string]string) (string, string, error) {
+	if err := e.ValidateCompliance(tmpl.BodyHTML); err != nil {
+		return "", "", err
+	}
 	subject := e.Render(tmpl.Subject, vars)
 	bodyHTML := e.Render(tmpl.BodyHTML, vars)
-	return subject, bodyHTML
+	return subject, bodyHTML, nil
 }
 
 // SetTrackingService attaches a TrackingService so InjectTracking can rewrite links and

@@ -50,13 +50,19 @@ type SuppressionResult struct {
 // SequenceService implements sequence CRUD, enrollment with overlap guard,
 // suppression checking, and the enrollment FSM.
 type SequenceService struct {
-	repo *repo.SequenceRepo
+	repo      *repo.SequenceRepo
+	abService *ABService
 }
 
 // NewSequenceService creates a new SequenceService.
 // repo may be nil when the service is used only for FSM validation (e.g., in unit tests).
 func NewSequenceService(r *repo.SequenceRepo) *SequenceService {
 	return &SequenceService{repo: r}
+}
+
+// SetABService wires the ABService so EnrollContact can assign A/B variants at enrollment time.
+func (s *SequenceService) SetABService(ab *ABService) {
+	s.abService = ab
 }
 
 // ========== FSM ==========
@@ -175,6 +181,21 @@ func (s *SequenceService) EnrollContact(ctx context.Context, orgID, sequenceID, 
 	}
 	if err := s.repo.CreateEnrollment(ctx, enrollment); err != nil {
 		return nil, fmt.Errorf("failed to create enrollment: %w", err)
+	}
+
+	// 4b. Assign A/B variant if ABService is wired and variants are configured
+	if s.abService != nil {
+		variantID, abErr := s.abService.AssignVariant(ctx, orgID, sequenceID, s.repo)
+		if abErr != nil {
+			// Non-fatal — log and continue without variant assignment
+			fmt.Printf("[SequenceService] AssignVariant warning for enrollment %s: %v\n", enrollmentID, abErr)
+		} else if variantID != nil {
+			enrollment.ABVariantID = variantID
+			// Persist the variant assignment
+			if updateErr := s.repo.UpdateEnrollmentVariant(ctx, enrollmentID, *variantID); updateErr != nil {
+				fmt.Printf("[SequenceService] UpdateEnrollmentVariant warning for enrollment %s: %v\n", enrollmentID, updateErr)
+			}
+		}
 	}
 
 	// 5. Create first StepExecution if sequence has steps

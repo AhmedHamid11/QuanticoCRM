@@ -409,6 +409,21 @@ func main() {
 	sequenceService := service.NewSequenceService(sequenceRepo)
 	sequenceHandler := handler.NewSequenceHandler(sequenceService, sequenceRepo, engagementRepo)
 
+	// Initialize A/B testing service.
+	// getABDB returns the tenant *sql.DB for a given orgID — used by ABService for per-org tables.
+	getABDB := func(orgID string) *sql.DB {
+		tenantDB, dbErr := dbManager.GetTenantDB(context.Background(), orgID, "", "")
+		if dbErr != nil {
+			log.Printf("[ABService] getABDB: failed for org %s: %v", orgID, dbErr)
+			return nil
+		}
+		return tenantDB
+	}
+	abService := service.NewABService(getABDB, trackingRepo)
+	sequenceService.SetABService(abService)
+	sequenceHandler.SetABService(abService)
+	trackingHandler.SetMasterDB(masterDB)
+
 	// Initialize WarmupScheduler for Gmail account warmup management
 	warmupScheduler := service.NewWarmupScheduler(func(ctx context.Context, orgID string) (*sql.DB, error) {
 		return dbManager.GetTenantDB(ctx, orgID, "", "")
@@ -444,6 +459,8 @@ func main() {
 		sequenceScheduler.SetReplyDetector(replyDetector)
 		sequenceScheduler.SetBounceHandler(bounceHandler)
 		sequenceScheduler.SetWarmupScheduler(warmupScheduler)
+		sequenceScheduler.SetABService(abService)
+		sequenceScheduler.SetBaseURL(baseURL)
 
 		if startErr := sequenceScheduler.Start(context.Background()); startErr != nil {
 			log.Printf("Warning: Failed to start sequence scheduler: %v", startErr)
