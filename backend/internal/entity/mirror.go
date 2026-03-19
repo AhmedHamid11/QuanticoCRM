@@ -12,6 +12,7 @@ type Mirror struct {
 	UnmappedFieldMode string              `json:"unmappedFieldMode"`   // "strict" (reject unknown fields) or "flexible" (accept with warning)
 	RateLimit         int                 `json:"rateLimit"`           // Per-mirror rate limit, default 500/min
 	IsActive          bool                `json:"isActive"`            // Whether this mirror is active
+	UpsertMode        bool                `json:"upsertMode" db:"upsert_mode"` // When true, INSERT OR REPLACE instead of INSERT (for SFDC field change sync)
 	SourceFields      []MirrorSourceField `json:"sourceFields"`        // Populated on read, stored in separate table
 	CreatedAt         time.Time           `json:"createdAt"`
 	UpdatedAt         time.Time           `json:"updatedAt"`
@@ -37,6 +38,7 @@ type MirrorCreateInput struct {
 	UniqueKeyField    string                   `json:"uniqueKeyField"`    // Required
 	UnmappedFieldMode string                   `json:"unmappedFieldMode"` // Defaults to "flexible" if not provided
 	RateLimit         *int                     `json:"rateLimit"`         // Defaults to 500 if not provided
+	UpsertMode        bool                     `json:"upsertMode"`        // When true, INSERT OR REPLACE for SFDC field change sync
 	SourceFields      []MirrorSourceFieldInput `json:"sourceFields"`      // Optional, can be added later
 }
 
@@ -57,6 +59,7 @@ type MirrorUpdateInput struct {
 	UnmappedFieldMode *string                   `json:"unmappedFieldMode"`
 	RateLimit         *int                      `json:"rateLimit"`
 	IsActive          *bool                     `json:"isActive"`
+	UpsertMode        *bool                     `json:"upsertMode"`   // If provided, updates upsert_mode flag
 	SourceFields      *[]MirrorSourceFieldInput `json:"sourceFields"` // If provided, replaces all source fields (delete + re-insert)
 }
 

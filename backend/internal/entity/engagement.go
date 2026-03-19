@@ -320,3 +320,59 @@ type SFDCCDCCursor struct {
 	CreatedAt         time.Time  `json:"createdAt" db:"created_at"`
 	UpdatedAt         time.Time  `json:"updatedAt" db:"updated_at"`
 }
+
+// ---------------------------------------------------------------------------
+// SFDC Mirror Extension types (Migration 078)
+// ---------------------------------------------------------------------------
+
+// SFDC activity writeback status constants.
+const (
+	WritebackStatusPending   = "pending"
+	WritebackStatusSubmitted = "submitted"
+	WritebackStatusCompleted = "completed"
+	WritebackStatusFailed    = "failed"
+)
+
+// EnrollmentTrigger is a field-match rule that auto-enrolls a contact into a
+// sequence when a Mirror ingest promotes a record whose field value matches.
+type EnrollmentTrigger struct {
+	ID           string    `json:"id" db:"id"`
+	SequenceID   string    `json:"sequenceId" db:"sequence_id"`
+	OrgID        string    `json:"orgId" db:"org_id"`
+	TargetEntity string    `json:"targetEntity" db:"target_entity"`
+	FieldName    string    `json:"fieldName" db:"field_name"`
+	Operator     string    `json:"operator" db:"operator"`   // "eq" | "neq"
+	Value        string    `json:"value" db:"value"`
+	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt    time.Time `json:"updatedAt" db:"updated_at"`
+}
+
+// SFDCActivityWriteback queues a Salesforce Task write-back for a completed
+// sequence step execution. UNIQUE on step_execution_id prevents duplicates.
+type SFDCActivityWriteback struct {
+	ID              string    `json:"id" db:"id"`
+	OrgID           string    `json:"orgId" db:"org_id"`
+	StepExecutionID string    `json:"stepExecutionId" db:"step_execution_id"`
+	EnrollmentID    string    `json:"enrollmentId" db:"enrollment_id"`
+	ContactID       string    `json:"contactId" db:"contact_id"`
+	SFDCContactID   *string   `json:"sfdcContactId,omitempty" db:"sfdc_contact_id"`
+	Status          string    `json:"status" db:"status"`
+	SFDCTaskID      *string   `json:"sfdcTaskId,omitempty" db:"sfdc_task_id"`
+	BatchJobID      *string   `json:"batchJobId,omitempty" db:"batch_job_id"`
+	ErrorMessage    *string   `json:"errorMessage,omitempty" db:"error_message"`
+	CreatedAt       time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt       time.Time `json:"updatedAt" db:"updated_at"`
+}
+
+// MirrorSourceWatermark tracks the last successful ingest timestamp for a mirror.
+// Used by n8n to fetch only SFDC records changed since the last sync.
+// UNIQUE on (org_id, mirror_id) — one watermark per mirror per org.
+type MirrorSourceWatermark struct {
+	ID              string    `json:"id" db:"id"`
+	OrgID           string    `json:"orgId" db:"org_id"`
+	MirrorID        string    `json:"mirrorId" db:"mirror_id"`
+	LastIngestAt    *string   `json:"lastIngestAt,omitempty" db:"last_ingest_at"`
+	LastIngestCount int       `json:"lastIngestCount" db:"last_ingest_count"`
+	CreatedAt       time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt       time.Time `json:"updatedAt" db:"updated_at"`
+}

@@ -46,11 +46,15 @@ func (r *MirrorRepo) Create(ctx context.Context, tenantDB db.DBConn, orgID strin
 	defer tx.Rollback()
 
 	// Insert mirror
+	upsertModeInt := 0
+	if input.UpsertMode {
+		upsertModeInt = 1
+	}
 	now := time.Now().UTC()
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO mirrors (id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-	`, mirrorID, orgID, input.Name, input.TargetEntity, input.UniqueKeyField, unmappedFieldMode, rateLimit, now.Format(time.RFC3339), now.Format(time.RFC3339))
+		INSERT INTO mirrors (id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, upsert_mode, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+	`, mirrorID, orgID, input.Name, input.TargetEntity, input.UniqueKeyField, unmappedFieldMode, rateLimit, upsertModeInt, now.Format(time.RFC3339), now.Format(time.RFC3339))
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return nil, fmt.Errorf("no such table: mirrors")
@@ -116,6 +120,7 @@ func (r *MirrorRepo) Create(ctx context.Context, tenantDB db.DBConn, orgID strin
 		UnmappedFieldMode: unmappedFieldMode,
 		RateLimit:         rateLimit,
 		IsActive:          true,
+		UpsertMode:        input.UpsertMode,
 		SourceFields:      sourceFields,
 		CreatedAt:         now,
 		UpdatedAt:         now,
@@ -126,15 +131,15 @@ func (r *MirrorRepo) Create(ctx context.Context, tenantDB db.DBConn, orgID strin
 func (r *MirrorRepo) GetByID(ctx context.Context, tenantDB db.DBConn, orgID, mirrorID string) (*entity.Mirror, error) {
 	var mirror entity.Mirror
 	var createdAt, updatedAt string
-	var isActiveInt int
+	var isActiveInt, upsertModeInt int
 
 	err := tenantDB.QueryRowContext(ctx, `
-		SELECT id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, created_at, updated_at
+		SELECT id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, upsert_mode, created_at, updated_at
 		FROM mirrors
 		WHERE id = ? AND org_id = ?
 	`, mirrorID, orgID).Scan(
 		&mirror.ID, &mirror.OrgID, &mirror.Name, &mirror.TargetEntity, &mirror.UniqueKeyField,
-		&mirror.UnmappedFieldMode, &mirror.RateLimit, &isActiveInt, &createdAt, &updatedAt,
+		&mirror.UnmappedFieldMode, &mirror.RateLimit, &isActiveInt, &upsertModeInt, &createdAt, &updatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -144,6 +149,7 @@ func (r *MirrorRepo) GetByID(ctx context.Context, tenantDB db.DBConn, orgID, mir
 	}
 
 	mirror.IsActive = isActiveInt == 1
+	mirror.UpsertMode = upsertModeInt == 1
 	mirror.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	mirror.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 
@@ -199,7 +205,7 @@ func (r *MirrorRepo) getSourceFields(ctx context.Context, tenantDB db.DBConn, mi
 // ListByOrg retrieves all mirrors for an organization
 func (r *MirrorRepo) ListByOrg(ctx context.Context, tenantDB db.DBConn, orgID string) ([]*entity.Mirror, error) {
 	rows, err := tenantDB.QueryContext(ctx, `
-		SELECT id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, created_at, updated_at
+		SELECT id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, upsert_mode, created_at, updated_at
 		FROM mirrors
 		WHERE org_id = ?
 		ORDER BY created_at DESC
@@ -216,17 +222,18 @@ func (r *MirrorRepo) ListByOrg(ctx context.Context, tenantDB db.DBConn, orgID st
 	for rows.Next() {
 		var mirror entity.Mirror
 		var createdAt, updatedAt string
-		var isActiveInt int
+		var isActiveInt, upsertModeInt int
 
 		err := rows.Scan(
 			&mirror.ID, &mirror.OrgID, &mirror.Name, &mirror.TargetEntity, &mirror.UniqueKeyField,
-			&mirror.UnmappedFieldMode, &mirror.RateLimit, &isActiveInt, &createdAt, &updatedAt,
+			&mirror.UnmappedFieldMode, &mirror.RateLimit, &isActiveInt, &upsertModeInt, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		mirror.IsActive = isActiveInt == 1
+		mirror.UpsertMode = upsertModeInt == 1
 		mirror.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 		mirror.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 
@@ -276,6 +283,14 @@ func (r *MirrorRepo) Update(ctx context.Context, tenantDB db.DBConn, orgID, mirr
 		}
 		setClauses = append(setClauses, "is_active = ?")
 		args = append(args, isActiveInt)
+	}
+	if input.UpsertMode != nil {
+		upsertModeInt := 0
+		if *input.UpsertMode {
+			upsertModeInt = 1
+		}
+		setClauses = append(setClauses, "upsert_mode = ?")
+		args = append(args, upsertModeInt)
 	}
 
 	// Always update updated_at
@@ -367,15 +382,15 @@ func (r *MirrorRepo) Delete(ctx context.Context, tenantDB db.DBConn, orgID, mirr
 func (r *MirrorRepo) GetActiveByID(ctx context.Context, tenantDB db.DBConn, orgID, mirrorID string) (*entity.Mirror, error) {
 	var mirror entity.Mirror
 	var createdAt, updatedAt string
-	var isActiveInt int
+	var isActiveInt, upsertModeInt int
 
 	err := tenantDB.QueryRowContext(ctx, `
-		SELECT id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, created_at, updated_at
+		SELECT id, org_id, name, target_entity, unique_key_field, unmapped_field_mode, rate_limit, is_active, upsert_mode, created_at, updated_at
 		FROM mirrors
 		WHERE id = ? AND org_id = ? AND is_active = 1
 	`, mirrorID, orgID).Scan(
 		&mirror.ID, &mirror.OrgID, &mirror.Name, &mirror.TargetEntity, &mirror.UniqueKeyField,
-		&mirror.UnmappedFieldMode, &mirror.RateLimit, &isActiveInt, &createdAt, &updatedAt,
+		&mirror.UnmappedFieldMode, &mirror.RateLimit, &isActiveInt, &upsertModeInt, &createdAt, &updatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -385,6 +400,7 @@ func (r *MirrorRepo) GetActiveByID(ctx context.Context, tenantDB db.DBConn, orgI
 	}
 
 	mirror.IsActive = isActiveInt == 1
+	mirror.UpsertMode = upsertModeInt == 1
 	mirror.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	mirror.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 

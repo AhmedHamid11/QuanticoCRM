@@ -771,6 +771,122 @@ func (r *SequenceRepo) ListEnrollmentSteps(ctx context.Context, enrollmentID str
 	return execs, rows.Err()
 }
 
+// ========== Enrollment Triggers ==========
+
+// ListEnrollmentTriggersByEntity returns active enrollment triggers for the given
+// org and target entity. Only returns triggers whose sequence is currently active.
+func (r *SequenceRepo) ListEnrollmentTriggersByEntity(ctx context.Context, orgID, targetEntity string) ([]entity.EnrollmentTrigger, error) {
+	query := `
+		SELECT id, sequence_id, org_id, target_entity, field_name, operator, value, created_at, updated_at
+		FROM sequence_enrollment_triggers
+		WHERE org_id = ? AND target_entity = ?
+		  AND sequence_id IN (
+		      SELECT id FROM sequences WHERE org_id = ? AND status = 'active'
+		  )
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID, targetEntity, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var triggers []entity.EnrollmentTrigger
+	for rows.Next() {
+		t, err := scanEnrollmentTriggerRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		triggers = append(triggers, t)
+	}
+	return triggers, rows.Err()
+}
+
+// ListEnrollmentTriggersBySequence returns all enrollment triggers for a specific sequence.
+func (r *SequenceRepo) ListEnrollmentTriggersBySequence(ctx context.Context, sequenceID string) ([]entity.EnrollmentTrigger, error) {
+	query := `
+		SELECT id, sequence_id, org_id, target_entity, field_name, operator, value, created_at, updated_at
+		FROM sequence_enrollment_triggers
+		WHERE sequence_id = ?
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, sequenceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var triggers []entity.EnrollmentTrigger
+	for rows.Next() {
+		t, err := scanEnrollmentTriggerRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		triggers = append(triggers, t)
+	}
+	return triggers, rows.Err()
+}
+
+// CreateEnrollmentTrigger inserts a new enrollment trigger.
+func (r *SequenceRepo) CreateEnrollmentTrigger(ctx context.Context, t *entity.EnrollmentTrigger) error {
+	query := `
+		INSERT INTO sequence_enrollment_triggers
+		    (id, sequence_id, org_id, target_entity, field_name, operator, value,
+		     created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		t.ID, t.SequenceID, t.OrgID, t.TargetEntity, t.FieldName, t.Operator, t.Value,
+	)
+	return err
+}
+
+// DeleteEnrollmentTrigger removes an enrollment trigger by ID.
+func (r *SequenceRepo) DeleteEnrollmentTrigger(ctx context.Context, triggerID string) error {
+	_, err := r.db.ExecContext(ctx,
+		"DELETE FROM sequence_enrollment_triggers WHERE id = ?",
+		triggerID,
+	)
+	return err
+}
+
+// AddToOptOutList adds a contact to the opt-out list for the given channel and reason.
+// Uses INSERT OR IGNORE to be idempotent — silently skips if already opted out.
+func (r *SequenceRepo) AddToOptOutList(ctx context.Context, orgID, contactID, channel, reason string) error {
+	id := orgID + "_" + contactID + "_" + channel // deterministic ID for idempotency
+	_, err := r.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO opt_out_list (id, org_id, contact_id, channel, reason, opted_out_at, created_at)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, id, orgID, contactID, channel, reason)
+	return err
+}
+
+// scanEnrollmentTriggerRow scans a single EnrollmentTrigger from *sql.Rows.
+func scanEnrollmentTriggerRow(rows *sql.Rows) (entity.EnrollmentTrigger, error) {
+	var t entity.EnrollmentTrigger
+	var createdAt, updatedAt sql.NullString
+
+	err := rows.Scan(
+		&t.ID, &t.SequenceID, &t.OrgID, &t.TargetEntity,
+		&t.FieldName, &t.Operator, &t.Value,
+		&createdAt, &updatedAt,
+	)
+	if err != nil {
+		return t, err
+	}
+	if createdAt.Valid {
+		if ts, err := parseDBTime(createdAt.String); err == nil {
+			t.CreatedAt = ts
+		}
+	}
+	if updatedAt.Valid {
+		if ts, err := parseDBTime(updatedAt.String); err == nil {
+			t.UpdatedAt = ts
+		}
+	}
+	return t, nil
+}
+
 // ========== Helpers ==========
 
 // sanitizeFieldName converts a field name to its snake_case DB column equivalent,
