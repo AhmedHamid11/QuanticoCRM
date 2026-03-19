@@ -12,7 +12,22 @@
 	import type { RelatedListConfig } from '$lib/types/related-list';
 	import type { LayoutDataV3, LayoutV3Response } from '$lib/types/layout';
 
+	interface ActivityItem {
+		type: 'call' | 'sms';
+		occurredAt: string;
+		disposition?: string;
+		notes?: string;
+		direction?: 'inbound' | 'outbound';
+		body?: string;
+		sequenceName?: string | null;
+		source: 'sequence' | 'mirror';
+	}
+
 	let entityDef = $state<EntityDef | null>(null);
+	let activities = $state<ActivityItem[]>([]);
+	let activitiesLoading = $state(false);
+	let activityTimelineOpen = $state(true);
+	let expandedActivityBodies = $state<Set<number>>(new Set());
 
 	// System fields that exist as columns in the contacts table
 	const SYSTEM_FIELDS = new Set([
@@ -97,6 +112,9 @@
 			} catch {
 				layout = null;
 			}
+
+			// Load activity timeline (non-blocking)
+			loadActivity(contactId);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load contact';
 		} finally {
@@ -206,6 +224,51 @@
 		}
 	}
 
+	async function loadActivity(id: string) {
+		activitiesLoading = true;
+		try {
+			const result = await get<ActivityItem[]>(`/contacts/${id}/activity`);
+			activities = result ?? [];
+		} catch {
+			// Activity is non-critical; silently fail — empty state will render
+			activities = [];
+		} finally {
+			activitiesLoading = false;
+		}
+	}
+
+	function formatActivityTime(dateStr: string): string {
+		const d = new Date(dateStr);
+		const now = new Date();
+		const diffMs = now.getTime() - d.getTime();
+		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+		if (diffDays === 0) return 'Today at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		if (diffDays === 1) return 'Yesterday at ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		if (diffDays < 7) return `${diffDays} days ago`;
+		return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: diffDays > 365 ? 'numeric' : undefined });
+	}
+
+	function getDispositionColor(disposition: string | undefined): string {
+		switch (disposition) {
+			case 'Connected': return 'bg-green-100 text-green-800';
+			case 'Voicemail': return 'bg-gray-100 text-gray-700';
+			case 'No Answer': return 'bg-yellow-100 text-yellow-800';
+			case 'Wrong Number':
+			case 'Not Interested': return 'bg-red-100 text-red-800';
+			default: return 'bg-gray-100 text-gray-600';
+		}
+	}
+
+	function toggleActivityBody(index: number) {
+		const next = new Set(expandedActivityBodies);
+		if (next.has(index)) {
+			next.delete(index);
+		} else {
+			next.add(index);
+		}
+		expandedActivityBodies = next;
+	}
+
 	onMount(() => {
 		loadData();
 	});
@@ -310,5 +373,158 @@
 			<!-- Fallback: no layout loaded -->
 			<p class="text-gray-500 text-sm">Layout not available.</p>
 		{/if}
+
+		<!-- Activity Timeline -->
+		<div class="crm-card overflow-hidden">
+			<!-- Section header (collapsible) -->
+			<button
+				onclick={() => (activityTimelineOpen = !activityTimelineOpen)}
+				class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+			>
+				<div class="flex items-center gap-2">
+					<svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+					<h2 class="text-base font-medium text-gray-900">Activity Timeline</h2>
+					{#if !activitiesLoading}
+						<span class="text-xs text-gray-400 font-normal">({activities.length} item{activities.length !== 1 ? 's' : ''})</span>
+					{/if}
+				</div>
+				<svg
+					class="h-4 w-4 text-gray-400 transition-transform {activityTimelineOpen ? 'rotate-180' : ''}"
+					fill="none" viewBox="0 0 24 24" stroke="currentColor"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+
+			{#if activityTimelineOpen}
+				<div class="px-6 pb-6">
+					{#if activitiesLoading}
+						<div class="flex items-center gap-2 py-8 text-gray-400 justify-center">
+							<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+							</svg>
+							<span class="text-sm">Loading activity...</span>
+						</div>
+					{:else if activities.length === 0}
+						<div class="flex flex-col items-center py-10 text-gray-400">
+							<svg class="h-10 w-10 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+							</svg>
+							<p class="text-sm text-gray-500">No call or SMS activity yet</p>
+						</div>
+					{:else}
+						<!-- Timeline list -->
+						<div class="relative">
+							<!-- Vertical timeline line -->
+							<div class="absolute left-4 top-2 bottom-2 w-0.5 bg-gray-200" aria-hidden="true"></div>
+
+							<ul class="space-y-4">
+								{#each activities as activity, i}
+									{@const isBodyExpanded = expandedActivityBodies.has(i)}
+									<li class="relative pl-10">
+										<!-- Timeline dot / icon -->
+										<div class="absolute left-0 w-8 h-8 rounded-full {activity.type === 'call' ? 'bg-blue-100' : 'bg-purple-100'} flex items-center justify-center ring-2 ring-white">
+											{#if activity.type === 'call'}
+												<svg class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+												</svg>
+											{:else}
+												<svg class="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+												</svg>
+											{/if}
+										</div>
+
+										<!-- Activity card -->
+										<div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+											<div class="flex items-start justify-between gap-2 flex-wrap">
+												<div class="flex items-center gap-2 flex-wrap">
+													<!-- Type label -->
+													<span class="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+														{activity.type === 'call' ? 'Call' : 'SMS'}
+													</span>
+
+													<!-- Call: disposition badge -->
+													{#if activity.type === 'call' && activity.disposition}
+														<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {getDispositionColor(activity.disposition)}">
+															{activity.disposition}
+														</span>
+													{/if}
+
+													<!-- SMS: direction badge -->
+													{#if activity.type === 'sms' && activity.direction}
+														<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+															{#if activity.direction === 'outbound'}
+																<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+																</svg>
+																Outbound
+															{:else}
+																<svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+																</svg>
+																Inbound
+															{/if}
+														</span>
+													{/if}
+
+													<!-- Source: External badge for mirror-sourced -->
+													{#if activity.source === 'mirror'}
+														<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-orange-50 text-orange-700 border border-orange-200">
+															External
+														</span>
+													{/if}
+												</div>
+
+												<!-- Timestamp -->
+												<span class="text-xs text-gray-400 shrink-0">{formatActivityTime(activity.occurredAt)}</span>
+											</div>
+
+											<!-- Sequence name (if from sequence) -->
+											{#if activity.sequenceName}
+												<p class="text-xs text-gray-500 mt-1">via <span class="font-medium">{activity.sequenceName}</span></p>
+											{/if}
+
+											<!-- Call notes -->
+											{#if activity.type === 'call' && activity.notes}
+												<p class="text-sm text-gray-700 mt-1.5">{activity.notes}</p>
+											{/if}
+
+											<!-- SMS body (truncated with expand) -->
+											{#if activity.type === 'sms' && activity.body}
+												<div class="mt-1.5">
+													{#if activity.body.length > 100 && !isBodyExpanded}
+														<p class="text-sm text-gray-700">{activity.body.slice(0, 100)}<span class="text-gray-400">...</span></p>
+														<button
+															onclick={() => toggleActivityBody(i)}
+															class="text-xs text-blue-600 hover:underline mt-0.5"
+														>
+															Show more
+														</button>
+													{:else}
+														<p class="text-sm text-gray-700">{activity.body}</p>
+														{#if activity.body.length > 100}
+															<button
+																onclick={() => toggleActivityBody(i)}
+																class="text-xs text-blue-600 hover:underline mt-0.5"
+															>
+																Show less
+															</button>
+														{/if}
+													{/if}
+												</div>
+											{/if}
+										</div>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	{/if}
 </div>
