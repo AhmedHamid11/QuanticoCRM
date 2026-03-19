@@ -667,16 +667,13 @@
 				{/if}
 
 				<!-- Add Step button -->
-				<div class="mt-4 relative">
-					<button
-						onclick={() => (showAddStep = !showAddStep)}
-						class="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
-					>
-						+ Add Step
-					</button>
-
+				<div class="mt-4">
 					{#if showAddStep}
-						<div class="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+						<div class="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+							<div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+								<span class="text-xs font-medium text-gray-600">Select step type</span>
+								<button onclick={() => (showAddStep = false)} class="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+							</div>
 							{#each [['email', 'Email'], ['call', 'Call Task'], ['linkedin', 'LinkedIn Task'], ['custom', 'Custom Task']] as [type, label]}
 								<button
 									onclick={() => addStep(type)}
@@ -689,6 +686,13 @@
 								</button>
 							{/each}
 						</div>
+					{:else}
+						<button
+							onclick={() => (showAddStep = true)}
+							class="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+						>
+							+ Add Step
+						</button>
 					{/if}
 				</div>
 			</div>
