@@ -321,6 +321,69 @@
 		}
 	}
 
+	// Enrollment modal
+	interface ContactResult {
+		id: string;
+		firstName?: string;
+		lastName?: string;
+		emailAddress?: string;
+	}
+
+	let showEnrollModal = $state(false);
+	let enrollSearchQuery = $state('');
+	let enrollSearchResults = $state<ContactResult[]>([]);
+	let enrollSearching = $state(false);
+	let selectedContactIds = $state<Set<string>>(new Set());
+	let enrolling = $state(false);
+	let enrollResult = $state<{ enrolled: number; skipped: number } | null>(null);
+
+	let searchTimeout: ReturnType<typeof setTimeout>;
+	async function searchContacts(query: string) {
+		clearTimeout(searchTimeout);
+		if (!query.trim()) {
+			enrollSearchResults = [];
+			return;
+		}
+		searchTimeout = setTimeout(async () => {
+			enrollSearching = true;
+			try {
+				const result = await get<{ data: ContactResult[] }>(
+					`/contacts?search=${encodeURIComponent(query)}&pageSize=20`
+				);
+				enrollSearchResults = result.data ?? [];
+			} catch {
+				enrollSearchResults = [];
+			} finally {
+				enrollSearching = false;
+			}
+		}, 300);
+	}
+
+	async function enrollSelectedContacts() {
+		if (selectedContactIds.size === 0) return;
+		enrolling = true;
+		enrollResult = null;
+		try {
+			const result = await post<{ enrolled: number; skipped: number }>(
+				`/sequences/${sequenceId}/enroll-bulk`,
+				{ contactIds: Array.from(selectedContactIds) }
+			);
+			enrollResult = result;
+			selectedContactIds = new Set();
+			enrollSearchQuery = '';
+			enrollSearchResults = [];
+			toast.success(`Enrolled ${result.enrolled} contact${result.enrolled !== 1 ? 's' : ''}${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`);
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Enrollment failed');
+		} finally {
+			enrolling = false;
+		}
+	}
+
+	$effect(() => {
+		searchContacts(enrollSearchQuery);
+	});
+
 	onMount(() => {
 		loadData();
 	});
@@ -389,6 +452,12 @@
 					class="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50"
 				>
 					{pausing ? 'Pausing...' : 'Pause'}
+				</button>
+				<button
+					onclick={() => { showEnrollModal = true; enrollResult = null; }}
+					class="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
+				>
+					Enroll Contacts
 				</button>
 			{/if}
 		</div>
@@ -722,4 +791,97 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Enroll Contacts Modal -->
+	{#if showEnrollModal}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+		<div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+			<div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+				<h2 class="text-base font-semibold text-gray-900">Enroll Contacts</h2>
+				<button onclick={() => showEnrollModal = false} class="text-gray-400 hover:text-gray-600">
+					<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+					</svg>
+				</button>
+			</div>
+
+			<div class="px-5 pt-4">
+				<input
+					type="text"
+					bind:value={enrollSearchQuery}
+					placeholder="Search contacts by name or email..."
+					class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+					autofocus
+				/>
+			</div>
+
+			<div class="flex-1 overflow-y-auto px-5 py-3 min-h-0">
+				{#if enrollSearching}
+					<p class="text-sm text-gray-400 text-center py-4">Searching...</p>
+				{:else if enrollSearchResults.length === 0 && enrollSearchQuery.trim()}
+					<p class="text-sm text-gray-400 text-center py-4">No contacts found</p>
+				{:else if !enrollSearchQuery.trim()}
+					<p class="text-sm text-gray-400 text-center py-4">Type to search for contacts</p>
+				{:else}
+					<ul class="divide-y divide-gray-100">
+						{#each enrollSearchResults as contact (contact.id)}
+							<li class="flex items-center gap-3 py-2">
+								<input
+									type="checkbox"
+									id="contact-{contact.id}"
+									checked={selectedContactIds.has(contact.id)}
+									onchange={(e) => {
+										const next = new Set(selectedContactIds);
+										if ((e.target as HTMLInputElement).checked) {
+											next.add(contact.id);
+										} else {
+											next.delete(contact.id);
+										}
+										selectedContactIds = next;
+									}}
+									class="h-4 w-4 rounded border-gray-300 text-blue-600"
+								/>
+								<label for="contact-{contact.id}" class="flex-1 cursor-pointer">
+									<span class="text-sm font-medium text-gray-900">
+										{[contact.firstName, contact.lastName].filter(Boolean).join(' ') || '—'}
+									</span>
+									{#if contact.emailAddress}
+										<span class="text-xs text-gray-400 ml-2">{contact.emailAddress}</span>
+									{/if}
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				{#if enrollResult}
+					<div class="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
+						{enrollResult.enrolled} enrolled{enrollResult.skipped > 0 ? `, ${enrollResult.skipped} skipped (already enrolled)` : ''}
+					</div>
+				{/if}
+			</div>
+
+			<div class="px-5 py-4 border-t border-gray-200 flex items-center justify-between">
+				<span class="text-sm text-gray-500">
+					{selectedContactIds.size} selected
+				</span>
+				<div class="flex gap-2">
+					<button
+						onclick={() => showEnrollModal = false}
+						class="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+					>
+						Close
+					</button>
+					<button
+						onclick={enrollSelectedContacts}
+						disabled={selectedContactIds.size === 0 || enrolling}
+						class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						{enrolling ? 'Enrolling...' : `Enroll${selectedContactIds.size > 0 ? ` ${selectedContactIds.size}` : ''}`}
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	{/if}
 {/if}
