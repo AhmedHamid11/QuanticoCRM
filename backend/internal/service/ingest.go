@@ -16,11 +16,12 @@ import (
 
 // IngestService handles ingest pipeline processing
 type IngestService struct {
-	mirrorRepo   *repo.MirrorRepo
-	jobRepo      *repo.IngestJobRepo
-	deltaKeyRepo *repo.DeltaKeyRepo
-	metadataRepo *repo.MetadataRepo
-	defaultDB    db.DBConn
+	mirrorRepo       *repo.MirrorRepo
+	jobRepo          *repo.IngestJobRepo
+	deltaKeyRepo     *repo.DeltaKeyRepo
+	metadataRepo     *repo.MetadataRepo
+	defaultDB        db.DBConn
+	triggerEvaluator *MirrorTriggerEvaluator
 }
 
 // NewIngestService creates a new IngestService
@@ -38,6 +39,12 @@ func NewIngestService(
 		metadataRepo: metadataRepo,
 		defaultDB:    defaultDB,
 	}
+}
+
+// SetTriggerEvaluator wires the MirrorTriggerEvaluator to the IngestService.
+// This is a nil-safe optional wiring — if not called, trigger evaluation is skipped.
+func (s *IngestService) SetTriggerEvaluator(e *MirrorTriggerEvaluator) {
+	s.triggerEvaluator = e
 }
 
 // ProcessJob orchestrates the full ingest pipeline asynchronously
@@ -140,23 +147,30 @@ func (s *IngestService) ProcessJob(ctx context.Context, tenantDB db.DBConn, orgI
 		}
 	}
 
-	// Filter out records with existing unique keys (skipped)
+	// In upsert mode, process ALL valid records (new and existing).
+	// In normal mode, skip records whose unique key is already in the delta index.
 	netNewRecords := []validatedRecord{}
 	skippedCount := 0
-	for _, vr := range validRecords {
-		if existingKeys[vr.uniqueKey] {
-			skippedCount++
-		} else {
-			netNewRecords = append(netNewRecords, vr)
+	if mirror.UpsertMode {
+		// Upsert mode: all valid records are processed (INSERT OR REPLACE)
+		netNewRecords = validRecords
+		log.Printf("[INGEST-SERVICE] Upsert mode: processing all %d valid records", len(validRecords))
+	} else {
+		for _, vr := range validRecords {
+			if existingKeys[vr.uniqueKey] {
+				skippedCount++
+			} else {
+				netNewRecords = append(netNewRecords, vr)
+			}
 		}
+		log.Printf("[INGEST-SERVICE] Delta check: %d net-new, %d skipped (already ingested)", len(netNewRecords), skippedCount)
 	}
 
-	log.Printf("[INGEST-SERVICE] Delta check: %d net-new, %d skipped (already ingested)", len(netNewRecords), skippedCount)
-
-	// 7. Promote net-new records to entity tables
+	// 7. Promote records to entity tables
 	tableName := util.GetTableName(mirror.TargetEntity)
 	promotedCount := 0
 	deltaKeyEntries := []repo.DeltaKeyEntry{}
+	promotedFieldsByRecordID := make(map[string]map[string]interface{})
 
 	// Load entity field definitions for EnsureTableExists
 	entityFields, err := s.metadataRepo.ListFields(ctx, orgID, mirror.TargetEntity)
@@ -175,7 +189,7 @@ func (s *IngestService) ProcessJob(ctx context.Context, tenantDB db.DBConn, orgI
 	}
 
 	for _, vr := range netNewRecords {
-		recordID, err := s.promoteRecord(ctx, tenantDB, orgID, vr.record, fieldMapping, tableName)
+		recordID, err := s.promoteRecord(ctx, tenantDB, orgID, vr.record, fieldMapping, tableName, mirror.UpsertMode)
 		if err != nil {
 			log.Printf("[INGEST-SERVICE] Failed to promote record at index %d: %v", vr.index, err)
 			errors = append(errors, entity.RecordError{
@@ -188,15 +202,20 @@ func (s *IngestService) ProcessJob(ctx context.Context, tenantDB db.DBConn, orgI
 			continue
 		}
 
-		// Success - track for delta key insert
+		// Build promoted field map for trigger evaluation (target field names)
+		promotedFieldMap := buildPromotedFieldMap(vr.record, fieldMapping)
+
+		// Success - track for delta key insert and trigger evaluation
 		promotedCount++
 		deltaKeyEntries = append(deltaKeyEntries, repo.DeltaKeyEntry{
 			UniqueKey: vr.uniqueKey,
 			RecordID:  recordID,
 		})
+		// Store promoted fields alongside the recordID for trigger evaluation
+		promotedFieldsByRecordID[recordID] = promotedFieldMap
 	}
 
-	log.Printf("[INGEST-SERVICE] Promoted %d/%d net-new records", promotedCount, len(netNewRecords))
+	log.Printf("[INGEST-SERVICE] Promoted %d/%d records", promotedCount, len(netNewRecords))
 
 	// 8. Update delta key index
 	if len(deltaKeyEntries) > 0 {
@@ -204,6 +223,19 @@ func (s *IngestService) ProcessJob(ctx context.Context, tenantDB db.DBConn, orgI
 			log.Printf("[INGEST-SERVICE] Warning: failed to insert delta keys: %v", err)
 			// Don't fail the job - records were already promoted
 		}
+	}
+
+	// 8b. Evaluate enrollment/suppression triggers for promoted records
+	if s.triggerEvaluator != nil && len(deltaKeyEntries) > 0 {
+		for _, entry := range deltaKeyEntries {
+			fields := promotedFieldsByRecordID[entry.RecordID]
+			s.triggerEvaluator.EvaluateRecord(ctx, tenantDB, orgID, mirror.TargetEntity, entry.RecordID, fields)
+		}
+	}
+
+	// 8c. Update mirror source watermark
+	if promotedCount > 0 {
+		s.upsertWatermark(ctx, tenantDB, orgID, mirror.ID, promotedCount)
 	}
 
 	// 9. Set final job result
@@ -304,7 +336,8 @@ func (s *IngestService) validateRecord(
 	return uniqueKey, errors, warnings
 }
 
-// promoteRecord inserts a single record into the entity table
+// promoteRecord inserts (or replaces) a single record into the entity table.
+// When upsertMode=true, uses INSERT OR REPLACE so existing records are overwritten.
 // Returns: (recordID, error)
 func (s *IngestService) promoteRecord(
 	ctx context.Context,
@@ -313,6 +346,7 @@ func (s *IngestService) promoteRecord(
 	record map[string]interface{},
 	fieldMapping map[string]string,
 	tableName string,
+	upsertMode bool,
 ) (string, error) {
 	// Generate record ID
 	recordID := sfid.New("Rec")
@@ -333,20 +367,56 @@ func (s *IngestService) promoteRecord(
 		}
 	}
 
-	// Build INSERT statement
-	sql := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES (%s)",
+	// Build INSERT or INSERT OR REPLACE statement
+	insertKeyword := "INSERT"
+	if upsertMode {
+		insertKeyword = "INSERT OR REPLACE"
+	}
+	sqlStmt := fmt.Sprintf(
+		"%s INTO %s (%s) VALUES (%s)",
+		insertKeyword,
 		tableName,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 	)
 
-	_, err := tenantDB.ExecContext(ctx, sql, values...)
+	_, err := tenantDB.ExecContext(ctx, sqlStmt, values...)
 	if err != nil {
 		return "", fmt.Errorf("insert into %s: %w", tableName, err)
 	}
 
 	return recordID, nil
+}
+
+// buildPromotedFieldMap constructs a map of target field name -> value from a source record
+// using the field mapping. This ensures trigger evaluation uses target field names, not source names.
+func buildPromotedFieldMap(record map[string]interface{}, fieldMapping map[string]string) map[string]interface{} {
+	result := make(map[string]interface{}, len(fieldMapping))
+	for sourceField, targetField := range fieldMapping {
+		if val, exists := record[sourceField]; exists {
+			result[targetField] = val
+		}
+	}
+	return result
+}
+
+// upsertWatermark updates the mirror_source_watermarks table for a mirror after a successful ingest.
+// Uses INSERT ... ON CONFLICT DO UPDATE to atomically create-or-update the watermark row.
+func (s *IngestService) upsertWatermark(ctx context.Context, tenantDB db.DBConn, orgID, mirrorID string, promotedCount int) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	watermarkID := orgID + "_" + mirrorID // deterministic ID for idempotency
+	_, err := tenantDB.ExecContext(ctx, `
+		INSERT INTO mirror_source_watermarks
+		    (id, org_id, mirror_id, last_ingest_at, last_ingest_count, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(org_id, mirror_id) DO UPDATE SET
+		    last_ingest_at    = excluded.last_ingest_at,
+		    last_ingest_count = excluded.last_ingest_count,
+		    updated_at        = excluded.updated_at
+	`, watermarkID, orgID, mirrorID, now, promotedCount, now, now)
+	if err != nil {
+		log.Printf("[INGEST-SERVICE] Warning: failed to upsert watermark for mirror %s: %v", mirrorID, err)
+	}
 }
 
 // setJobFailed is a helper to set a job to failed status with an error message
