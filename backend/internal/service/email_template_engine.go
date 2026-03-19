@@ -10,11 +10,13 @@ import (
 
 // TemplateEngine is a stateless regex-based email template renderer.
 // It is safe for concurrent use — all state is in compiled regexes held at construction time.
+// TrackingService is optional — if nil, InjectTracking is a no-op passthrough.
 type TemplateEngine struct {
 	conditionalRe        *regexp.Regexp
 	conditionalNoElseRe  *regexp.Regexp
 	variableWithFallback *regexp.Regexp
 	variableRe           *regexp.Regexp
+	trackingService      *TrackingService
 }
 
 // NewTemplateEngine compiles all regex patterns once and returns a ready-to-use TemplateEngine.
@@ -105,6 +107,21 @@ func (e *TemplateEngine) RenderTemplate(tmpl *entity.EmailTemplate, vars map[str
 	subject := e.Render(tmpl.Subject, vars)
 	bodyHTML := e.Render(tmpl.BodyHTML, vars)
 	return subject, bodyHTML
+}
+
+// SetTrackingService attaches a TrackingService so InjectTracking can rewrite links and
+// append the tracking pixel. Call this at startup after both services are constructed.
+func (e *TemplateEngine) SetTrackingService(ts *TrackingService) {
+	e.trackingService = ts
+}
+
+// InjectTracking rewrites all links in bodyHTML with tracking redirect URLs and appends
+// a 1x1 tracking pixel. If no TrackingService is configured this is a passthrough.
+func (e *TemplateEngine) InjectTracking(bodyHTML, orgID, enrollmentID, stepExecID string) string {
+	if e.trackingService == nil {
+		return bodyHTML
+	}
+	return e.trackingService.InjectTracking(bodyHTML, orgID, enrollmentID, stepExecID)
 }
 
 // ContactToTemplateVars converts a contact record (from the generic entity handler format,

@@ -328,6 +328,9 @@ func (s *SequenceScheduler) dispatchEmailStep(
 	// 4. Render
 	subject, bodyHTML := s.templateEngine.RenderTemplate(tmpl, vars)
 
+	// 4b. Inject tracking pixel and rewrite links (non-blocking — uses EventBuffer)
+	bodyHTML = s.templateEngine.InjectTracking(bodyHTML, orgID, enrollment.ID, exec.ID)
+
 	// 5. Get sender info (gmail address for the enrolledBy user)
 	_, oauthToken, err := s.gmailOAuth.GetHTTPClient(ctx, orgID, enrollment.EnrolledBy)
 	if err != nil {
