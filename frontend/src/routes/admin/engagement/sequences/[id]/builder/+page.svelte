@@ -202,6 +202,21 @@
 		}
 	}
 
+	let pausing = $state(false);
+	async function pauseSequence() {
+		if (!sequence) return;
+		pausing = true;
+		try {
+			await post(`/sequences/${sequenceId}/pause`, {});
+			sequence = { ...sequence, status: 'paused' };
+			toast.success('Sequence paused');
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to pause sequence');
+		} finally {
+			pausing = false;
+		}
+	}
+
 	async function addStep(stepType: string) {
 		showAddStep = false;
 		const maxStep = steps.length > 0 ? Math.max(...steps.map((s) => s.stepNumber)) : 0;
@@ -357,7 +372,7 @@
 			>
 				{saving ? 'Saving...' : 'Save'}
 			</button>
-			{#if sequence.status === 'draft'}
+			{#if sequence.status === 'draft' || sequence.status === 'paused'}
 				<button
 					onclick={activateSequence}
 					disabled={activating || steps.length === 0}
@@ -365,6 +380,15 @@
 					title={steps.length === 0 ? 'Add at least one step before activating' : ''}
 				>
 					{activating ? 'Activating...' : 'Activate'}
+				</button>
+			{/if}
+			{#if sequence.status === 'active'}
+				<button
+					onclick={pauseSequence}
+					disabled={pausing}
+					class="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50"
+				>
+					{pausing ? 'Pausing...' : 'Pause'}
 				</button>
 			{/if}
 		</div>
