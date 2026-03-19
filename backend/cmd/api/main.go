@@ -19,6 +19,7 @@ import (
 	"github.com/fastcrm/backend/internal/service"
 	"github.com/fastcrm/backend/internal/turso"
 	"github.com/fastcrm/backend/internal/util"
+	"github.com/go-co-op/gocron/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -429,6 +430,41 @@ func main() {
 		return dbManager.GetTenantDB(ctx, orgID, "", "")
 	})
 	gmailHandler.SetWarmupScheduler(warmupScheduler)
+
+	// Schedule daily warmup maintenance (reset counts + advance levels) at midnight UTC.
+	// Runs for all orgs that have tenant DBs — iterates from dbManager's registered orgs.
+	warmupCronScheduler, warmupCronErr := gocron.NewScheduler()
+	if warmupCronErr != nil {
+		log.Printf("Warning: Failed to create warmup cron scheduler: %v", warmupCronErr)
+	} else {
+		_, warmupJobErr := warmupCronScheduler.NewJob(
+			gocron.DurationJob(24*time.Hour),
+			gocron.NewTask(func() {
+				ctx := context.Background()
+				// Get all registered orgs and run maintenance for each
+				orgsResult, orgErr := authRepo.ListOrganizations(ctx, 1, 10000) // get all orgs
+				if orgErr != nil {
+					log.Printf("[WarmupScheduler] Failed to list orgs for daily maintenance: %v", orgErr)
+					return
+				}
+				for _, org := range orgsResult.Data {
+					warmupScheduler.RunDailyMaintenance(ctx, org.ID)
+				}
+			}),
+			gocron.WithName("warmup-daily-maintenance"),
+		)
+		if warmupJobErr != nil {
+			log.Printf("Warning: Failed to schedule warmup daily job: %v", warmupJobErr)
+		} else {
+			warmupCronScheduler.Start()
+			log.Println("Warmup daily maintenance scheduler started (24h interval)")
+			defer func() {
+				if shutdownErr := warmupCronScheduler.Shutdown(); shutdownErr != nil {
+					log.Printf("Warning: Warmup scheduler shutdown error: %v", shutdownErr)
+				}
+			}()
+		}
+	}
 
 	// Initialize BounceHandler for bounce processing
 	bounceHandler := service.NewBounceHandler(
