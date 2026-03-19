@@ -37,6 +37,10 @@ type SequenceScheduler struct {
 	abService      *ABService
 	baseURL        string // used for building unsubscribe links in compliance footer
 
+	// activityWriteback queues SFDC Task write-backs after email step completion.
+	// Nil-safe: wired at startup via SetActivityWriteback.
+	activityWriteback *SFDCActivityWritebackService
+
 	// orgDBs maps orgID -> *sql.DB for tenant DBs registered at startup or via RegisterOrgDB.
 	orgDBs map[string]*sql.DB
 	orgMu  sync.RWMutex
@@ -98,6 +102,11 @@ func (s *SequenceScheduler) SetBounceHandler(bh *BounceHandler) {
 // SetWarmupScheduler wires in the WarmupScheduler for daily limit enforcement.
 func (s *SequenceScheduler) SetWarmupScheduler(ws *WarmupScheduler) {
 	s.warmupSched = ws
+}
+
+// SetActivityWriteback wires in the SFDCActivityWritebackService for post-step write-backs.
+func (s *SequenceScheduler) SetActivityWriteback(wb *SFDCActivityWritebackService) {
+	s.activityWriteback = wb
 }
 
 // RegisterOrgDB registers a tenant DB for an org, and ensures a polling job exists.
@@ -510,6 +519,11 @@ func (s *SequenceScheduler) dispatchEmailStep(
 	// 8. Schedule next step (or finish enrollment if last step)
 	if err := s.scheduleNextStep(ctx, enrollment, step, tenantRepo, allSteps, now); err != nil {
 		log.Printf("[SequenceScheduler] scheduleNextStep failed for exec %s: %v", exec.ID, err)
+	}
+
+	// 9. Queue SFDC activity write-back for completed email step (Phase 36-02)
+	if s.activityWriteback != nil {
+		s.activityWriteback.QueueWriteback(ctx, tenantDB, orgID, exec, step, enrollment)
 	}
 
 	return nil

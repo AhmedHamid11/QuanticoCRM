@@ -861,6 +861,139 @@ func (r *SequenceRepo) AddToOptOutList(ctx context.Context, orgID, contactID, ch
 	return err
 }
 
+// ========== SFDC Activity Writeback Repo Methods (Phase 36-02) ==========
+
+// CreateWriteback inserts a new SFDCActivityWriteback row.
+func (r *SequenceRepo) CreateWriteback(ctx context.Context, wb *entity.SFDCActivityWriteback) error {
+	query := `
+		INSERT INTO sfdc_activity_writebacks
+		    (id, org_id, step_execution_id, enrollment_id, contact_id, sfdc_contact_id,
+		     status, sfdc_task_id, batch_job_id, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		wb.ID, wb.OrgID, wb.StepExecutionID, wb.EnrollmentID, wb.ContactID,
+		wb.SFDCContactID, wb.Status, wb.SFDCTaskID, wb.BatchJobID, wb.ErrorMessage,
+	)
+	return err
+}
+
+// ListPendingWritebacks returns pending writebacks for an org, ordered by created_at, up to limit.
+func (r *SequenceRepo) ListPendingWritebacks(ctx context.Context, orgID string, limit int) ([]entity.SFDCActivityWriteback, error) {
+	query := `
+		SELECT id, org_id, step_execution_id, enrollment_id, contact_id, sfdc_contact_id,
+		       status, sfdc_task_id, batch_job_id, error_message, created_at, updated_at
+		FROM sfdc_activity_writebacks
+		WHERE org_id = ? AND status = 'pending'
+		ORDER BY created_at ASC
+		LIMIT ?
+	`
+	rows, err := r.db.QueryContext(ctx, query, orgID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var wbs []entity.SFDCActivityWriteback
+	for rows.Next() {
+		wb, scanErr := scanWritebackRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		wbs = append(wbs, wb)
+	}
+	return wbs, rows.Err()
+}
+
+// UpdateWritebackStatus updates the status (and optional fields) of a writeback row.
+func (r *SequenceRepo) UpdateWritebackStatus(ctx context.Context, id, status string, batchJobID, sfdcTaskID, errorMessage *string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE sfdc_activity_writebacks
+		   SET status = ?, batch_job_id = ?, sfdc_task_id = ?, error_message = ?,
+		       updated_at = CURRENT_TIMESTAMP
+		 WHERE id = ?
+	`, status, batchJobID, sfdcTaskID, errorMessage, id)
+	return err
+}
+
+// GetWatermark retrieves the mirror source watermark for a given org and mirror.
+// Returns nil (not error) when no watermark exists yet.
+func (r *SequenceRepo) GetWatermark(ctx context.Context, orgID, mirrorID string) (*entity.MirrorSourceWatermark, error) {
+	query := `
+		SELECT id, org_id, mirror_id, last_ingest_at, last_ingest_count, created_at, updated_at
+		FROM mirror_source_watermarks
+		WHERE org_id = ? AND mirror_id = ?
+	`
+	row := r.db.QueryRowContext(ctx, query, orgID, mirrorID)
+	var w entity.MirrorSourceWatermark
+	var lastIngestAt sql.NullString
+	var createdAt, updatedAt sql.NullString
+
+	err := row.Scan(
+		&w.ID, &w.OrgID, &w.MirrorID, &lastIngestAt, &w.LastIngestCount,
+		&createdAt, &updatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if lastIngestAt.Valid {
+		w.LastIngestAt = &lastIngestAt.String
+	}
+	if createdAt.Valid {
+		if ts, parseErr := parseDBTime(createdAt.String); parseErr == nil {
+			w.CreatedAt = ts
+		}
+	}
+	if updatedAt.Valid {
+		if ts, parseErr := parseDBTime(updatedAt.String); parseErr == nil {
+			w.UpdatedAt = ts
+		}
+	}
+	return &w, nil
+}
+
+// scanWritebackRow scans a single SFDCActivityWriteback from *sql.Rows.
+func scanWritebackRow(rows *sql.Rows) (entity.SFDCActivityWriteback, error) {
+	var wb entity.SFDCActivityWriteback
+	var sfdcContactID, sfdcTaskID, batchJobID, errorMessage sql.NullString
+	var createdAt, updatedAt sql.NullString
+
+	err := rows.Scan(
+		&wb.ID, &wb.OrgID, &wb.StepExecutionID, &wb.EnrollmentID, &wb.ContactID,
+		&sfdcContactID, &wb.Status, &sfdcTaskID, &batchJobID, &errorMessage,
+		&createdAt, &updatedAt,
+	)
+	if err != nil {
+		return wb, err
+	}
+	if sfdcContactID.Valid {
+		wb.SFDCContactID = &sfdcContactID.String
+	}
+	if sfdcTaskID.Valid {
+		wb.SFDCTaskID = &sfdcTaskID.String
+	}
+	if batchJobID.Valid {
+		wb.BatchJobID = &batchJobID.String
+	}
+	if errorMessage.Valid {
+		wb.ErrorMessage = &errorMessage.String
+	}
+	if createdAt.Valid {
+		if ts, parseErr := parseDBTime(createdAt.String); parseErr == nil {
+			wb.CreatedAt = ts
+		}
+	}
+	if updatedAt.Valid {
+		if ts, parseErr := parseDBTime(updatedAt.String); parseErr == nil {
+			wb.UpdatedAt = ts
+		}
+	}
+	return wb, nil
+}
+
 // scanEnrollmentTriggerRow scans a single EnrollmentTrigger from *sql.Rows.
 func scanEnrollmentTriggerRow(rows *sql.Rows) (entity.EnrollmentTrigger, error) {
 	var t entity.EnrollmentTrigger
