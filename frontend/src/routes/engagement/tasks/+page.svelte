@@ -18,6 +18,7 @@
 		EnrollmentID: string;
 		LastOpenAt?: string;
 		LastReplyAt?: string;
+		SmsOptedOut?: boolean;
 	}
 
 	interface StepConfig {
@@ -27,7 +28,11 @@
 		description?: string;
 		continueWithoutCompleting?: boolean;
 		linkedinUrl?: string;
+		body?: string;
 	}
+
+	const CALL_DISPOSITIONS = ['Connected', 'Voicemail', 'No Answer', 'Wrong Number', 'Not Interested'] as const;
+	type CallDisposition = typeof CALL_DISPOSITIONS[number];
 
 	let tasks = $state<TaskView[]>([]);
 	let loading = $state(true);
@@ -37,6 +42,12 @@
 	let rescheduleTarget = $state<string | null>(null);
 	let rescheduleDate = $state('');
 	let refreshInterval: ReturnType<typeof setInterval> | null = null;
+
+	// Disposition picker state
+	let dispositionTarget = $state<string | null>(null);
+	let selectedDisposition = $state<CallDisposition | null>(null);
+	let dispositionNotes = $state('');
+	let dispositionContactId = $state<string | null>(null);
 
 	function parseConfig(task: TaskView): StepConfig {
 		if (!task.ConfigJSON) return {};
@@ -70,6 +81,7 @@
 		}
 		const labels: Record<string, string> = {
 			call: 'Call Task',
+			sms: 'SMS Task',
 			linkedin: 'LinkedIn Task',
 			custom: 'Custom Task'
 		};
@@ -101,6 +113,7 @@
 	function getStepTypeIcon(stepType: string): string {
 		switch (stepType) {
 			case 'call': return 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z';
+			case 'sms': return 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z';
 			case 'linkedin': return 'M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z M4 6a2 2 0 100-4 2 2 0 000 4z';
 			default: return 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2';
 		}
@@ -119,6 +132,36 @@
 		}
 	}
 
+	// Opens the disposition picker for call tasks
+	function openDispositionPicker(task: TaskView) {
+		dispositionTarget = task.ExecutionID;
+		dispositionContactId = task.ContactID;
+		selectedDisposition = null;
+		dispositionNotes = '';
+	}
+
+	// Submits a call task completion with disposition
+	async function submitCallComplete() {
+		if (!dispositionTarget || !selectedDisposition) return;
+		const execId = dispositionTarget;
+		actionInProgress = execId;
+		try {
+			await post(`/engagement/tasks/${execId}/complete`, {
+				disposition: selectedDisposition,
+				notes: dispositionNotes || undefined,
+				contactId: dispositionContactId || undefined
+			});
+			tasks = tasks.filter((t) => t.ExecutionID !== execId);
+			toast.success('Call logged successfully');
+			dispositionTarget = null;
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to complete task');
+		} finally {
+			actionInProgress = null;
+		}
+	}
+
+	// Completes non-call tasks without disposition
 	async function completeTask(execId: string) {
 		actionInProgress = execId;
 		try {
@@ -234,6 +277,7 @@
 				{@const dueInfo = getRelativeDueDate(task.ScheduledAt)}
 				{@const isExpanded = expandedRows.has(task.ExecutionID)}
 				{@const isBusy = actionInProgress === task.ExecutionID}
+				{@const isSmsBlocked = task.StepType === 'sms' && task.SmsOptedOut}
 
 				<div class="group">
 					<!-- Main row -->
@@ -242,8 +286,8 @@
 						onclick={() => toggleRow(task.ExecutionID)}
 					>
 						<!-- Step type icon -->
-						<div class="shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-							<svg class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<div class="shrink-0 w-8 h-8 rounded-full {task.StepType === 'sms' ? 'bg-purple-100' : 'bg-blue-100'} flex items-center justify-center">
+							<svg class="h-4 w-4 {task.StepType === 'sms' ? 'text-purple-600' : 'text-blue-600'}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getStepTypeIcon(task.StepType)} />
 							</svg>
 						</div>
@@ -260,6 +304,11 @@
 								</a>
 								<span class="text-xs text-gray-400">|</span>
 								<span class="text-xs font-medium text-gray-600">{getTaskLabel(task)}</span>
+								{#if isSmsBlocked}
+									<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800 font-medium">
+										SMS Opted Out
+									</span>
+								{/if}
 								{#if task.LastOpenAt}
 									<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 text-blue-600 font-medium">
 										Opened email
@@ -282,23 +331,25 @@
 
 						<!-- Action buttons -->
 						<div class="flex items-center gap-1.5 shrink-0" onclick={(e) => e.stopPropagation()}>
-							<!-- Complete -->
-							<button
-								onclick={() => completeTask(task.ExecutionID)}
-								disabled={isBusy}
-								title="Mark complete"
-								class="p-1.5 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
-							>
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-								</svg>
-							</button>
+							<!-- Complete: call tasks open picker, SMS blocked tasks hide it, others complete directly -->
+							{#if !isSmsBlocked}
+								<button
+									onclick={() => task.StepType === 'call' ? openDispositionPicker(task) : completeTask(task.ExecutionID)}
+									disabled={isBusy}
+									title={task.StepType === 'call' ? 'Log call disposition' : 'Mark complete'}
+									class="p-1.5 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
+								>
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+									</svg>
+								</button>
+							{/if}
 							<!-- Skip -->
 							<button
 								onclick={() => skipTask(task.ExecutionID)}
 								disabled={isBusy}
-								title="Skip task"
-								class="p-1.5 rounded text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 transition-colors disabled:opacity-50"
+								title={isSmsBlocked ? 'Skip to advance sequence' : 'Skip task'}
+								class="p-1.5 rounded {isSmsBlocked ? 'text-yellow-600 bg-yellow-50 hover:bg-yellow-100' : 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'} transition-colors disabled:opacity-50"
 							>
 								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
@@ -317,6 +368,18 @@
 							</button>
 						</div>
 					</div>
+
+					<!-- SMS opt-out blocking banner -->
+					{#if isSmsBlocked}
+						<div class="px-4 py-2 bg-yellow-50 border-t border-yellow-100 flex items-center gap-2">
+							<svg class="h-4 w-4 text-yellow-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+							</svg>
+							<p class="text-xs text-yellow-800">
+								Contact has opted out of SMS. You can skip this task to advance the sequence.
+							</p>
+						</div>
+					{/if}
 
 					<!-- Expanded detail row -->
 					{#if isExpanded}
@@ -339,6 +402,26 @@
 										<div>
 											<span class="text-xs font-medium text-gray-500">Script:</span>
 											<p class="text-sm text-gray-700 mt-1 p-2 bg-white rounded border border-gray-200 whitespace-pre-wrap">{config.script}</p>
+										</div>
+									{/if}
+								</div>
+
+							{:else if task.StepType === 'sms'}
+								<div class="space-y-2">
+									{#if task.ContactPhone}
+										<div>
+											<span class="text-xs font-medium text-gray-500">Send to:</span>
+											<a href="tel:{task.ContactPhone}" class="text-sm text-blue-600 hover:underline ml-1 font-medium">{task.ContactPhone}</a>
+										</div>
+									{:else}
+										<div>
+											<span class="text-xs text-gray-400 italic">No phone number on file</span>
+										</div>
+									{/if}
+									{#if config.body}
+										<div>
+											<span class="text-xs font-medium text-gray-500">Message:</span>
+											<p class="text-sm text-gray-700 mt-1 p-2 bg-white rounded border border-gray-200 whitespace-pre-wrap">{config.body}</p>
 										</div>
 									{/if}
 								</div>
@@ -411,6 +494,73 @@
 					class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					Reschedule
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Call disposition picker modal -->
+{#if dispositionTarget}
+	<div
+		class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
+		onclick={() => (dispositionTarget = null)}
+		role="dialog"
+		aria-modal="true"
+		aria-label="Log call disposition"
+	>
+		<div
+			class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6"
+			onclick={(e) => e.stopPropagation()}
+			role="presentation"
+		>
+			<h2 class="text-lg font-semibold text-gray-900 mb-1">Log Call Outcome</h2>
+			<p class="text-sm text-gray-500 mb-4">Select what happened on this call before completing the task.</p>
+
+			<!-- Disposition options -->
+			<div class="grid grid-cols-1 gap-2 mb-4">
+				{#each CALL_DISPOSITIONS as disposition}
+					{@const isSelected = selectedDisposition === disposition}
+					<button
+						onclick={() => (selectedDisposition = disposition)}
+						class="flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors {isSelected
+							? 'border-blue-500 bg-blue-50 text-blue-900'
+							: 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700'}"
+					>
+						<div class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center {isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}">
+							{#if isSelected}
+								<div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+							{/if}
+						</div>
+						<span class="text-sm font-medium">{disposition}</span>
+					</button>
+				{/each}
+			</div>
+
+			<!-- Notes -->
+			<div class="mb-5">
+				<label class="block text-sm font-medium text-gray-700 mb-1">Notes <span class="text-gray-400 font-normal">(optional)</span></label>
+				<textarea
+					bind:value={dispositionNotes}
+					rows="2"
+					placeholder="e.g. Left voicemail, will call back Thursday..."
+					class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+				></textarea>
+			</div>
+
+			<div class="flex justify-end gap-2">
+				<button
+					onclick={() => (dispositionTarget = null)}
+					class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={submitCallComplete}
+					disabled={!selectedDisposition || actionInProgress === dispositionTarget}
+					class="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					{actionInProgress === dispositionTarget ? 'Saving...' : 'Complete Call'}
 				</button>
 			</div>
 		</div>
