@@ -420,7 +420,7 @@
 			<input
 				type="text"
 				bind:value={localName}
-				class="text-lg font-semibold text-gray-900 border-0 focus:ring-0 focus:outline-none bg-transparent min-w-0 w-64"
+				class="text-lg font-semibold text-gray-900 border-0 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:ring-0 focus:outline-none bg-transparent min-w-0 w-64 transition-colors"
 				placeholder="Sequence name"
 			/>
 			<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {sequence.status === 'active' ? 'bg-green-100 text-green-700' : sequence.status === 'paused' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}">

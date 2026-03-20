@@ -50,6 +50,52 @@
 	let saveMode = $state<'new' | 'update'>('new');
 	let viewToUpdate = $state<ListView | null>(null);
 
+	// Bulk enrollment state
+	let selectedContactIds = $state<Set<string>>(new Set());
+	let showEnrollModal = $state(false);
+	let sequences = $state<Array<{id: string; name: string; status: string}>>([]);
+	let selectedSequenceId = $state('');
+	let enrolling = $state(false);
+
+	function toggleContact(id: string) {
+		const next = new Set(selectedContactIds);
+		if (next.has(id)) next.delete(id); else next.add(id);
+		selectedContactIds = next;
+	}
+
+	function toggleAll() {
+		if (selectedContactIds.size === contacts.length) {
+			selectedContactIds = new Set();
+		} else {
+			selectedContactIds = new Set(contacts.map(c => c.id));
+		}
+	}
+
+	async function openEnrollModal() {
+		try {
+			sequences = await get<Array<{id: string; name: string; status: string}>>('/sequences');
+		} catch { sequences = []; }
+		selectedSequenceId = '';
+		showEnrollModal = true;
+	}
+
+	async function enrollSelected() {
+		if (!selectedSequenceId || selectedContactIds.size === 0) return;
+		enrolling = true;
+		try {
+			const res = await post(`/sequences/${selectedSequenceId}/enroll-bulk`, {
+				contactIds: Array.from(selectedContactIds)
+			});
+			toast.success(`Enrolled ${selectedContactIds.size} contact(s)`);
+			selectedContactIds = new Set();
+			showEnrollModal = false;
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Enrollment failed');
+		} finally {
+			enrolling = false;
+		}
+	}
+
 	async function loadListViews() {
 		try {
 			listViews = await get<ListView[]>(`/list-views/Contact`);
@@ -484,10 +530,26 @@
 			{/if}
 		</div>
 	{:else}
+		{#if selectedContactIds.size > 0}
+			<div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-3 flex items-center justify-between">
+				<span class="text-sm text-blue-800 font-medium">{selectedContactIds.size} contact(s) selected</span>
+				<div class="flex items-center gap-2">
+					<button onclick={openEnrollModal} class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+						Add to Sequence
+					</button>
+					<button onclick={() => { selectedContactIds = new Set(); }} class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800">
+						Clear
+					</button>
+				</div>
+			</div>
+		{/if}
 		<div class="crm-card overflow-hidden">
 			<table class="min-w-full divide-y divide-gray-200">
 				<thead class="bg-gray-50">
 					<tr>
+						<th class="px-3 py-3 w-10">
+							<input type="checkbox" checked={selectedContactIds.size === contacts.length && contacts.length > 0} onchange={toggleAll} class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+						</th>
 						<th
 							class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
 							onclick={() => handleSort('first_name')}
@@ -526,6 +588,9 @@
 				<tbody class="divide-y divide-gray-200">
 					{#each contacts as contact (contact.id)}
 						<tr class="hover:bg-gray-50">
+							<td class="px-3 py-4 w-10">
+								<input type="checkbox" checked={selectedContactIds.has(contact.id)} onchange={() => toggleContact(contact.id)} class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+							</td>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<a href="/contacts/{contact.id}" class="text-blue-600 hover:underline font-medium">
 									{getFullName(contact)}
@@ -737,6 +802,36 @@
 					class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
 				>
 					Close
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showEnrollModal}
+	<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={() => showEnrollModal = false}>
+		<div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-lg font-semibold text-gray-900 mb-4">Add to Sequence</h3>
+			<p class="text-sm text-gray-600 mb-4">Enroll {selectedContactIds.size} contact(s) in a sequence.</p>
+			<select bind:value={selectedSequenceId} class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 mb-4">
+				<option value="">-- Select a sequence --</option>
+				{#each sequences.filter(s => s.status === 'active') as seq}
+					<option value={seq.id}>{seq.name}</option>
+				{/each}
+			</select>
+			{#if sequences.filter(s => s.status === 'active').length === 0}
+				<p class="text-sm text-yellow-600 mb-4">No active sequences found. Activate a sequence first.</p>
+			{/if}
+			<div class="flex justify-end gap-3">
+				<button onclick={() => showEnrollModal = false} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">
+					Cancel
+				</button>
+				<button
+					onclick={enrollSelected}
+					disabled={!selectedSequenceId || enrolling}
+					class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					{enrolling ? 'Enrolling...' : 'Enroll'}
 				</button>
 			</div>
 		</div>
