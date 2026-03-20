@@ -70,9 +70,11 @@ func (s *PdfTemplateService) RenderQuoteHTML(ctx context.Context, orgID, quoteID
 	}
 
 	// Build section/field enabled maps
+	// When no template sections are configured, default everything to enabled
+	hasSections := pdfCtx.Sections != nil && len(pdfCtx.Sections) > 0
 	sectionEnabled := make(map[string]bool)
 	fieldEnabled := make(map[string]map[string]bool)
-	if pdfCtx.Sections != nil {
+	if hasSections {
 		for _, sec := range pdfCtx.Sections {
 			sectionEnabled[sec.ID] = sec.Enabled
 			fm := make(map[string]bool)
@@ -86,10 +88,16 @@ func (s *PdfTemplateService) RenderQuoteHTML(ctx context.Context, orgID, quoteID
 	// Parse and execute template
 	funcMap := template.FuncMap{
 		"sectionEnabled": func(sectionID string) bool {
+			if !hasSections {
+				return true // No template = show all sections
+			}
 			enabled, ok := sectionEnabled[sectionID]
 			return ok && enabled
 		},
 		"fieldEnabled": func(sectionID, fieldName string) bool {
+			if !hasSections {
+				return true // No template = show all fields
+			}
 			sec, ok := fieldEnabled[sectionID]
 			if !ok {
 				return false
