@@ -4,6 +4,15 @@
 	import { auth, authFetch, impersonate } from '$lib/stores/auth.svelte';
 
 	// Types
+	interface FeatureStatus {
+		key: string;
+		label: string;
+		description: string;
+		enabled: boolean;
+		enabledAt?: string;
+		enabledBy?: string;
+	}
+
 	interface Organization {
 		id: string;
 		name: string;
@@ -38,6 +47,10 @@
 	let createOrgName = $state('');
 	let createOrgSlug = $state('');
 	let isCreating = $state(false);
+	let expandedFeaturesOrgId = $state<string | null>(null);
+	let orgFeatures = $state<Record<string, FeatureStatus[]>>({});
+	let loadingFeatures = $state<string | null>(null);
+	let togglingFeature = $state<string | null>(null);
 
 	// Load organizations
 	async function loadOrganizations() {
@@ -130,6 +143,53 @@
 			console.error('Failed to create organization:', e);
 		} finally {
 			isCreating = false;
+		}
+	}
+
+	// Feature management
+	async function toggleFeaturesPanel(orgId: string) {
+		if (expandedFeaturesOrgId === orgId) {
+			expandedFeaturesOrgId = null;
+			return;
+		}
+		expandedFeaturesOrgId = orgId;
+		if (!orgFeatures[orgId]) {
+			await loadOrgFeatures(orgId);
+		}
+	}
+
+	async function loadOrgFeatures(orgId: string) {
+		loadingFeatures = orgId;
+		try {
+			const features = await authFetch<FeatureStatus[]>(`/platform/orgs/${orgId}/features`);
+			orgFeatures = { ...orgFeatures, [orgId]: features };
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to load features';
+			console.error('Failed to load features:', e);
+		} finally {
+			loadingFeatures = null;
+		}
+	}
+
+	async function toggleFeature(orgId: string, featureKey: string, currentEnabled: boolean) {
+		togglingFeature = featureKey;
+		try {
+			await authFetch(`/platform/orgs/${orgId}/features/${featureKey}`, {
+				method: 'PUT',
+				body: { enabled: !currentEnabled }
+			});
+			// Update local state
+			orgFeatures = {
+				...orgFeatures,
+				[orgId]: orgFeatures[orgId].map(f =>
+					f.key === featureKey ? { ...f, enabled: !currentEnabled } : f
+				)
+			};
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to toggle feature';
+			console.error('Failed to toggle feature:', e);
+		} finally {
+			togglingFeature = null;
 		}
 	}
 
@@ -267,7 +327,7 @@
 				</thead>
 				<tbody class="divide-y divide-gray-200">
 					{#each orgs as org (org.id)}
-						<tr class="hover:bg-gray-50">
+						<tr class="hover:bg-gray-50" class:bg-purple-50={expandedFeaturesOrgId === org.id}>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<div class="flex items-center">
 									<div class="flex-shrink-0 h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
@@ -307,6 +367,18 @@
 								{formatDate(org.createdAt)}
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+								<button
+									onclick={() => toggleFeaturesPanel(org.id)}
+									class="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+										{expandedFeaturesOrgId === org.id
+											? 'text-purple-700 bg-purple-100 border border-purple-300'
+											: 'text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200'}"
+								>
+									<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+									</svg>
+									Features
+								</button>
 								<button
 									onclick={() => handlePlanChange(org)}
 									disabled={updatingPlanOrgId === org.id}
@@ -375,6 +447,58 @@
 								</button>
 							</td>
 						</tr>
+						{#if expandedFeaturesOrgId === org.id}
+							<tr>
+								<td colspan="6" class="px-6 py-4 bg-gray-50 border-t border-gray-100">
+									<div class="max-w-2xl">
+										<h3 class="text-sm font-semibold text-gray-700 mb-3">Feature Flags for {org.name}</h3>
+										{#if loadingFeatures === org.id}
+											<div class="flex items-center gap-2 text-sm text-gray-400 py-2">
+												<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+												</svg>
+												Loading features...
+											</div>
+										{:else if orgFeatures[org.id] && orgFeatures[org.id].length > 0}
+											<div class="space-y-3">
+												{#each orgFeatures[org.id] as feature (feature.key)}
+													<div class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+														<div class="flex-1 min-w-0 mr-4">
+															<div class="text-sm font-medium text-gray-900">{feature.label}</div>
+															<div class="text-xs text-gray-500 mt-0.5">{feature.description}</div>
+															{#if feature.enabled && feature.enabledAt}
+																<div class="text-xs text-gray-400 mt-1">
+																	Enabled {new Date(feature.enabledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+																	{#if feature.enabledBy}
+																		by {feature.enabledBy}
+																	{/if}
+																</div>
+															{/if}
+														</div>
+														<button
+															onclick={() => toggleFeature(org.id, feature.key, feature.enabled)}
+															disabled={togglingFeature === feature.key}
+															class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50
+																{feature.enabled ? 'bg-blue-600' : 'bg-gray-200'}"
+															role="switch"
+															aria-checked={feature.enabled}
+														>
+															<span
+																class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+																	{feature.enabled ? 'translate-x-5' : 'translate-x-0'}"
+															></span>
+														</button>
+													</div>
+												{/each}
+											</div>
+										{:else if orgFeatures[org.id]}
+											<p class="text-sm text-gray-400 py-2">No features available for configuration.</p>
+										{/if}
+									</div>
+								</td>
+							</tr>
+						{/if}
 					{/each}
 				</tbody>
 			</table>

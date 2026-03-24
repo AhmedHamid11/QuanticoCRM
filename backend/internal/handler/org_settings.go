@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"strings"
 
 	"github.com/fastcrm/backend/internal/entity"
@@ -13,15 +14,17 @@ import (
 
 // OrgSettingsHandler handles HTTP requests for org settings
 type OrgSettingsHandler struct {
-	repo        *repo.OrgSettingsRepo
-	auditLogger *service.AuditLogger
+	repo         *repo.OrgSettingsRepo
+	featuresRepo *repo.OrgFeaturesRepo
+	auditLogger  *service.AuditLogger
 }
 
 // NewOrgSettingsHandler creates a new OrgSettingsHandler
-func NewOrgSettingsHandler(repo *repo.OrgSettingsRepo, auditLogger *service.AuditLogger) *OrgSettingsHandler {
+func NewOrgSettingsHandler(repo *repo.OrgSettingsRepo, featuresRepo *repo.OrgFeaturesRepo, auditLogger *service.AuditLogger) *OrgSettingsHandler {
 	return &OrgSettingsHandler{
-		repo:        repo,
-		auditLogger: auditLogger,
+		repo:         repo,
+		featuresRepo: featuresRepo,
+		auditLogger:  auditLogger,
 	}
 }
 
@@ -72,7 +75,32 @@ func (h *OrgSettingsHandler) Get(c *fiber.Ctx) error {
 		}
 	}
 
-	return c.JSON(settings)
+	// Build combined response with features
+	response := fiber.Map{
+		"orgId":                  settings.OrgID,
+		"homePage":               settings.HomePage,
+		"idleTimeoutMinutes":     settings.IdleTimeoutMinutes,
+		"absoluteTimeoutMinutes": settings.AbsoluteTimeoutMinutes,
+		"accentColor":            settings.AccentColor,
+		"settingsJson":           settings.SettingsJSON,
+	}
+
+	// Include feature flags if repo is available
+	if h.featuresRepo != nil {
+		featuresRepo := h.featuresRepo
+		if tenantDB := middleware.GetTenantDBConn(c); tenantDB != nil {
+			featuresRepo = h.featuresRepo.WithDB(tenantDB)
+		}
+		featuresMap, err := featuresRepo.GetEnabledFeatures(c.Context())
+		if err != nil {
+			// Non-fatal: log and continue without features
+			log.Printf("[OrgSettings] Failed to load features for org %s: %v", orgID, err)
+		} else {
+			response["features"] = featuresMap
+		}
+	}
+
+	return c.JSON(response)
 }
 
 // UpdateHomePage updates the homepage setting

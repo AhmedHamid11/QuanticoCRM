@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { get, post, del } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { isFeatureEnabled } from '$lib/stores/navigation.svelte';
 
 	interface EmailTemplate {
 		id: string;
@@ -89,6 +90,10 @@
 	}
 
 	onMount(() => {
+		if (!isFeatureEnabled('cadences')) {
+			goto('/admin');
+			return;
+		}
 		loadTemplates();
 	});
 </script>

@@ -144,6 +144,7 @@ func main() {
 	versionRepo := repo.NewVersionRepo(masterDBConn)
 	migrationRepo := repo.NewMigrationRepo(masterDBConn)
 	orgSettingsRepo := repo.NewOrgSettingsRepo(masterDBConn)
+	orgFeaturesRepo := repo.NewOrgFeaturesRepo(masterDBConn)
 	auditRepo := repo.NewAuditRepo(masterDBConn)
 	matchingRuleRepo := repo.NewMatchingRuleRepo(masterDBConn)
 	pendingAlertRepo := repo.NewPendingAlertRepo(masterDBConn)
@@ -350,7 +351,8 @@ func main() {
 	pdfTemplateHandler := handler.NewPdfTemplateHandler(pdfTemplateRepo)
 	versionHandler := handler.NewVersionHandler(versionRepo, versionService, migrationRepo, authRepo)
 	schemaHandler := handler.NewSchemaHandler(masterDB, metadataRepo)
-	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo, auditLogger)
+	orgSettingsHandler := handler.NewOrgSettingsHandler(orgSettingsRepo, orgFeaturesRepo, auditLogger)
+	orgFeaturesHandler := handler.NewOrgFeaturesHandler(orgFeaturesRepo, dbManager, authRepo)
 	auditHandler := handler.NewAuditHandler(auditRepo)
 	dedupHandler := handler.NewDedupHandler(masterDBConn, matchingRuleRepo, pendingAlertRepo)
 	mergeHandler := handler.NewMergeHandler(masterDB, mergeRepo, mergeService, mergeDiscoveryService, metadataRepo)
@@ -594,6 +596,7 @@ func main() {
 
 	// Initialize PDF services
 	pdfTemplateService := service.NewPdfTemplateService(quoteRepo, pdfTemplateRepo)
+	pdfTemplateService.SetAuthRepo(authRepo)
 	pdfRenderer := service.NewWkhtmltopdfRenderer()
 	quoteHandler.SetPdfServices(pdfTemplateRepo, pdfTemplateService, pdfRenderer)
 
@@ -903,9 +906,12 @@ func main() {
 	gmailHandler.RegisterRoutes(adminProtected)
 
 	// Sequence engine - admin can create/manage sequences and enroll contacts
-	sequenceHandler.RegisterRoutes(adminProtected)
+	// Feature-gated: requires "cadences" feature to be enabled for the org
+	cadenceAdminProtected := adminProtected.Group("", FeatureRequired(orgFeaturesRepo, "cadences"))
+	sequenceHandler.RegisterRoutes(cadenceAdminProtected)
 	// Task queue - PRA daily task inbox (all authenticated users)
-	sequenceHandler.RegisterTaskRoutes(protected)
+	cadenceProtected := protected.Group("", FeatureRequired(orgFeaturesRepo, "cadences"))
+	sequenceHandler.RegisterTaskRoutes(cadenceProtected)
 
 	// Scheduling - all authenticated users can manage their own scheduling pages
 	schedulingHandler.RegisterRoutes(protected)
@@ -1028,6 +1034,9 @@ func main() {
 		return c.Status(fiber.StatusNoContent).Send(nil)
 	})
 
+	// Feature provisioning - platform admin can toggle features per org
+	orgFeaturesHandler.RegisterPlatformRoutes(platformAdmin)
+
 	// SECURITY: Data Explorer is only available to Platform Admin (super admin)
 	// This allows viewing ALL data across ALL organizations - only for debugging/support
 	dataExplorerHandler.RegisterRoutes(platformAdmin)
@@ -1041,6 +1050,36 @@ func main() {
 	log.Printf("Starting FastCRM API on port %s", port)
 	if err := app.Listen(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+// FeatureRequired returns a Fiber middleware that checks if a feature is enabled
+// for the current org. If the feature is not enabled, returns 403 FEATURE_DISABLED.
+func FeatureRequired(featureRepo *repo.OrgFeaturesRepo, featureKey string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		tenantDB := middleware.GetTenantDBConn(c)
+		if tenantDB == nil {
+			// No tenant context = skip check (shouldn't happen for protected routes)
+			return c.Next()
+		}
+		r := featureRepo.WithDB(tenantDB)
+		enabled, err := r.IsFeatureEnabled(c.Context(), featureKey)
+		if err != nil {
+			// On error (table doesn't exist, etc), default to disabled
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "This feature is not enabled for your organization",
+				"code":    "FEATURE_DISABLED",
+				"feature": featureKey,
+			})
+		}
+		if !enabled {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":   "This feature is not enabled for your organization",
+				"code":    "FEATURE_DISABLED",
+				"feature": featureKey,
+			})
+		}
+		return c.Next()
 	}
 }
 

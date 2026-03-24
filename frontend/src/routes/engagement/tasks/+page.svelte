@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { get, post, put } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { isFeatureEnabled } from '$lib/stores/navigation.svelte';
 
 	interface TaskView {
 		ExecutionID: string;
@@ -218,6 +220,10 @@
 	}
 
 	onMount(() => {
+		if (!isFeatureEnabled('cadences')) {
+			goto('/admin');
+			return;
+		}
 		loadTasks();
 		// Auto-refresh every 30 seconds
 		refreshInterval = setInterval(loadTasks, 30000);

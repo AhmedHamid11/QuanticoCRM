@@ -2,6 +2,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { post } from '$lib/utils/api';
 	import { addToast } from '$lib/stores/toast.svelte';
+	import { isFeatureEnabled } from '$lib/stores/navigation.svelte';
 
 	let isReprovisioning = $state(false);
 	let showRepairModal = $state(false);
@@ -53,9 +54,14 @@
 	const sectionOrder = ['Customization', 'Engagement', 'Data', 'Automation', 'System', 'Platform Administration'];
 
 	let filteredTiles = $derived.by(() => {
+		let result = tiles.filter(item => {
+			// Gate Engagement section behind cadences feature flag
+			if (item.section === 'Engagement' && !isFeatureEnabled('cadences')) return false;
+			return true;
+		});
 		const q = searchQuery.toLowerCase().trim();
-		if (!q) return tiles;
-		return tiles.filter(t =>
+		if (!q) return result;
+		return result.filter(t =>
 			t.title.toLowerCase().includes(q) ||
 			t.description.toLowerCase().includes(q) ||
 			t.section.toLowerCase().includes(q)

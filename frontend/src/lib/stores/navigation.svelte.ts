@@ -15,6 +15,7 @@ export interface OrgSettings {
     orgId: string;
     homePage: string;
     accentColor?: string;
+    features?: Record<string, boolean>;
 }
 
 // Navigation state
@@ -33,6 +34,7 @@ async function loadNavigation() {
             get<NavigationTab[]>('/navigation'),
             get<OrgSettings>('/settings').catch(() => null)
         ]);
+        orgSettings = settingsResult;
         tabs = navResult;
         // If API returns empty array, use fallback defaults
         // This handles orgs where navigation_tabs table exists but has no rows
@@ -44,7 +46,10 @@ async function loadNavigation() {
                 { id: 'nav_admin', label: 'Admin', href: '/admin', icon: 'settings', sortOrder: 100, isVisible: true, isSystem: true }
             ];
         }
-        orgSettings = settingsResult;
+        // Filter out Engagement tab if cadences feature is not enabled
+        if (!isFeatureEnabled('cadences')) {
+            tabs = tabs.filter(t => t.id !== 'nav_engagement');
+        }
     } catch (e) {
         error = e instanceof Error ? e.message : 'Failed to load navigation';
         // Fallback to default navigation
@@ -54,9 +59,18 @@ async function loadNavigation() {
             { id: 'nav_engagement', label: 'Engagement', href: '/engagement/tasks', icon: 'engagement', sortOrder: 5, isVisible: true, isSystem: true },
             { id: 'nav_admin', label: 'Admin', href: '/admin', icon: 'settings', sortOrder: 100, isVisible: true, isSystem: true }
         ];
+        // Filter out Engagement tab if cadences feature is not enabled
+        if (!isFeatureEnabled('cadences')) {
+            tabs = tabs.filter(t => t.id !== 'nav_engagement');
+        }
     } finally {
         loading = false;
     }
+}
+
+// Check if a feature is enabled for the current org
+export function isFeatureEnabled(key: string): boolean {
+    return orgSettings?.features?.[key] ?? false;
 }
 
 // Export reactive getters

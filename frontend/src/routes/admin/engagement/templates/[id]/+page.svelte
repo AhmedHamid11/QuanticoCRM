@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { get, post, put } from '$lib/utils/api';
 	import { toast } from '$lib/stores/toast.svelte';
+	import { isFeatureEnabled } from '$lib/stores/navigation.svelte';
 
 	interface EmailTemplate {
 		id: string;
@@ -182,6 +183,10 @@
 
 	// ---- Load ----
 	onMount(async () => {
+		if (!isFeatureEnabled('cadences')) {
+			goto('/admin');
+			return;
+		}
 		await Promise.all([loadTemplate(), loadGmailStatus()]);
 	});
 
